@@ -29,6 +29,8 @@ export type DetailAccount = {
   name: string;
   kind: "person" | "bank" | "cash" | "cost_center" | "project" | "other";
   is_active: boolean;
+  /** Customers: credit-sale limit in rials; null = no credit sales. */
+  credit_limit?: string | null;
   row_version: string;
 };
 

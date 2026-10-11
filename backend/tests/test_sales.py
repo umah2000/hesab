@@ -638,12 +638,10 @@ def test_returns_are_proportional_at_original_cost(app: Flask, pos: Pos) -> None
     )
     rest = body | {
         "lines": [{"original_line_id": line["id"], "qty": "2"}],
-        "refunds": [{"method": "cash", "amount": "220000"}],
+        "refunds": [{"method": "cash"}],  # amount filled in by the server
     }
-    assert (
-        sup.post(f"/api/v1/sales/invoices/{sale['id']}/returns", rest, idem=new_key()).status_code
-        == 201
-    )
+    done = sup.post(f"/api/v1/sales/invoices/{sale['id']}/returns", rest, idem=new_key())
+    assert done.status_code == 201 and done.get_json()["grand_total"] == "220000.0000"
     detail = sup.get(f"/api/v1/sales/invoices/{sale['id']}").get_json()
     assert detail["lines"][0]["returned_qty"] == "3.000"
     # 100 − 3 + 10 + 3

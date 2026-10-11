@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, true
 from sqlalchemy.orm import Session
 
 from app.core.db import utcnow
@@ -30,6 +30,7 @@ from app.modules.organization.models import CashRegister
 from app.modules.sales.models import SalesInvoice, SalesInvoiceLine, SalesPayment
 from app.modules.sales.schemas import (
     CheckoutIn,
+    CustomerOut,
     DailyRegisterRow,
     DailyReportOut,
     HoldIn,
@@ -201,6 +202,29 @@ def receivable_balance(s: Session, customer_id: uuid.UUID) -> Decimal:
         )
     )
     return Decimal(total or 0)
+
+
+def list_customers(s: Session, q: str | None) -> list[CustomerOut]:
+    stmt = select(DetailAccount).where(
+        DetailAccount.kind == "person", DetailAccount.is_active == true()
+    )
+    if q:
+        stmt = stmt.where(DetailAccount.name.contains(q) | DetailAccount.code.contains(q))
+    rows = list(s.scalars(stmt.order_by(DetailAccount.name).limit(30)))
+    out = []
+    for c in rows:
+        bal = receivable_balance(s, c.id)
+        out.append(
+            CustomerOut(
+                id=c.id,
+                code=c.code,
+                name=c.name,
+                credit_limit=c.credit_limit,
+                balance=bal,
+                available=c.credit_limit - bal if c.credit_limit is not None else None,
+            )
+        )
+    return out
 
 
 def _stock_document(
@@ -622,6 +646,10 @@ def create_return(s: Session, actor: Actor, invoice_id: uuid.UUID, data: ReturnI
     inv.tax_total = sum((r.tax for r, _ in rows), ZERO)
     inv.grand_total = sum((r.line_total for r, _ in rows), ZERO)
 
+    if len(data.refunds) == 1 and data.refunds[0].amount is None:
+        data.refunds[0].amount = inv.grand_total
+    if any(p.amount is None for p in data.refunds):
+        raise DomainError("مبلغ هر روش استرداد را وارد کنید", code="refund_amount_required")
     tender = _Tender()
     for p in data.refunds:
         if p.method == "card" and not p.card_reference:
@@ -632,7 +660,7 @@ def create_return(s: Session, actor: Actor, invoice_id: uuid.UUID, data: ReturnI
             raise DomainError(
                 "فاکتور اصلی مشتری ندارد؛ استرداد نسیه ممکن نیست", code="customer_required"
             )
-        setattr(tender, p.method, getattr(tender, p.method) + p.amount)
+        setattr(tender, p.method, getattr(tender, p.method) + (p.amount or ZERO))
     refunded = tender.cash + tender.card + tender.credit
     if refunded != inv.grand_total:
         raise DomainError(
@@ -644,7 +672,7 @@ def create_return(s: Session, actor: Actor, invoice_id: uuid.UUID, data: ReturnI
             SalesPayment(
                 seq=i,
                 method=p.method,
-                amount=p.amount,
+                amount=p.amount or ZERO,
                 card_reference=p.card_reference if p.method == "card" else None,
             )
         )

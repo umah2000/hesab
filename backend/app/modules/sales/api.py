@@ -21,6 +21,7 @@ from app.modules.sales.schemas import (
     ApprovalOut,
     CartIn,
     CheckoutIn,
+    CustomerOut,
     DailyReportOut,
     HoldIn,
     InvoiceOut,
@@ -273,6 +274,22 @@ def line_removal() -> ResponseReturnValue:
     data = parse_body(LineRemovalIn)
     with unit_of_work() as s:
         return to_json(invoices.record_line_removal(s, current_actor(), data), 201)
+
+
+class CustomerQuery(BaseModel):
+    q: str | None = Field(default=None, max_length=100)
+
+
+@bp.get("/customers")
+@require_any("sales.payment.credit", "sales.report.view")
+@doc("مشتریان نسیه با سقف و مانده اعتبار", query=CustomerQuery, response=[CustomerOut])
+def customers() -> ResponseReturnValue:
+    q = parse_query(CustomerQuery)
+    s = new_session()
+    try:
+        return to_json(list(invoices.list_customers(s, q.q)))
+    finally:
+        s.close()
 
 
 # --- promotions -------------------------------------------------------------

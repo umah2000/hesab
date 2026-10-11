@@ -243,10 +243,17 @@ class ReturnLineIn(_In):
     qty: Qty = Field(gt=0)
 
 
+class RefundIn(_In):
+    method: Literal["cash", "card", "credit"]
+    # Omit with a single refund: the server refunds exactly the computed return total.
+    amount: Money | None = Field(default=None, gt=0)
+    card_reference: str | None = Field(default=None, pattern=r"^[0-9]{4,32}$")
+
+
 class ReturnIn(_In):
     cash_register_id: uuid.UUID
     lines: list[ReturnLineIn] = Field(min_length=1, max_length=500)
-    refunds: list[PaymentIn] = Field(min_length=1, max_length=5)
+    refunds: list[RefundIn] = Field(min_length=1, max_length=5)
     reason: str = Field(min_length=2, max_length=300)
 
 
@@ -349,6 +356,18 @@ class TerminalInfoOut(BaseModel):
     verified: bool
     simulated: bool
     scenarios: list[str]
+
+
+# --- customers (credit sales) ------------------------------------------------
+
+
+class CustomerOut(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    credit_limit: Money | None
+    balance: Money
+    available: Money | None
 
 
 # --- reports ----------------------------------------------------------------

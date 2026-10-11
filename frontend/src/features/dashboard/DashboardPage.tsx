@@ -12,7 +12,9 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
+  TriangleAlert,
   Users,
+  Wallet,
 } from "lucide-react";
 import { Link } from "react-router";
 import { PageTitle } from "@/components/layout/AppShell";
@@ -29,8 +31,9 @@ import { cn } from "@/lib/utils";
 const ROADMAP = [
   { phase: 1, title: "کاربران، نقش‌ها و ممیزی", icon: ShieldCheck, status: "done" as const },
   { phase: 2, title: "هسته حسابداری", icon: BookOpenText, status: "done" as const },
-  { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "active" as const },
-  { phase: 4, title: "صندوق فروش و پایلوت", icon: ShoppingCart, status: "next" as const },
+  { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "done" as const },
+  { phase: 4, title: "صندوق فروش و پایلوت", icon: ShoppingCart, status: "active" as const },
+  { phase: 5, title: "خرید، خزانه و طرف‌حساب", icon: Wallet, status: "next" as const },
 ];
 
 function StatTile({
@@ -96,6 +99,13 @@ export function DashboardPage() {
     enabled: can("users.manage"),
   });
 
+  const backup = useQuery({
+    queryKey: ["system", "backups"],
+    queryFn: () => api.get<{ warnings: string[] }>("/system/backups"),
+    enabled: can(["settings.manage", "audit.view"]),
+    staleTime: 300_000,
+  });
+
   const dbUp = !ready.isError && ready.data?.database === "up";
 
   return (
@@ -104,6 +114,25 @@ export function DashboardPage() {
         title={`${me?.full_name ?? ""}، خوش آمدید`}
         subtitle={org.data ? org.data.name : undefined}
       />
+
+      {backup.data?.warnings.length ? (
+        <Card className="border-warning/40 p-4" role="alert">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
+            <div className="flex-1 text-sm">
+              <p className="font-bold text-ink">پشتیبان‌گیری نیاز به توجه دارد</p>
+              <ul className="mt-1 list-inside list-disc text-ink-soft">
+                {backup.data.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+            <Link to="/settings" className="text-sm text-brand-600 hover:underline dark:text-brand-300">
+              وضعیت پشتیبان‌گیری
+            </Link>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile

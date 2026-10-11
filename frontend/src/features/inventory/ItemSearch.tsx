@@ -8,7 +8,16 @@ import { cn } from "@/lib/utils";
 import type { ItemSummary, Lookup } from "./api";
 import { trimQty } from "./api";
 
-export type Picked = { item_id: string; code: string; name: string; unit_id?: string; qty?: string };
+export type Picked = {
+  item_id: string;
+  code: string;
+  name: string;
+  unit_id?: string;
+  qty?: string;
+  /** The scanned code, when resolved by lookup (scale labels are re-read by the server). */
+  barcode?: string;
+  source?: Lookup["source"];
+};
 
 /**
  * Scan or type. Enter with a barcode/code resolves it exactly (incl. scale labels);
@@ -16,8 +25,8 @@ export type Picked = { item_id: string; code: string; name: string; unit_id?: st
  */
 export const ItemSearch = React.forwardRef<
   HTMLInputElement,
-  { onPick: (p: Picked) => void; placeholder?: string; autoFocus?: boolean; className?: string }
->(({ onPick, placeholder = "اسکن بارکد یا جست‌وجوی نام/کد کالا", autoFocus, className }, ref) => {
+  { onPick: (p: Picked) => void; placeholder?: string; autoFocus?: boolean; className?: string; inputClassName?: string }
+>(({ onPick, placeholder = "اسکن بارکد یا جست‌وجوی نام/کد کالا", autoFocus, className, inputClassName }, ref) => {
   const qc = useQueryClient();
   const [text, setText] = React.useState("");
   const [results, setResults] = React.useState<ItemSummary[]>([]);
@@ -68,7 +77,7 @@ export const ItemSearch = React.forwardRef<
     setBusy(true);
     try {
       const l = await api.get<Lookup>(`/inventory/items/lookup?barcode=${encodeURIComponent(q)}`);
-      pick({ item_id: l.item_id, code: l.code, name: l.name, unit_id: l.unit_id, qty: trimQty(l.qty) });
+      pick({ item_id: l.item_id, code: l.code, name: l.name, unit_id: l.unit_id, qty: trimQty(l.qty), barcode: q, source: l.source });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "کالا یافت نشد");
       setText("");
@@ -87,7 +96,7 @@ export const ItemSearch = React.forwardRef<
         placeholder={placeholder}
         aria-label="اسکن یا جست‌وجوی کالا"
         aria-invalid={!!error || undefined}
-        className="h-12 ps-10 text-base"
+        className={cn("h-12 ps-10 text-base", inputClassName)}
         onChange={(e) => {
           setText(e.target.value);
           setError(null);

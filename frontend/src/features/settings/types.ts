@@ -5,6 +5,12 @@ export type Organization = {
   timezone: string;
   negative_stock_policy: "deny" | "warn" | "allow";
   last_offsite_backup_at: string | null;
+  default_vat_rate: string;
+  prices_include_vat: boolean;
+  cashier_discount_limit: string;
+  backup_warning_days: number;
+  receipt_header: string | null;
+  receipt_footer: string | null;
   row_version: string;
 };
 

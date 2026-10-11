@@ -593,6 +593,22 @@ def upgrade() -> None:
     for table, code in (("sales_invoice_line", "51104"), ("sales_payment", "51105")):
         op.execute(child_guard.replace("TABLE", table).replace("CODE", code))
 
+    # New permission for existing installs: system roles keep custom edits on sync, so the
+    # supervisor and manager roles get it here, once.
+    op.execute(
+        """
+        IF NOT EXISTS (SELECT 1 FROM permission WHERE code = 'sales.invoice.discount_over_limit')
+            INSERT INTO permission (code, group_name, label)
+            VALUES ('sales.invoice.discount_over_limit', N'فروش', N'تخفیف بالاتر از سقف / تأیید آن');
+        INSERT INTO role_permission (role_id, permission_code)
+        SELECT r.id, 'sales.invoice.discount_over_limit' FROM role r
+        WHERE r.code IN ('SUP', 'MGR') AND r.is_system = 1
+          AND NOT EXISTS (SELECT 1 FROM role_permission rp
+                          WHERE rp.role_id = r.id
+                            AND rp.permission_code = 'sales.invoice.discount_over_limit');
+        """
+    )
+
     # Readers must not block writers when 3–7 registers sell at once (ADR-0013):
     # plain reads see the last committed version; UPDLOCK/HOLDLOCK and
     # SELECT … FOR UPDATE in the services still lock exactly as before.
@@ -619,6 +635,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        "DELETE FROM role_permission WHERE permission_code = 'sales.invoice.discount_over_limit'"
+    )
     op.execute(
         """
         ALTER TRIGGER trg_voucher_line_guard ON voucher_line

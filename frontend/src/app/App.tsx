@@ -26,6 +26,16 @@ import { StockDocEditorPage, StockDocsPage } from "@/features/inventory/StockDoc
 import { LoginPage } from "@/features/auth/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { RolesPage } from "@/features/roles/RolesPage";
+import { PosPage } from "@/features/sales/PosPage";
+import {
+  CardTransactionsPage,
+  DailyReportPage,
+  InvoiceDetailPage,
+  InvoicesPage,
+  PromotionsPage,
+  SalesLayout,
+  ShiftsPage,
+} from "@/features/sales/SalesPages";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { UsersPage } from "@/features/users/UsersPage";
 
@@ -55,6 +65,8 @@ function NotFound() {
 }
 
 const router = createBrowserRouter([
+  // Full-screen register, outside the back-office shell.
+  { path: "/pos", element: <PosPage />, errorElement: <RouteError /> },
   {
     path: "/",
     element: <AppShell />,
@@ -92,6 +104,19 @@ const router = createBrowserRouter([
           { path: "labels", element: <LabelsPage /> },
           { path: "import", element: <ImportPage /> },
           { path: "settings", element: <InventorySettingsPage /> },
+        ],
+      },
+      {
+        path: "sales",
+        element: <SalesLayout />,
+        children: [
+          { index: true, element: <Navigate to="invoices" replace /> },
+          { path: "invoices", element: <InvoicesPage /> },
+          { path: "invoices/:id", element: <InvoiceDetailPage /> },
+          { path: "shifts", element: <ShiftsPage /> },
+          { path: "daily", element: <DailyReportPage /> },
+          { path: "promotions", element: <PromotionsPage /> },
+          { path: "card-transactions", element: <CardTransactionsPage /> },
         ],
       },
       { path: "login", element: <Navigate to="/" replace /> },

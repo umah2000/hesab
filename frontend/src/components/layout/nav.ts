@@ -4,6 +4,7 @@ import {
   ChartColumnBig,
   LayoutDashboard,
   type LucideIcon,
+  ReceiptText,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -27,7 +28,14 @@ export type NavItem = {
 
 export const NAV_MAIN: NavItem[] = [
   { to: "/", label: "داشبورد", icon: LayoutDashboard, keywords: "خانه dashboard" },
-  { to: "/pos", label: "صندوق فروش", icon: ShoppingCart, comingInPhase: 4 },
+  { to: "/pos", label: "صندوق فروش", icon: ShoppingCart, permission: "sales.pos.use", keywords: "صندوق فروش pos فاکتور" },
+  {
+    to: "/sales",
+    label: "فروش و شیفت‌ها",
+    icon: ReceiptText,
+    permission: ["sales.report.view", "sales.return.create", "inventory.price.manage", "payments.reconcile"],
+    keywords: "فاکتور برگشت شیفت پروموشن گزارش فروش",
+  },
   {
     to: "/inventory",
     label: "کالا و انبار",
