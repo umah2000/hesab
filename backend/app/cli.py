@@ -107,3 +107,20 @@ def register_cli(app: Flask) -> None:
                 data={"org": org_name, "admin": admin_username},
             )
         click.echo("setup complete")
+
+    @app.cli.command("backup")
+    def backup_cmd() -> None:
+        """Checksummed backup + RESTORE VERIFYONLY (run daily from Windows Task Scheduler)."""
+        from app.modules.system import backup
+
+        result = backup.run_backup(app.extensions["db_engine"], app.config["SETTINGS"])
+        click.echo(f"backup ok: {result.path} ({result.size_bytes or '?'} bytes, verified)")
+
+    @app.cli.command("backup-restore-test")
+    @click.option("--file", "path", default=None, help="فایل پشتیبان؛ پیش‌فرض آخرین نسخه موفق")
+    def restore_test_cmd(path: str | None) -> None:
+        """Restore a backup under a scratch name, run DBCC CHECKDB, compare, then drop it."""
+        from app.modules.system import backup
+
+        result = backup.restore_test(app.extensions["db_engine"], app.config["SETTINGS"], path)
+        click.echo(f"restore test ok: {result}")

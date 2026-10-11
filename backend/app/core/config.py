@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     # Mock payment terminal may never be enabled in production (see ADR-0008).
     enable_mock_payment_terminal: bool = False
 
+    # Backups (phase 4, risk R2). A folder on the SQL Server machine; empty = SQL Server's
+    # default backup folder. Keep this many recent files when the folder is local.
+    backup_dir: str | None = None
+    backup_keep: int = 14
+
     # Sessions (ADR-0004). Secure cookies require HTTPS; disable only on a trusted LAN.
     cookie_secure: bool = True
     session_idle_minutes: int = 120
