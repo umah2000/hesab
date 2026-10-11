@@ -37,7 +37,11 @@ export function useMe() {
 export function useCan() {
   const { data } = useMe();
   return React.useCallback(
-    (permission?: string) => !permission || Boolean(data?.permissions.includes(permission)),
+    (permission?: string | string[]) => {
+      if (!permission || (Array.isArray(permission) && permission.length === 0)) return true;
+      const wanted = Array.isArray(permission) ? permission : [permission];
+      return wanted.some((p) => data?.permissions.includes(p));
+    },
     [data],
   );
 }

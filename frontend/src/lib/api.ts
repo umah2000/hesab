@@ -76,6 +76,7 @@ export const api = {
     request<T>("PATCH", path, { body, version }),
   put: <T>(path: string, body: unknown, version: string) =>
     request<T>("PUT", path, { body, version }),
+  del: <T>(path: string, version: string) => request<T>("DELETE", path, { version }),
 };
 
 export function newIdempotencyKey(): string {

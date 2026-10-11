@@ -5,6 +5,14 @@ import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
+import { AccountingLayout } from "@/features/accounting/AccountingLayout";
+import { AccountsPage } from "@/features/accounting/AccountsPage";
+import { DetailsPage } from "@/features/accounting/DetailsPage";
+import { FiscalPage } from "@/features/accounting/FiscalPage";
+import { PostingRulesPage } from "@/features/accounting/PostingRulesPage";
+import { ReportsPage } from "@/features/accounting/ReportsPage";
+import { VoucherEditorPage } from "@/features/accounting/VoucherEditor";
+import { VouchersPage } from "@/features/accounting/VouchersPage";
 import { AuditPage } from "@/features/audit/AuditPage";
 import { AccountPage, ForcePasswordChange } from "@/features/auth/AccountPage";
 import { useMe, useUnauthorizedListener } from "@/features/auth/auth";
@@ -18,6 +26,19 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
+function RouteError() {
+  return (
+    <Card className="m-4">
+      <EmptyState
+        icon={Construction}
+        title="خطای غیرمنتظره در نمایش صفحه"
+        description="صفحه را تازه کنید. اگر تکرار شد، زمان رخداد را به پشتیبانی اطلاع دهید."
+        action={<a className="text-brand-600 underline" href="/">بازگشت به داشبورد</a>}
+      />
+    </Card>
+  );
+}
+
 function NotFound() {
   return (
     <Card>
@@ -30,6 +51,7 @@ const router = createBrowserRouter([
   {
     path: "/",
     element: <AppShell />,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "users", element: <UsersPage /> },
@@ -37,6 +59,20 @@ const router = createBrowserRouter([
       { path: "audit", element: <AuditPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "account", element: <AccountPage /> },
+      {
+        path: "accounting",
+        element: <AccountingLayout />,
+        children: [
+          { index: true, element: <Navigate to="vouchers" replace /> },
+          { path: "vouchers", element: <VouchersPage /> },
+          { path: "vouchers/:id", element: <VoucherEditorPage /> },
+          { path: "reports", element: <ReportsPage /> },
+          { path: "accounts", element: <AccountsPage /> },
+          { path: "details", element: <DetailsPage /> },
+          { path: "fiscal-years", element: <FiscalPage /> },
+          { path: "posting-rules", element: <PostingRulesPage /> },
+        ],
+      },
       { path: "login", element: <Navigate to="/" replace /> },
       { path: "*", element: <NotFound /> },
     ],

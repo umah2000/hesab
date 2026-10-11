@@ -27,6 +27,9 @@
 15. شرط بولی در SQLAlchemy برای SQL Server با `== true()`؛ `.is_(True)` روی SQL Server خطا می‌دهد.
 16. UI: شیشه فقط برای قاب‌ها؛ داده روی `surface`. وضعیت با متن + آیکون. بدون CDN. ماژول پیاده‌نشده در منو غیرفعال با «فاز N»؛ عدد ساختگی در داشبورد ممنوع (docs/design/README.md).
 
+17. حسابداری: سند فقط پیش‌نویس ← قطعی ← برگشت (ADR-0011). سند خودکار فقط با `post_event` و داخل همان unit of work سند مبدأ. triggerهای دیتابیس را دور نزن.
+18. جداولی که trigger دارند باید `implicit_returning: False` داشته باشند (SQL Server با OUTPUT بدون INTO خطا می‌دهد).
+
 ## روال کار
 - شاخه از `main`، PR، CI سبز. Conventional Commits.
 - تغییر مدل داده = Migration Alembic + تست upgrade/downgrade.

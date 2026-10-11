@@ -124,6 +124,7 @@ body {
 
 @utility tabular {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 :focus-visible {

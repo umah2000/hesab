@@ -27,9 +27,9 @@ import { formatDate, formatDateTime, formatTime, toFaDigits } from "@/lib/format
 import { cn } from "@/lib/utils";
 
 const ROADMAP = [
-  { phase: 1, title: "کاربران، نقش‌ها و ممیزی", icon: ShieldCheck, status: "active" as const },
-  { phase: 2, title: "هسته حسابداری", icon: BookOpenText, status: "next" as const },
-  { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "later" as const },
+  { phase: 1, title: "کاربران، نقش‌ها و ممیزی", icon: ShieldCheck, status: "done" as const },
+  { phase: 2, title: "هسته حسابداری", icon: BookOpenText, status: "active" as const },
+  { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "next" as const },
   { phase: 4, title: "صندوق فروش و پایلوت", icon: ShoppingCart, status: "later" as const },
 ];
 
@@ -203,7 +203,7 @@ export function DashboardPage() {
                   <p className="text-sm font-medium text-ink">{r.title}</p>
                   <p className="text-xs text-ink-faint">فاز {toFaDigits(r.phase)}</p>
                 </div>
-                {r.status === "active" ? <Badge tone="brand" icon={false}>فعال</Badge> : r.status === "next" ? <Badge tone="info" icon={false}>بعدی</Badge> : null}
+                {r.status === "done" ? <Badge tone="success">انجام شد</Badge> : r.status === "active" ? <Badge tone="brand" icon={false}>فعال</Badge> : r.status === "next" ? <Badge tone="info" icon={false}>بعدی</Badge> : null}
               </div>
             ))}
           </CardBody>

@@ -38,6 +38,15 @@ Button (primary / secondary / ghost / danger / outline، حالت loading)، Inp
 | `screenshots/09-command-palette-dark.png` | پرش سریع Ctrl+K | — |
 | `screenshots/10-users-mobile.png` | موبایل | واقعی |
 | `screenshots/11-pos-mockup.png` | **طرح پیشنهادی صندوق (فاز ۴)** | **نمونه** — `mockups/pos.html` |
+| `screenshots/12-vouchers.png` | فهرست اسناد | واقعی |
+| `screenshots/13-voucher-editor.png` | ثبت سند با صفحه‌کلید | واقعی (e2e) |
+| `screenshots/14-voucher-final.png` | سند قطعی | واقعی |
+| `screenshots/15-voucher-unbalanced-draft.png` | پیش‌نویس نامتوازن | واقعی |
+| `screenshots/16-chart-of-accounts.png` | کدینگ درختی | واقعی |
+| `screenshots/17-trial-balance.png` | تراز آزمایشی سطح کل | واقعی |
+| `screenshots/18-ledger.png` | دفتر معین بانک با مانده جاری | واقعی |
+| `screenshots/19-fiscal-years.png` | سال و دوره مالی | واقعی |
+| `screenshots/20-posting-rules.png` | قواعد ثبت خودکار | واقعی |
 
 ## طرح صندوق (فاز ۴) — تصمیم‌های کلیدی
 - فیلد اسکن همیشه فوکوس دارد و بزرگ است؛ نتیجه آخرین اسکن کنار آن نمایش داده می‌شود.

@@ -87,7 +87,7 @@ export function SidebarContent() {
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto" aria-label="منوی اصلی">
-        {NAV_MAIN.map((item) => (
+        {NAV_MAIN.filter((i) => i.comingInPhase || can(i.permission)).map((item) => (
           <Item key={item.to} item={item} />
         ))}
         {admin.length ? (

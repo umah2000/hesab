@@ -25,11 +25,17 @@
 | ۱ ✅ | GET/POST/PATCH | `/organization/branches` · `/branches/{id}` | نشست / `branches.manage` | |
 | ۱ ✅ | GET/POST/PATCH | `/organization/branches/{id}/cash-registers` · `/organization/cash-registers` | نشست / `branches.manage` | |
 | ۱ ✅ | GET | `/openapi.json` | عمومی | مستند OpenAPI 3.1 |
-| ۲ | CRUD | `/accounting/accounts` · `/accounting/detail-accounts` | `accounting.account.*` | |
-| ۲ | CRUD | `/accounting/fiscal-years` · `POST /{id}/close` | `accounting.fiscal.*` | |
-| ۲ | POST | `/accounting/vouchers` | `accounting.voucher.create` | |
-| ۲ | POST | `/accounting/vouchers/{id}/finalize` · `/reverse` | `.finalize` · `.reverse` | |
-| ۲ | GET | `/accounting/reports/trial-balance` · `/ledger` · `/journal` | `accounting.report.view` | |
+| ۲ ✅ | GET/POST/PATCH | `/accounting/accounts` · `/accounts/{id}` | خواندن: هر مجوز حسابداری / نوشتن: `accounting.account.manage` | |
+| ۲ ✅ | GET/POST/PATCH | `/accounting/detail-accounts` · `/detail-accounts/{id}` | همان | |
+| ۲ ✅ | GET/POST | `/accounting/fiscal-years` | خواندن / `accounting.fiscal.close` | ایجاد با سال شمسی |
+| ۲ ✅ | PUT | `/accounting/fiscal-periods/{id}/lock` | `accounting.fiscal.close` | |
+| ۲ ✅ | POST | `/accounting/fiscal-years/{id}/close` | `accounting.fiscal.close` | بستن سال |
+| ۲ ✅ | GET | `/accounting/vouchers` · `/vouchers/{id}` | هر مجوز حسابداری | فیلتر سال/وضعیت/تاریخ/شماره |
+| ۲ ✅ | POST/PUT/DELETE | `/accounting/vouchers` · `/vouchers/{id}` | `accounting.voucher.create` | فقط پیش‌نویس |
+| ۲ ✅ | POST | `/accounting/vouchers/{id}/finalize` | `accounting.voucher.finalize` | If-Match |
+| ۲ ✅ | POST | `/accounting/vouchers/{id}/reverse` | `accounting.voucher.reverse` | If-Match |
+| ۲ ✅ | GET/PUT | `/accounting/posting-rules` | خواندن / `accounting.account.manage` | |
+| ۲ ✅ | GET | `/accounting/reports/trial-balance` · `/ledger` · `/journal` | `accounting.report.view` | |
 | ۳ | CRUD | `/inventory/items` · `/item-groups` · `/units` · `/price-lists` | `inventory.item.*` | |
 | ۳ | GET | `/inventory/items/lookup?barcode=` | `sales.pos.use` | **مسیر داغ صندوق**؛ بارکد ترازو را هم تجزیه می‌کند |
 | ۳ | POST | `/inventory/stock-documents` · `/{id}/finalize` | `inventory.stock.*` | رسید/حواله/انتقال/تعدیل |

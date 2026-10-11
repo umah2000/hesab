@@ -27,13 +27,14 @@
 ## ۲. حسابداری (فاز ۲)
 | جدول | ستون‌های کلیدی | نکته |
 |---|---|---|
-| `account` | code (UQ), name, level (group/general/subsidiary), parent_id, nature (debit/credit/both), is_postable, is_active | درختی |
-| `detail_account` | code (UQ), name, type (party/cost_center/bank/...), ref_id? | تفصیلی |
-| `fiscal_year` | title, start_date, end_date, status (open/closing/closed) | |
+| `account` | code (UQ), name, level (group/general/subsidiary), parent_id, category (asset/liability/equity/revenue/expense), nature (debit/credit/none), requires_detail, is_active, is_system | درختی |
+| `detail_account` | code (UQ), name, kind (person/bank/cash/cost_center/project/other), is_active | تفصیلی |
+| `fiscal_year` | title, jalali_year (UQ), start_date, end_date, status (open/closed), closed_at | |
 | `fiscal_period` | fiscal_year_id, start_date, end_date, is_locked | |
-| `voucher` | branch_id, fiscal_year_id, number?, document_date, status (draft/provisional/final/reversed), source_type, source_id, description, reversed_by_id? | سند |
+| `voucher` | branch_id? (NULL = سطح سازمان: افتتاحیه/اختتامیه), fiscal_year_id, number? (فقط قطعی), document_date, status (draft/final), source_type (manual/auto/reversal/opening/closing), source_ref, source_id, total_debit, total_credit, reversal_of_id?, reversed_by_id? | سند — ADR-0011؛ trigger تغییرناپذیری |
 | `voucher_line` | voucher_id, line_no, account_id, detail_account_id?, debit, credit, description | CHECK (debit>=0 AND credit>=0 AND (debit=0 OR credit=0)) |
-| `posting_rule` | event_type, line_role, account_id, detail_source, side | [`posting-rules.md`](../architecture/posting-rules.md) |
+| `posting_rule` | event_type, line_role (UQ با هم), account_id | [`posting-rules.md`](../architecture/posting-rules.md)؛ کاتالوگ رویدادها در `accounting/defaults.py` |
+| `number_sequence` | doc_type, fiscal_year_id, branch_id? (UQ), next_value | شماره بدون فاصله با قفل ردیفی |
 
 Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(fiscal_year_id, status, document_date)`.
 
