@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     # Mock payment terminal may never be enabled in production (see ADR-0008).
     enable_mock_payment_terminal: bool = False
 
+    # Sessions (ADR-0004). Secure cookies require HTTPS; disable only on a trusted LAN.
+    cookie_secure: bool = True
+    session_idle_minutes: int = 120
+    session_absolute_hours: int = 12
+    login_rate_limit: str = "10 per minute"
+    max_failed_logins: int = 5
+    lockout_minutes: int = 15
+
     @field_validator("database_url")
     @classmethod
     def _require_mssql(cls, v: SecretStr) -> SecretStr:
@@ -31,6 +39,13 @@ class Settings(BaseSettings):
     def _no_mock_in_production(cls, v: bool, info: ValidationInfo) -> bool:
         if v and info.data.get("env") == "production":
             raise ValueError("mock payment terminal cannot be enabled in production")
+        return v
+
+    @field_validator("secret_key")
+    @classmethod
+    def _strong_secret_in_production(cls, v: SecretStr, info: ValidationInfo) -> SecretStr:
+        if info.data.get("env") == "production" and len(v.get_secret_value()) < 32:
+            raise ValueError("secret_key must be at least 32 characters in production")
         return v
 
 

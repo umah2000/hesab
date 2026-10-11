@@ -11,6 +11,8 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "structlog>=24.4",
+    "argon2-cffi>=23.1",
+    "flask-limiter>=3.8",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +42,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "SIM"]
-ignore = ["S101"]
+ignore = ["S101", "UP047"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S105", "S106"]

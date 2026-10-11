@@ -17,3 +17,13 @@ def test_upgrade_and_downgrade_roundtrip(db_url: str) -> None:
     command.upgrade(cfg, "head")
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
+
+
+@pytest.mark.db
+def test_models_match_migrations(db_url: str) -> None:
+    """Fails when a model changed without a migration."""
+    cfg = Config(str(BACKEND / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND / "migrations"))
+    cfg.attributes["database_url"] = db_url
+    command.upgrade(cfg, "head")
+    command.check(cfg)

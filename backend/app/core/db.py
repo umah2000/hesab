@@ -6,23 +6,35 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from typing import Any
 
 from flask import Flask, current_app
-from sqlalchemy import DateTime, MetaData, create_engine, func
-from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
+from sqlalchemy import DateTime, FetchedValue, MetaData, create_engine, func
+from sqlalchemy.dialects.mssql import ROWVERSION, UNIQUEIDENTIFIER
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    Session,
+    declared_attr,
+    mapped_column,
+    sessionmaker,
+)
 
 from app.core.config import Settings
 
 # Deterministic constraint names keep Alembic migrations stable on SQL Server.
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
     "ck": "ck_%(table_name)s_%(constraint_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s",
 }
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 class Base(DeclarativeBase):
@@ -39,9 +51,34 @@ class EntityMixin:
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.sysutcdatetime(),
-        onupdate=lambda: datetime.now(UTC),
+        onupdate=utcnow,
         nullable=False,
     )
+
+
+class ActorMixin:
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UNIQUEIDENTIFIER, nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(UNIQUEIDENTIFIER, nullable=True)
+
+
+class VersionedMixin:
+    """Optimistic concurrency via SQL Server ROWVERSION (ADR-0006).
+
+    SQLAlchemy adds ``WHERE row_version = :old`` to every UPDATE and raises
+    StaleDataError when another writer got there first.
+    """
+
+    row_version: Mapped[bytes] = mapped_column(
+        ROWVERSION, nullable=False, server_default=FetchedValue(), server_onupdate=FetchedValue()
+    )
+
+    @declared_attr.directive
+    def __mapper_args__(cls) -> dict[str, Any]:  # noqa: N805
+        return {"version_id_col": cls.row_version, "version_id_generator": False}
+
+
+def version_to_str(v: bytes) -> str:
+    return v.hex()
 
 
 def build_engine(settings: Settings) -> Engine:
@@ -58,11 +95,15 @@ def init_db(app: Flask, settings: Settings) -> None:
     app.extensions["db_sessionmaker"] = sessionmaker(bind=engine, expire_on_commit=False)
 
 
+def new_session() -> Session:
+    factory: sessionmaker[Session] = current_app.extensions["db_sessionmaker"]
+    return factory()
+
+
 @contextmanager
 def unit_of_work() -> Iterator[Session]:
     """One transaction per business operation: commit on success, rollback on any error."""
-    factory: sessionmaker[Session] = current_app.extensions["db_sessionmaker"]
-    session = factory()
+    session = new_session()
     try:
         yield session
         session.commit()

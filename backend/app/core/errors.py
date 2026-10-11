@@ -8,6 +8,8 @@ import structlog
 from flask import Flask, jsonify
 from flask.typing import ResponseReturnValue
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 from werkzeug.exceptions import HTTPException
 
 log = structlog.get_logger(__name__)
@@ -55,10 +57,29 @@ def register_error_handlers(app: Flask) -> None:
         details = [{"loc": list(err["loc"]), "msg": err["msg"]} for err in e.errors()]
         return _error(400, "validation_error", "ورودی نامعتبر است", details=details)
 
+    @app.errorhandler(StaleDataError)
+    def _stale(e: StaleDataError) -> ResponseReturnValue:
+        return _error(409, "version_conflict", "این رکورد هم‌زمان تغییر کرده است؛ صفحه را تازه کنید")
+
+    @app.errorhandler(IntegrityError)
+    def _integrity(e: IntegrityError) -> ResponseReturnValue:
+        incident = uuid.uuid4().hex[:12]
+        log.warning("integrity_error", incident=incident, error=str(e.orig)[:500])
+        return _error(409, "conflict", "اطلاعات تکراری یا ناسازگار است", incident=incident)
+
     @app.errorhandler(HTTPException)
     def _http(e: HTTPException) -> ResponseReturnValue:
+        messages = {
+            404: "مسیر یافت نشد",
+            405: "این روش برای مسیر مجاز نیست",
+            413: "حجم درخواست بیش از حد مجاز است",
+            429: "تعداد درخواست‌ها بیش از حد مجاز است؛ کمی صبر کنید",
+        }
+        code = e.code or 500
         return _error(
-            e.code or 500, (e.name or "http_error").lower().replace(" ", "_"), e.description or ""
+            code,
+            (e.name or "http_error").lower().replace(" ", "_"),
+            messages.get(code, e.description or ""),
         )
 
     @app.errorhandler(Exception)
