@@ -8,6 +8,8 @@ from sqlalchemy import select
 
 from app.core.db import unit_of_work
 from app.core.security import hash_password
+from app.modules.accounting.services.chart import seed_defaults
+from app.modules.accounting.services.fiscal import current_jalali_year, ensure_year
 from app.modules.audit import service as audit
 from app.modules.iam.models import AppUser, Role, UserScope
 from app.modules.iam.permissions import ADMIN_ROLE
@@ -24,6 +26,14 @@ def register_cli(app: Flask) -> None:
         with unit_of_work() as s:
             sync_catalog(s)
         click.echo("permissions synced")
+
+    @app.cli.command("seed-accounting")
+    def seed_accounting() -> None:
+        """Default chart of accounts, posting rules and the current fiscal year (idempotent)."""
+        with unit_of_work() as s:
+            seeded = seed_defaults(s)
+            ensure_year(s, current_jalali_year())
+        click.echo("chart seeded" if seeded else "chart already present; posting rules completed")
 
     @app.cli.command("setup")
     @click.option("--org-name", required=True, help="نام سازمان/فروشگاه")
@@ -48,6 +58,8 @@ def register_cli(app: Flask) -> None:
         with unit_of_work() as s:
             ensure_organization(s, org_name)
             sync_catalog(s)
+            seed_defaults(s)
+            ensure_year(s, current_jalali_year())
             code = branch_code.upper()
             if s.scalar(select(Branch).where(Branch.code == code)) is None:
                 s.add(Branch(code=code, name=branch_name, is_active=True))

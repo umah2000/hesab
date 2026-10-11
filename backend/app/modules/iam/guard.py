@@ -95,3 +95,25 @@ def require(permission: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
         return wrapper
 
     return decorator
+
+
+def require_any(*permissions: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Read access shared by several roles (e.g. vouchers: preparer, approver, auditor)."""
+    from app.modules.iam.permissions import CODES
+
+    unknown = set(permissions) - CODES
+    if unknown or not permissions:
+        raise ValueError(f"unknown permissions {unknown!r}")
+
+    def decorator(fn: Callable[P, R]) -> Callable[P, R]:
+        @wraps(fn)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            actor = _authenticate()
+            if not any(actor.has(p) for p in permissions):
+                raise PermissionDeniedError("شما مجوز این عملیات را ندارید")
+            return fn(*args, **kwargs)
+
+        wrapper.required_permission = " | ".join(permissions)  # type: ignore[attr-defined]
+        return wrapper
+
+    return decorator

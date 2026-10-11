@@ -29,6 +29,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     from app import models  # noqa: F401
     from app.cli import register_cli
     from app.core.openapi import bp as openapi_bp
+    from app.modules.accounting.api import bp as accounting_bp
     from app.modules.audit.api import bp as audit_bp
     from app.modules.iam.api import auth_bp, roles_bp, users_bp
     from app.modules.organization.api import bp as org_bp
@@ -42,5 +43,6 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(roles_bp, url_prefix=f"{api}/roles")
     app.register_blueprint(org_bp, url_prefix=f"{api}/organization")
     app.register_blueprint(audit_bp, url_prefix=f"{api}/audit")
+    app.register_blueprint(accounting_bp, url_prefix=f"{api}/accounting")
     register_cli(app)
     return app

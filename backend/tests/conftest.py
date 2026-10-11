@@ -37,6 +37,14 @@ PASSWORD = "Test-Passw0rd"
 
 # Child tables first. audit_event needs its append-only trigger lifted for cleanup.
 _TABLES = [
+    "voucher_line",
+    "voucher",
+    "posting_rule",
+    "number_sequence",
+    "fiscal_period",
+    "fiscal_year",
+    "detail_account",
+    "account",
     "idempotency_record",
     "user_session",
     "user_scope",
@@ -78,11 +86,20 @@ def _wipe(url: str) -> None:
         exists = conn.scalar(text("SELECT OBJECT_ID('audit_event')"))
         if exists is None:
             return
-        conn.execute(text("DISABLE TRIGGER trg_audit_event_append_only ON audit_event"))
+        guarded = [("trg_audit_event_append_only", "audit_event")]
+        if conn.scalar(text("SELECT OBJECT_ID('voucher')")) is not None:
+            guarded += [
+                ("trg_voucher_guard", "voucher"),
+                ("trg_voucher_line_guard", "voucher_line"),
+            ]
+        for trg, tbl in guarded:
+            conn.execute(text(f"DISABLE TRIGGER {trg} ON {tbl}"))
         conn.execute(text("DELETE FROM audit_event"))
-        conn.execute(text("ENABLE TRIGGER trg_audit_event_append_only ON audit_event"))
         for t in _TABLES:
-            conn.execute(text(f"DELETE FROM {t}"))  # noqa: S608 - fixed table list
+            if conn.scalar(text(f"SELECT OBJECT_ID('{t}')")) is not None:
+                conn.execute(text(f"DELETE FROM {t}"))  # noqa: S608 - fixed table list
+        for trg, tbl in guarded:
+            conn.execute(text(f"ENABLE TRIGGER {trg} ON {tbl}"))
     engine.dispose()
 
 
