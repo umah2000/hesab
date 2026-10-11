@@ -78,6 +78,8 @@ class DetailAccount(EntityMixin, ActorMixin, VersionedMixin, Base):
     name: Mapped[str] = mapped_column(Unicode(150))
     kind: Mapped[str] = mapped_column(String(12))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Customers only: NULL = no credit sales allowed (phase 4).
+    credit_limit: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
 
 
 class FiscalYear(EntityMixin, ActorMixin, VersionedMixin, Base):

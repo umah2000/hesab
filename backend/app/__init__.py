@@ -34,6 +34,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     from app.modules.iam.api import auth_bp, roles_bp, users_bp
     from app.modules.inventory.api import bp as inventory_bp
     from app.modules.organization.api import bp as org_bp
+    from app.modules.sales.api import bp as sales_bp
+    from app.modules.sales.api import payments_bp
     from app.modules.system.api import bp as system_bp
 
     api = "/api/v1"
@@ -46,5 +48,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(audit_bp, url_prefix=f"{api}/audit")
     app.register_blueprint(accounting_bp, url_prefix=f"{api}/accounting")
     app.register_blueprint(inventory_bp, url_prefix=f"{api}/inventory")
+    app.register_blueprint(sales_bp, url_prefix=f"{api}/sales")
+    app.register_blueprint(payments_bp, url_prefix=f"{api}/payments")
     register_cli(app)
     return app

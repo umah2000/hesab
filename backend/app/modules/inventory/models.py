@@ -172,12 +172,17 @@ class Warehouse(EntityMixin, ActorMixin, VersionedMixin, Base):
 
 
 STOCK_DOC_TYPES = ("opening", "adjustment", "transfer", "count")
+# Created by other modules (sales, later purchasing), never by hand.
+SYSTEM_DOC_TYPES = ("sale", "sale_return")
 
 
 class StockDocument(EntityMixin, ActorMixin, VersionedMixin, Base):
     __tablename__ = "stock_document"
     __table_args__ = (
-        CheckConstraint("doc_type IN ('opening','adjustment','transfer','count')", name="doc_type"),
+        CheckConstraint(
+            "doc_type IN ('opening','adjustment','transfer','count','sale','sale_return')",
+            name="doc_type",
+        ),
         CheckConstraint("status IN ('draft','final')", name="status"),
         CheckConstraint(
             "(doc_type = 'transfer' AND dest_warehouse_id IS NOT NULL "
@@ -194,6 +199,7 @@ class StockDocument(EntityMixin, ActorMixin, VersionedMixin, Base):
             mssql_where=text("number IS NOT NULL"),
         ),
         Index("ix_stock_document_wh_date", "warehouse_id", "document_date"),
+        Index("ix_stock_document_source", "source_type", "source_id"),
     )
 
     branch_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("branch.id"))
@@ -208,6 +214,9 @@ class StockDocument(EntityMixin, ActorMixin, VersionedMixin, Base):
     voucher_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("voucher.id"))
     # A finalised count produces an adjustment that points back at it.
     source_document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("stock_document.id"))
+    # Owning document of another module, e.g. ("sales_invoice", id). No FK across modules.
+    source_type: Mapped[str | None] = mapped_column(String(16))
+    source_id: Mapped[uuid.UUID | None] = mapped_column(UNIQUEIDENTIFIER)
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     lines: Mapped[list[StockDocumentLine]] = relationship(

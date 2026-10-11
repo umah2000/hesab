@@ -29,8 +29,26 @@ from app.modules.inventory.models import (
     Warehouse,
 )
 from app.modules.organization.models import Branch, CashRegister, Organization
+from app.modules.sales.models import (
+    CashShift,
+    Promotion,
+    SalesApproval,
+    SalesInvoice,
+    SalesInvoiceLine,
+    SalesPayment,
+    TerminalTransaction,
+)
+from app.modules.system.models import BackupLog
 
 __all__ = [
+    "BackupLog",
+    "CashShift",
+    "Promotion",
+    "SalesApproval",
+    "SalesInvoice",
+    "SalesInvoiceLine",
+    "SalesPayment",
+    "TerminalTransaction",
     "Item",
     "ItemBarcode",
     "ItemGroup",

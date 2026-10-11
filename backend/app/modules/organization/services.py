@@ -46,6 +46,12 @@ def _org_out(o: Organization) -> OrganizationOut:
         timezone=o.timezone,
         negative_stock_policy=o.negative_stock_policy,  # type: ignore[arg-type]
         last_offsite_backup_at=o.last_offsite_backup_at,
+        default_vat_rate=o.default_vat_rate,
+        prices_include_vat=o.prices_include_vat,
+        cashier_discount_limit=o.cashier_discount_limit,
+        backup_warning_days=o.backup_warning_days,
+        receipt_header=o.receipt_header,
+        receipt_footer=o.receipt_footer,
         row_version=version_to_str(o.row_version),
     )
 

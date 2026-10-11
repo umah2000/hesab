@@ -31,6 +31,7 @@ def register_cli(app: Flask) -> None:
 
     def _seed_all() -> bool:
         with unit_of_work() as s:
+            sync_catalog(s)
             seeded = seed_defaults(s)
             ensure_year(s, current_jalali_year())
             seed_catalog(s)

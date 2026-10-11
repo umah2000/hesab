@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from decimal import Decimal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class OrganizationOut(BaseModel):
@@ -14,7 +15,17 @@ class OrganizationOut(BaseModel):
     timezone: str
     negative_stock_policy: Literal["deny", "warn", "allow"]
     last_offsite_backup_at: datetime | None
+    default_vat_rate: Decimal
+    prices_include_vat: bool
+    cashier_discount_limit: Decimal
+    backup_warning_days: int
+    receipt_header: str | None
+    receipt_footer: str | None
     row_version: str
+
+    @field_serializer("default_vat_rate", "cashier_discount_limit")
+    def _rate(self, v: Decimal) -> str:
+        return format(v.normalize(), "f")
 
 
 class OrganizationUpdateIn(BaseModel):
@@ -23,6 +34,16 @@ class OrganizationUpdateIn(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=200)
     display_currency: Literal["IRR", "IRT"] | None = None
     negative_stock_policy: Literal["deny", "warn", "allow"] | None = None
+    default_vat_rate: (
+        Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None
+    ) = None
+    prices_include_vat: bool | None = None
+    cashier_discount_limit: (
+        Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None
+    ) = None
+    backup_warning_days: int | None = Field(default=None, ge=1, le=60)
+    receipt_header: str | None = Field(default=None, max_length=500)
+    receipt_footer: str | None = Field(default=None, max_length=500)
 
 
 class BranchOut(BaseModel):

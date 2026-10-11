@@ -520,13 +520,24 @@ def save_scale_rule(
 
 
 def _price(s: Session, item: Item, unit_id: uuid.UUID, price_list_id: uuid.UUID) -> Decimal | None:
-    return s.scalar(
-        select(ItemPrice.price).where(
-            ItemPrice.item_id == item.id,
-            ItemPrice.unit_id == unit_id,
-            ItemPrice.price_list_id == price_list_id,
+    """Price of the unit; without one, the base-unit price times the unit's factor."""
+    prices = {
+        p.unit_id: p.price
+        for p in s.scalars(
+            select(ItemPrice).where(
+                ItemPrice.item_id == item.id, ItemPrice.price_list_id == price_list_id
+            )
         )
+    }
+    if unit_id in prices:
+        return prices[unit_id]
+    base = prices.get(item.base_unit_id)
+    if base is None or unit_id == item.base_unit_id:
+        return base
+    factor = s.scalar(
+        select(ItemUnit.factor).where(ItemUnit.item_id == item.id, ItemUnit.unit_id == unit_id)
     )
+    return (base * factor).quantize(Decimal(1), rounding=ROUND_HALF_UP) if factor else None
 
 
 def lookup(s: Session, raw: str, price_list_id: uuid.UUID | None = None) -> LookupOut:

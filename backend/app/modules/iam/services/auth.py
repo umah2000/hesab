@@ -56,66 +56,78 @@ class LoginResult:
     expires_at: datetime
 
 
+def check_credentials(
+    s: Session, username: str, password: str, *, purpose: str = "login"
+) -> AppUser | None:
+    """Verify a password with lockout bookkeeping; ``None`` on any failure.
+
+    Used by login and by supervisor approvals on a register. Failures are recorded
+    in the caller's unit of work, which must be committed even though the request fails.
+    """
+    settings = _settings()
+    now = utcnow()
+    failed = "auth.login_failed" if purpose == "login" else f"auth.{purpose}_failed"
+    user = s.scalar(select(AppUser).where(AppUser.username == username.strip()))
+    if user is None:
+        verify_password(None, password)  # equalise timing
+        audit.record(s, failed, user_id=None, data={"username": username[:64]})
+        return None
+    if not user.is_active:
+        verify_password(None, password)
+        audit.record(s, failed, user_id=user.id, data={"reason": "inactive"})
+        return None
+    if (_aware(user.locked_until) or now) > now:
+        verify_password(None, password)
+        audit.record(s, failed, user_id=user.id, data={"reason": "locked"})
+        return None
+    if not verify_password(user.password_hash, password):
+        # Login bookkeeping uses atomic SQL updates instead of the ORM, so it never
+        # collides with optimistic row versions (two terminals logging in at once).
+        attempts = s.execute(
+            update(AppUser)
+            .where(AppUser.id == user.id)
+            .values(failed_attempts=AppUser.failed_attempts + 1)
+            .returning(AppUser.failed_attempts)
+        ).scalar_one()
+        reason = "bad_password"
+        if attempts >= settings.max_failed_logins:
+            s.execute(
+                update(AppUser)
+                .where(AppUser.id == user.id)
+                .values(
+                    failed_attempts=0,
+                    locked_until=now + timedelta(minutes=settings.lockout_minutes),
+                )
+            )
+            reason = "locked_now"
+            audit.record(
+                s,
+                "auth.user_locked",
+                user_id=user.id,
+                entity_type="app_user",
+                entity_id=user.id,
+            )
+        audit.record(s, failed, user_id=user.id, data={"reason": reason})
+        return None
+    values: dict[str, object] = {"failed_attempts": 0, "locked_until": None}
+    if purpose == "login":
+        values["last_login_at"] = now
+    if needs_rehash(user.password_hash):
+        values["password_hash"] = hash_password(password)
+    s.execute(update(AppUser).where(AppUser.id == user.id).values(**values))
+    return user
+
+
 def login(username: str, password: str, *, ip: str | None, user_agent: str | None) -> LoginResult:
     settings = _settings()
     now = utcnow()
-    failure: str | None = None
     result: LoginResult | None = None
 
     # The failure bookkeeping must be committed even though the request fails,
     # so the error is raised only after the unit of work has finished.
     with unit_of_work() as s:
-        user = s.scalar(select(AppUser).where(AppUser.username == username.strip()))
-        if user is None:
-            verify_password(None, password)  # equalise timing
-            audit.record(s, "auth.login_failed", user_id=None, data={"username": username[:64]})
-            failure = "unknown_user"
-        elif not user.is_active:
-            verify_password(None, password)
-            audit.record(s, "auth.login_failed", user_id=user.id, data={"reason": "inactive"})
-            failure = "inactive"
-        elif (_aware(user.locked_until) or now) > now:
-            verify_password(None, password)
-            audit.record(s, "auth.login_failed", user_id=user.id, data={"reason": "locked"})
-            failure = "locked"
-        elif not verify_password(user.password_hash, password):
-            # Login bookkeeping uses atomic SQL updates instead of the ORM, so it never
-            # collides with optimistic row versions (two terminals logging in at once).
-            attempts = s.execute(
-                update(AppUser)
-                .where(AppUser.id == user.id)
-                .values(failed_attempts=AppUser.failed_attempts + 1)
-                .returning(AppUser.failed_attempts)
-            ).scalar_one()
-            reason = "bad_password"
-            if attempts >= settings.max_failed_logins:
-                s.execute(
-                    update(AppUser)
-                    .where(AppUser.id == user.id)
-                    .values(
-                        failed_attempts=0,
-                        locked_until=now + timedelta(minutes=settings.lockout_minutes),
-                    )
-                )
-                reason = "locked_now"
-                audit.record(
-                    s,
-                    "auth.user_locked",
-                    user_id=user.id,
-                    entity_type="app_user",
-                    entity_id=user.id,
-                )
-            audit.record(s, "auth.login_failed", user_id=user.id, data={"reason": reason})
-            failure = reason
-        else:
-            values: dict[str, object] = {
-                "failed_attempts": 0,
-                "locked_until": None,
-                "last_login_at": now,
-            }
-            if needs_rehash(user.password_hash):
-                values["password_hash"] = hash_password(password)
-            s.execute(update(AppUser).where(AppUser.id == user.id).values(**values))
+        user = check_credentials(s, username, password)
+        if user is not None:
             token, csrf = new_token(), new_token()
             expires = now + timedelta(hours=settings.session_absolute_hours)
             sess = UserSession(
@@ -134,7 +146,7 @@ def login(username: str, password: str, *, ip: str | None, user_agent: str | Non
             )
             result = LoginResult(user.id, token, csrf, expires)
 
-    if failure is not None or result is None:
+    if result is None:
         raise LoginFailedError(GENERIC_LOGIN_ERROR)
     return result
 
