@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>NEXTCAM — طرح پیشنهادی صندوق (نمونه)</title>
+<!-- Design mockup with SAMPLE data for review. Not part of the application. -->
+<link rel="stylesheet" href="../../../frontend/node_modules/vazirmatn/Vazirmatn-Variable-font-face.css" />
+<style>
+  :root{--ink:#22233a;--soft:#5b5d78;--faint:#8a8ca6;--line:rgba(30,30,80,.08);--brand:#5146e5;--brand2:#6a5ff0;
+    --ok:#0f9d6e;--warn:#c98a10;--bad:#d64545;--surface:rgba(255,255,255,.92);--glass:rgba(255,255,255,.6)}
+  *{box-sizing:border-box;margin:0}
+  body{font-family:Vazirmatn,system-ui;color:var(--ink);height:100vh;overflow:hidden;
+    background:radial-gradient(60rem 40rem at 100% 0%,#efe0f6,transparent 60%),radial-gradient(50rem 40rem at 0% 100%,#d9ecfa,transparent 60%),#e6e4fb}
+  .app{display:grid;grid-template-columns:1fr 420px;grid-template-rows:auto 1fr auto;gap:14px;height:100%;padding:14px}
+  .glass{background:var(--glass);backdrop-filter:blur(18px) saturate(160%);border:1px solid rgba(255,255,255,.75);
+    box-shadow:0 1px 0 rgba(255,255,255,.6) inset,0 8px 32px -8px rgba(60,50,140,.18);border-radius:22px}
+  .surface{background:var(--surface);border:1px solid var(--line);border-radius:18px}
+  header{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:10px 16px}
+  .logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#6aa8ff,#5a3fe0);display:grid;place-items:center;color:#fff;font-weight:800}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap}
+  .chip.ok{background:rgba(15,157,110,.12);color:var(--ok)} .chip.warn{background:rgba(201,138,16,.14);color:#9a6a08}
+  .chip.n{background:rgba(0,0,0,.05);color:var(--soft)} .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+  .grow{flex:1}
+  .left{grid-column:1;grid-row:2;display:flex;flex-direction:column;gap:14px;min-height:0;min-width:0}
+  .scan{display:flex;align-items:center;gap:12px;padding:14px 16px}
+  .scan .box{flex:1;height:58px;border-radius:16px;border:2px solid var(--brand);background:#fff;display:flex;align-items:center;padding:0 16px;gap:12px;
+    box-shadow:0 0 0 6px rgba(81,70,229,.12);font-size:20px;color:var(--faint)}
+  .scan .box b{color:var(--ink);font-weight:700;direction:ltr}
+  .cart{flex:1;min-height:0;padding:6px;display:flex;flex-direction:column}
+  table{width:100%;border-collapse:collapse;font-size:17px}
+  th{font-size:13px;color:var(--faint);font-weight:600;text-align:start;padding:12px 14px;border-bottom:1px solid var(--line)}
+  td{padding:13px 14px;border-bottom:1px solid var(--line)} tr.sel td{background:rgba(81,70,229,.07)}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap} td.idx{color:var(--faint);width:40px}
+  .name{font-weight:600} .sub{font-size:12px;color:var(--faint);margin-top:2px}
+  .qty{display:inline-flex;align-items:center;gap:10px;background:rgba(0,0,0,.04);border-radius:12px;padding:4px 8px}
+  .qty span{width:28px;height:28px;border-radius:9px;background:#fff;display:grid;place-items:center;font-weight:700;color:var(--brand)}
+  .promo{font-size:11px;color:#9a6a08;background:rgba(201,138,16,.14);border-radius:6px;padding:1px 6px;margin-inline-start:6px}
+  .right{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:14px;min-height:0}
+  .totals{padding:18px 20px}
+  .row{display:flex;justify-content:space-between;padding:7px 0;font-size:16px;color:var(--soft)}
+  .row b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .grand{margin-top:10px;padding:16px;border-radius:18px;background:linear-gradient(135deg,#5146e5,#7a5cf0);color:#fff}
+  .grand .l{font-size:14px;opacity:.85} .grand .v{font-size:40px;font-weight:800;letter-spacing:-.5px;margin-top:2px}
+  .grand .v small{font-size:16px;font-weight:600;opacity:.85;margin-inline-start:6px}
+  .pay{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px}
+  .btn{height:74px;border-radius:18px;border:0;font-family:inherit;font-size:18px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer}
+  .btn kbd{font-family:inherit;font-size:11px;font-weight:600;opacity:.75;direction:ltr}
+  .btn.cash{background:#0f9d6e;color:#fff} .btn.card{background:var(--brand);color:#fff}
+  .btn.mix{background:#fff;color:var(--ink);border:1px solid var(--line)} .btn.credit{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .terminal{padding:14px 16px;display:flex;align-items:center;gap:12px}
+  .ticon{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(15,157,110,.12);color:var(--ok);font-size:22px}
+  footer{grid-column:1/3;display:flex;gap:8px;padding:8px 10px;flex-wrap:wrap}
+  .key{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;font-size:13px;color:var(--soft)}
+  .key kbd{font-family:inherit;direction:ltr;background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:7px;padding:1px 7px;font-size:12px;color:var(--ink);font-weight:700}
+  .tag{position:fixed;left:16px;bottom:62px;background:#22233a;color:#fff;font-size:12px;padding:6px 10px;border-radius:10px;opacity:.85}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="glass">
+    <div class="logo">N</div>
+    <div><div style="font-weight:800">صندوق ۲</div><div style="font-size:12px;color:var(--faint)">شعبه مرکزی · شیفت عصر</div></div>
+    <span class="chip n">صندوق‌دار: زهرا احمدی</span>
+    <div class="grow"></div>
+    <span class="chip ok"><span class="dot"></span>متصل به سرور</span>
+    <span class="chip ok"><span class="dot"></span>بارکدخوان آماده</span>
+    <span class="chip ok"><span class="dot"></span>پرینتر فیش آماده</span>
+    <span class="chip n">یکشنبه ۱۹ مهر ۱۴۰۵ · ۱۸:۴۲</span>
+  </header>
+
+  <section class="left">
+    <div class="glass scan">
+      <div class="box">▮ <span>اسکن بارکد یا جست‌وجوی کالا…</span><div class="grow"></div><b>6260100212345</b></div>
+      <span class="chip ok" style="height:58px;border-radius:16px;padding:0 18px">✓ افزوده شد: شیر پرچرب ۱ لیتری</span>
+    </div>
+    <div class="glass cart">
+      <div class="surface" style="flex:1;overflow:hidden">
+        <table>
+          <thead><tr><th></th><th>کالا</th><th>مقدار</th><th>فی (تومان)</th><th>تخفیف</th><th>جمع (تومان)</th></tr></thead>
+          <tbody>
+            <tr><td class="idx">۱</td><td><div class="name">نان تست سبوس‌دار</div><div class="sub">۶۲۶۰۱۰۰۲۰۰۰۱۸</div></td><td><span class="qty"><span>−</span>۲<span>+</span></span></td><td class="num">۴۸٬۵۰۰</td><td class="num">—</td><td class="num"><b>۹۷٬۰۰۰</b></td></tr>
+            <tr><td class="idx">۲</td><td><div class="name">پنیر سفید ۴۰۰ گرمی<span class="promo">۱۰٪ تخفیف هفته</span></div><div class="sub">۶۲۶۰۱۰۰۲۱۷۷۴۲</div></td><td><span class="qty"><span>−</span>۱<span>+</span></span></td><td class="num">۱۲۵٬۰۰۰</td><td class="num" style="color:var(--bad)">−۱۲٬۵۰۰</td><td class="num"><b>۱۱۲٬۵۰۰</b></td></tr>
+            <tr><td class="idx">۳</td><td><div class="name">گوشت چرخ‌کرده (وزنی)</div><div class="sub">بارکد ترازو · ۰٫۷۴۵ کیلوگرم</div></td><td class="num">۰٫۷۴۵ کیلو</td><td class="num">۸۹۰٬۰۰۰</td><td class="num">—</td><td class="num"><b>۶۶۳٬۰۵۰</b></td></tr>
+            <tr><td class="idx">۴</td><td><div class="name">برنج ایرانی ۵ کیلویی</div><div class="sub">۶۲۶۰۱۰۰۲۵۵۱۰۳</div></td><td><span class="qty"><span>−</span>۱<span>+</span></span></td><td class="num">۱٬۶۵۰٬۰۰۰</td><td class="num">—</td><td class="num"><b>۱٬۶۵۰٬۰۰۰</b></td></tr>
+            <tr><td class="idx">۵</td><td><div class="name">مایع ظرفشویی ۷۵۰ گرمی</div><div class="sub">۶۲۶۰۱۰۰۲۹۸۴۴۱</div></td><td><span class="qty"><span>−</span>۳<span>+</span></span></td><td class="num">۶۷٬۰۰۰</td><td class="num">—</td><td class="num"><b>۲۰۱٬۰۰۰</b></td></tr>
+            <tr class="sel"><td class="idx">۶</td><td><div class="name">شیر پرچرب ۱ لیتری</div><div class="sub">۶۲۶۰۱۰۰۲۱۲۳۴۵</div></td><td><span class="qty"><span>−</span>۴<span>+</span></span></td><td class="num">۴۲٬۰۰۰</td><td class="num">—</td><td class="num"><b>۱۶۸٬۰۰۰</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="right">
+    <div class="glass totals">
+      <div class="row"><span>تعداد اقلام</span><b>۶ قلم · ۱۱٫۷۴۵ واحد</b></div>
+      <div class="row"><span>جمع کل</span><b>۲٬۹۰۴٬۰۵۰</b></div>
+      <div class="row"><span>تخفیف</span><b style="color:var(--bad)">−۱۲٬۵۰۰</b></div>
+      <div class="row"><span>مالیات بر ارزش افزوده (اقلام مشمول)</span><b>۸۹٬۶۵۰</b></div>
+      <div class="grand"><div class="l">مبلغ قابل پرداخت</div><div class="v">۲٬۹۸۱٬۲۰۰<small>تومان</small></div></div>
+    </div>
+    <div class="glass pay">
+      <button class="btn cash">نقدی<kbd>F8</kbd></button>
+      <button class="btn card">کارت‌خوان<kbd>F9</kbd></button>
+      <button class="btn mix">پرداخت ترکیبی<kbd>F10</kbd></button>
+      <button class="btn credit">نسیه (با مجوز)<kbd>F11</kbd></button>
+    </div>
+    <div class="glass terminal">
+      <div class="ticon">▣</div>
+      <div class="grow"><div style="font-weight:700">کارت‌خوان: آماده پرداخت</div>
+        <div style="font-size:12px;color:var(--faint)">تا اتصال رسمی PSP: ثبت دستی شماره پیگیری</div></div>
+      <span class="chip warn">آزمایش‌نشده</span>
+    </div>
+  </section>
+
+  <footer class="glass">
+    <span class="key"><kbd>F2</kbd>تغییر مقدار</span>
+    <span class="key"><kbd>F3</kbd>جست‌وجوی کالا</span>
+    <span class="key"><kbd>F4</kbd>تعلیق فاکتور</span>
+    <span class="key"><kbd>F5</kbd>فاکتورهای معلق</span>
+    <span class="key"><kbd>F6</kbd>تخفیف</span>
+    <span class="key"><kbd>Del</kbd>حذف ردیف (با مجوز)</span>
+    <span class="key"><kbd>F12</kbd>بستن شیفت</span>
+    <div class="grow"></div>
+    <span class="key">فاکتور B01-R02-000153</span>
+  </footer>
+</div>
+<div class="tag">طرح پیشنهادی · داده نمونه · فاز ۴</div>
+</body>
+</html>

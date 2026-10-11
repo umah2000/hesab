@@ -23,6 +23,9 @@
 11. تعارض آفلاین مالی/موجودی هرگز Last-Write-Wins.
 12. اسرار فقط در Environment (`NEXTCAM_*`)؛ هیچ رمز یا connection string واقعی در گیت.
 13. پیام خطای عمومی بدون جزئیات داخلی.
+14. متن فارسی در دیتابیس فقط `Unicode`/`NVARCHAR` (نه `String`/`VARCHAR`).
+15. شرط بولی در SQLAlchemy برای SQL Server با `== true()`؛ `.is_(True)` روی SQL Server خطا می‌دهد.
+16. UI: شیشه فقط برای قاب‌ها؛ داده روی `surface`. وضعیت با متن + آیکون. بدون CDN. ماژول پیاده‌نشده در منو غیرفعال با «فاز N»؛ عدد ساختگی در داشبورد ممنوع (docs/design/README.md).
 
 ## روال کار
 - شاخه از `main`، PR، CI سبز. Conventional Commits.
@@ -32,7 +35,13 @@
 - **هیچ تستی را موفق اعلام نکن مگر واقعاً اجرا شده باشد.** Mock جایگزین تست سخت‌افزار واقعی نیست.
 - پایان هر فاز: گزارش تغییرات، تست‌های اجراشده و نتیجه، محدودیت‌ها؛ به‌روزرسانی جدول وضعیت ROADMAP.
 
-## دستورات (از `backend/`)
+## دستورات Frontend (از `frontend/`)
+```bash
+npm ci && npx tsc --noEmit -p . && npx vitest run && npx vite build
+npx vite            # dev روی 5173، /api به 127.0.0.1:5000 پروکسی می‌شود
+```
+
+## دستورات Backend (از `backend/`)
 ```bash
 uv venv .venv && uv pip install -p .venv -e ".[dev]"    # یا: python -m venv .venv && pip install -e ".[dev]"
 .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy app

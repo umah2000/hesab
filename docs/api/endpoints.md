@@ -13,12 +13,18 @@
 |---|---|---|---|---|
 | ۰ ✅ | GET | `/system/health` | عمومی | زنده بودن |
 | ۰ ✅ | GET | `/system/ready` | عمومی | اتصال دیتابیس |
-| ۱ | POST | `/auth/login` · `/auth/logout` · `/auth/refresh` | عمومی/نشست | Rate limited |
-| ۱ | GET | `/auth/me` | نشست | کاربر، مجوزها، محدوده |
-| ۱ | CRUD | `/users` · `/roles` | `users.*` | |
-| ۱ | GET | `/audit/events` | `audit.view` | |
-| ۱ | GET/PUT | `/organization/settings` | `settings.manage` | |
-| ۱ | CRUD | `/branches` · `/cash-registers` | `branches.*` | |
+| ۱ ✅ | POST | `/auth/login` · `/auth/logout` | عمومی (Rate limited) / نشست | کوکی httpOnly + CSRF |
+| ۱ ✅ | GET | `/auth/me` | نشست | کاربر، مجوزها، محدوده |
+| ۱ ✅ | POST | `/auth/change-password` | نشست | |
+| ۱ ✅ | GET/POST | `/users` · GET/PATCH `/users/{id}` | `users.manage` | |
+| ۱ ✅ | POST | `/users/{id}/reset-password` · `/users/{id}/unlock` | `users.manage` | |
+| ۱ ✅ | GET | `/roles` · `/roles/permissions` | `roles.manage` (یا `users.manage` برای فهرست) | |
+| ۱ ✅ | POST/PATCH | `/roles` · `/roles/{id}` | `roles.manage` | |
+| ۱ ✅ | GET | `/audit/events` | `audit.view` | |
+| ۱ ✅ | GET/PUT | `/organization/settings` | نشست / `settings.manage` | |
+| ۱ ✅ | GET/POST/PATCH | `/organization/branches` · `/branches/{id}` | نشست / `branches.manage` | |
+| ۱ ✅ | GET/POST/PATCH | `/organization/branches/{id}/cash-registers` · `/organization/cash-registers` | نشست / `branches.manage` | |
+| ۱ ✅ | GET | `/openapi.json` | عمومی | مستند OpenAPI 3.1 |
 | ۲ | CRUD | `/accounting/accounts` · `/accounting/detail-accounts` | `accounting.account.*` | |
 | ۲ | CRUD | `/accounting/fiscal-years` · `POST /{id}/close` | `accounting.fiscal.*` | |
 | ۲ | POST | `/accounting/vouchers` | `accounting.voucher.create` | |
