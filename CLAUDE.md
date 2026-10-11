@@ -7,7 +7,7 @@
 - تک‌مستأجر (یک نصب = یک سازمان = یک دیتابیس)، چندشعبه با `branch_id`.
 - مشتری اول سوپرمارکت. مؤدیان و حقوق و دستمزد در نسخه ۲.
 - Backend: Flask (Application Factory، Blueprint برای هر ماژول در `backend/app/modules/<name>/`)، SQLAlchemy 2، Alembic، Pydantic v2.
-- دیتابیس: SQL Server (ODBC Driver 18). SQLite فقط برای صف محلی Agent/کلاینت.
+- دیتابیس: SQL Server، حداقل نسخه 2019 (ODBC Driver 18). از امکانات انحصاری 2022 استفاده نکن. SQLite فقط برای صف محلی Agent/کلاینت.
 
 ## قواعد غیرقابل‌مذاکره
 1. مبلغ `Decimal`/`DECIMAL(19,4)` ریال؛ مقدار `DECIMAL(19,3)`. **هرگز float.** مبلغ در JSON به‌صورت رشته.
@@ -40,4 +40,4 @@ TEST_DATABASE_URL='mssql+pyodbc://...' .venv/bin/pytest -q
 .venv/bin/alembic upgrade head          # نیازمند NEXTCAM_DATABASE_URL
 ```
 SQL Server محلی برای تست در کانتینر ابری:
-`docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=... -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`
+`docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=... -p 1433:1433 mcr.microsoft.com/mssql/server:2019-latest`

@@ -10,7 +10,7 @@
 ## ۱. پلتفرم (فاز ۱)
 | جدول | ستون‌های کلیدی | نکته |
 |---|---|---|
-| `organization` | name, display_currency (`IRR`/`IRT`), timezone, negative_stock_policy | دقیقاً یک ردیف |
+| `organization` | name, display_currency (`IRR`/`IRT`، پیش‌فرض IRT), timezone, negative_stock_policy (پیش‌فرض warn), last_offsite_backup_at | دقیقاً یک ردیف |
 | `branch` | code (UQ), name, is_active | |
 | `cash_register` | branch_id, code (UQ per branch), name, payment_terminal_id? | صندوق |
 | `app_user` | username (UQ), password_hash, is_active, failed_attempts, locked_until, mfa_secret? | |
@@ -42,7 +42,7 @@ Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(f
 |---|---|---|
 | `item_group` | code, name, parent_id | |
 | `unit` | code, name | |
-| `item` | code (UQ), name, group_id, base_unit_id, item_type (goods/service), is_weighted, track_expiry, vat_rate, tax_item_code?, min_qty, max_qty, is_active | `tax_item_code` رزرو مؤدیان |
+| `item` | code (UQ), name, group_id, base_unit_id, item_type (goods/service), is_weighted, track_expiry, vat_exempt, vat_rate, tax_item_code?, min_qty, max_qty, is_active | `vat_exempt` (معاف) جدا از `vat_rate` (نرخ صفر ≠ معاف)؛ `tax_item_code` رزرو مؤدیان |
 | `item_unit` | item_id, unit_id, factor | تبدیل به واحد پایه |
 | `item_barcode` | barcode (UQ), item_id, item_unit_id? | **Index اصلی جست‌وجوی صندوق** |
 | `scale_barcode_rule` | prefix, item_code_start/len, value_start/len, value_type (weight/price), divisor | |

@@ -6,7 +6,7 @@
 | سطح | ابزار | کجا اجرا می‌شود |
 |---|---|---|
 | واحد Backend | pytest | CI در هر PR |
-| یکپارچه با دیتابیس | pytest + **SQL Server واقعی** (`TEST_DATABASE_URL`) | CI (کانتینر mssql 2022) + سیستم محلی شما |
+| یکپارچه با دیتابیس | pytest + **SQL Server واقعی** (`TEST_DATABASE_URL`) | CI (کانتینر mssql 2019) + سیستم محلی شما |
 | Migration | upgrade ← downgrade ← upgrade | CI |
 | API و مجوز | Flask test client؛ برای هر endpoint: بدون نشست ← 401، بدون مجوز ← 403، خارج از scope ← 403/404 | CI |
 | Frontend | Vitest + Testing Library؛ Playwright برای E2E صندوق | CI (از فاز ۱) |
@@ -47,4 +47,4 @@
 - Mock کارت‌خوان در production فعال نمی‌شود (✅ تست موجود: `test_mock_terminal_forbidden_in_production`).
 
 ## ۵. وضعیت فعلی (فاز ۰)
-8 تست Backend روی SQL Server 2022 اجرا و موفق شد (health، ready با/بدون دیتابیس، خطای ساختاریافته، عدم افشای جزئیات، رد دیتابیس غیر SQL Server، منع Mock در production، رفت‌وبرگشت Migration).
+8 تست Backend روی SQL Server 2022 و 2019 اجرا و موفق شد (health، ready با/بدون دیتابیس، خطای ساختاریافته، عدم افشای جزئیات، رد دیتابیس غیر SQL Server، منع Mock در production، رفت‌وبرگشت Migration).

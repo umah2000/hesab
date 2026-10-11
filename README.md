@@ -52,6 +52,6 @@ pytest -q
 ```
 backend/   Flask API (Modular Monolith)، Alembic، تست‌ها
 docs/      پرامپت، نقشه راه، معماری، ADRها، مدل داده، API، مجوزها، همگام‌سازی، سخت‌افزار، تست
-.github/   CI: lint + type + تست روی SQL Server 2022
+.github/   CI: lint + type + تست روی SQL Server 2019
 ```
 `frontend/`، `device-agent/` و `mobile/` در فازهای ۱، ۶ و ۹ اضافه می‌شوند.
