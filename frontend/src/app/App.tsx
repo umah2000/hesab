@@ -16,6 +16,13 @@ import { VouchersPage } from "@/features/accounting/VouchersPage";
 import { AuditPage } from "@/features/audit/AuditPage";
 import { AccountPage, ForcePasswordChange } from "@/features/auth/AccountPage";
 import { useMe, useUnauthorizedListener } from "@/features/auth/auth";
+import { BalancesPage } from "@/features/inventory/BalancesPage";
+import { ImportPage } from "@/features/inventory/ImportPage";
+import { InventoryLayout } from "@/features/inventory/InventoryLayout";
+import { InventorySettingsPage } from "@/features/inventory/InventorySettingsPage";
+import { ItemsPage } from "@/features/inventory/ItemsPage";
+import { LabelsPage } from "@/features/inventory/LabelsPage";
+import { StockDocEditorPage, StockDocsPage } from "@/features/inventory/StockDocsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { RolesPage } from "@/features/roles/RolesPage";
@@ -71,6 +78,20 @@ const router = createBrowserRouter([
           { path: "details", element: <DetailsPage /> },
           { path: "fiscal-years", element: <FiscalPage /> },
           { path: "posting-rules", element: <PostingRulesPage /> },
+        ],
+      },
+      {
+        path: "inventory",
+        element: <InventoryLayout />,
+        children: [
+          { index: true, element: <Navigate to="items" replace /> },
+          { path: "items", element: <ItemsPage /> },
+          { path: "documents", element: <StockDocsPage /> },
+          { path: "documents/:id", element: <StockDocEditorPage /> },
+          { path: "balances", element: <BalancesPage /> },
+          { path: "labels", element: <LabelsPage /> },
+          { path: "import", element: <ImportPage /> },
+          { path: "settings", element: <InventorySettingsPage /> },
         ],
       },
       { path: "login", element: <Navigate to="/" replace /> },

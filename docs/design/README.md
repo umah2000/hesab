@@ -47,6 +47,16 @@ Button (primary / secondary / ghost / danger / outline، حالت loading)، Inp
 | `screenshots/18-ledger.png` | دفتر معین بانک با مانده جاری | واقعی |
 | `screenshots/19-fiscal-years.png` | سال و دوره مالی | واقعی |
 | `screenshots/20-posting-rules.png` | قواعد ثبت خودکار | واقعی |
+| `screenshots/21-items.png` | فهرست کالاها | نمونه (داده آزمایشی دیتابیس توسعه) |
+| `screenshots/22-item-dialog.png` | کارت کالا: واحد فرعی، بارکد بسته، قیمت هر واحد | نمونه |
+| `screenshots/23-stock-doc-scan.png` | سند تعدیل با اسکن بارکد، بارکد بسته و برچسب ترازو | نمونه (e2e) |
+| `screenshots/23b-stock-doc-final.png` | سند انبار قطعی با پیوند سند حسابداری | نمونه (e2e) |
+| `screenshots/24-balances-kardex.png` | موجودی، ارزش کل و کاردکس | نمونه |
+| `screenshots/25-inventory-settings-scale.png` | قاعده بارکد ترازو و آزمایشگر | نمونه |
+| `screenshots/26-scale-rule-dialog.png` | تعریف قاعده ترازو با الگوی آماده | — |
+| `screenshots/27-labels.png` | پیش‌نمایش برچسب قیمت | نمونه |
+| `screenshots/28-import.png` | ورود از Excel | — |
+| `screenshots/29-items-dark.png` | کالاها، حالت تیره | نمونه |
 
 ## طرح صندوق (فاز ۴) — تصمیم‌های کلیدی
 - فیلد اسکن همیشه فوکوس دارد و بزرگ است؛ نتیجه آخرین اسکن کنار آن نمایش داده می‌شود.

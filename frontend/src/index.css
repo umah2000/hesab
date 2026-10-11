@@ -140,3 +140,22 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Printing: only the element marked .print-area is printed (labels, later receipts). */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

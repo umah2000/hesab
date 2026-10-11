@@ -29,6 +29,8 @@
 
 17. حسابداری: سند فقط پیش‌نویس ← قطعی ← برگشت (ADR-0011). سند خودکار فقط با `post_event` و داخل همان unit of work سند مبدأ. triggerهای دیتابیس را دور نزن.
 18. جداولی که trigger دارند باید `implicit_returning: False` داشته باشند (SQL Server با OUTPUT بدون INTO خطا می‌دهد).
+19. SQL Server بدون MARS: نتیجه query را قبل از اجرای query بعدی کامل بخوان (`list(s.scalars(...))`)؛ وگرنه «Connection is busy».
+20. انبار: موجودی و میانگین بها فقط در `inventory.services.stock.post_movement` با قفل `stock_balance` تغییر می‌کند (ADR-0012).
 
 ## روال کار
 - شاخه از `main`، PR، CI سبز. Conventional Commits.

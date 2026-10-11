@@ -28,7 +28,13 @@ export type NavItem = {
 export const NAV_MAIN: NavItem[] = [
   { to: "/", label: "داشبورد", icon: LayoutDashboard, keywords: "خانه dashboard" },
   { to: "/pos", label: "صندوق فروش", icon: ShoppingCart, comingInPhase: 4 },
-  { to: "/inventory", label: "کالا و انبار", icon: Boxes, comingInPhase: 3 },
+  {
+    to: "/inventory",
+    label: "کالا و انبار",
+    icon: Boxes,
+    permission: ["inventory.item.manage", "inventory.price.manage", "inventory.stock.create", "inventory.stock.adjust", "inventory.report.view", "import.run"],
+    keywords: "کالا انبار موجودی بارکد کاردکس inventory stock item",
+  },
   {
     to: "/accounting",
     label: "حسابداری",

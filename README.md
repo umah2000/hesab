@@ -38,6 +38,7 @@ pip install -e ".[dev]"
 copy .env.example .env      # سپس NEXTCAM_DATABASE_URL و NEXTCAM_SECRET_KEY را در .env تنظیم کنید
 alembic upgrade head
 flask --app app setup --org-name "نام فروشگاه"     # یک‌بار: سازمان، شعبه اصلی، نقش‌ها و کاربر admin (رمز را می‌پرسد)
+flask --app app seed-defaults                      # پس از به‌روزرسانی: کدینگ، سال مالی، واحدها و انبارهای پیش‌فرض (تکرارپذیر)
 flask --app app run
 ```
 بررسی: `http://127.0.0.1:5000/api/v1/system/ready` باید `{"database": "up", "status": "ok"}` برگرداند.

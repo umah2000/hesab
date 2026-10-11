@@ -38,21 +38,23 @@
 
 Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(fiscal_year_id, status, document_date)`.
 
-## ۳. کالا و انبار (فاز ۳)
+## ۳. کالا و انبار (فاز ۳) — پیاده‌شده (migration `0004`)
 | جدول | ستون‌های کلیدی | نکته |
 |---|---|---|
-| `item_group` | code, name, parent_id | |
-| `unit` | code, name | |
-| `item` | code (UQ), name, group_id, base_unit_id, item_type (goods/service), is_weighted, track_expiry, vat_exempt, vat_rate, tax_item_code?, min_qty, max_qty, is_active | `vat_exempt` (معاف) جدا از `vat_rate` (نرخ صفر ≠ معاف)؛ `tax_item_code` رزرو مؤدیان |
-| `item_unit` | item_id, unit_id, factor | تبدیل به واحد پایه |
-| `item_barcode` | barcode (UQ), item_id, item_unit_id? | **Index اصلی جست‌وجوی صندوق** |
-| `scale_barcode_rule` | prefix, item_code_start/len, value_start/len, value_type (weight/price), divisor | |
-| `price_list` / `price_list_item` | price_list_id, item_id, unit_id, price, valid_from, valid_to | |
-| `warehouse` | branch_id, code, name | |
-| `stock_document` | branch_id, warehouse_id, type (receipt/issue/transfer_out/transfer_in/adjustment/count), number, document_date, status, source_type, source_id | |
-| `stock_document_line` | stock_document_id, item_id, qty (پایه), unit_cost, total_cost, batch_no?, expiry_date? | |
-| `stock_ledger` | item_id, warehouse_id, posted_at, document_line_id, qty_in, qty_out, unit_cost, balance_qty, balance_avg_cost | **کاردکس**؛ append-only؛ clustered (item_id, warehouse_id, seq) |
-| `stock_balance` | item_id, warehouse_id, qty, avg_cost, row_version | کش موجودی؛ فقط در همان تراکنش ledger به‌روز می‌شود |
+| `item_group` | code (UQ), name, parent_id | |
+| `unit` | code (UQ), name, allows_fraction | پیش‌فرض: عدد، کیلوگرم، گرم، لیتر، بسته، کارتن، جعبه، متر |
+| `item` | code (UQ), name, group_id, base_unit_id, item_type (goods/service), is_weighted, scale_code (UQ فیلترشده), track_expiry, vat_exempt, vat_rate, tax_item_code?, min_qty, max_qty, is_active | `vat_exempt` (معاف) جدا از `vat_rate` (نرخ صفر ≠ معاف)؛ `tax_item_code` رزرو مؤدیان |
+| `item_unit` | item_id, unit_id, factor | تبدیل به واحد پایه (UQ item+unit) |
+| `item_barcode` | barcode (UQ), item_id, unit_id? | **Index اصلی جست‌وجوی صندوق**؛ `unit_id` برای بارکد بسته/کارتن |
+| `scale_barcode_rule` | name, prefix, item_code_length, value_length, value_type (weight/price), value_decimals, is_active | CHECK: طول پیشوند + کد + مقدار = ۱۲؛ پیشوندها هم‌پوشانی ندارند |
+| `price_list` / `item_price` | price_list_id, item_id, unit_id, price | فهرست پیش‌فرض RETAIL؛ قیمت برای هر واحد جدا |
+| `warehouse` | branch_id, code, name, is_active | یک انبار اصلی برای هر شعبه خودکار ساخته می‌شود |
+| `stock_document` | branch_id, warehouse_id, dest_warehouse_id?, doc_type (opening/adjustment/transfer/count), number, document_date, status (draft/final), voucher_id?, source_document_id? | شمارش پس از قطعی شدن یک سند تعدیل مرتبط می‌سازد |
+| `stock_document_line` | document_id, item_id, unit_id, qty, base_qty, unit_cost?, total_cost?, system_qty?, expiry_date? | |
+| `stock_ledger` | seq (identity), item_id, warehouse_id, document_id, document_line_id, document_date, posted_at, qty_in, qty_out, value_in, value_out, balance_qty, balance_value, avg_cost | **کاردکس**؛ append-only با trigger؛ clustered (item_id, warehouse_id, seq) |
+| `stock_balance` | PK (item_id, warehouse_id), qty, value, avg_cost, last_movement_date | فقط در همان تراکنش ledger و با قفل ردیف به‌روز می‌شود (ADR-0012) |
+
+> رسید خرید و حواله فروش در فاز ۴ و ۵ با همین `post_movement` ثبت می‌شوند؛ جدول جدا برای آن‌ها ساخته نمی‌شود.
 
 ## ۴. فروش و صندوق (فاز ۴)
 | جدول | ستون‌های کلیدی | نکته |

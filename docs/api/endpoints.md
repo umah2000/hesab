@@ -36,11 +36,13 @@
 | ۲ ✅ | POST | `/accounting/vouchers/{id}/reverse` | `accounting.voucher.reverse` | If-Match |
 | ۲ ✅ | GET/PUT | `/accounting/posting-rules` | خواندن / `accounting.account.manage` | |
 | ۲ ✅ | GET | `/accounting/reports/trial-balance` · `/ledger` · `/journal` | `accounting.report.view` | |
-| ۳ | CRUD | `/inventory/items` · `/item-groups` · `/units` · `/price-lists` | `inventory.item.*` | |
-| ۳ | GET | `/inventory/items/lookup?barcode=` | `sales.pos.use` | **مسیر داغ صندوق**؛ بارکد ترازو را هم تجزیه می‌کند |
-| ۳ | POST | `/inventory/stock-documents` · `/{id}/finalize` | `inventory.stock.*` | رسید/حواله/انتقال/تعدیل |
-| ۳ | GET | `/inventory/kardex?item_id=&warehouse_id=` · `/balances` | `inventory.report.view` | |
-| ۳ | POST | `/import/{entity}` (preview) · `/import/{job}/commit` | `import.run` | Excel |
+| ۳ | GET | `/inventory/units` · `/groups` · `/price-lists` · `/warehouses` | هر مجوز انبار | `POST /groups` با `inventory.item.manage`؛ `POST /warehouses` با `branches.manage` |
+| ۳ | GET/POST/PUT | `/inventory/items` · `/items/{id}` | `inventory.item.manage` (قیمت: `inventory.price.manage`) | جست‌وجو در کد، نام و بارکد؛ فیلتر گروه و زیر حداقل |
+| ۳ | GET | `/inventory/items/lookup?barcode=` | `sales.pos.use` · `inventory.item.manage` · `inventory.stock.create` | **مسیر داغ صندوق**: بارکد ← بارکد بسته ← برچسب ترازو ← کد کالا |
+| ۳ | GET/POST/PUT | `/inventory/scale-rules` | `inventory.item.manage` | |
+| ۳ | GET/POST/PUT/DELETE | `/inventory/stock-documents` · `/{id}/finalize` | `inventory.stock.create` (تعدیل/شمارش: `inventory.stock.adjust`) | اول دوره، تعدیل، انتقال، شمارش |
+| ۳ | GET | `/inventory/balances` · `/kardex?item_id=&warehouse_id=` | `inventory.report.view` | balances جمع ارزش را هم برمی‌گرداند |
+| ۳ | GET/POST | `/inventory/import/{items,opening}/template` · `/preview` · `/commit` | `import.run` | multipart؛ همه یا هیچ؛ حداکثر ۲۵MB |
 | ۴ | POST | `/sales/shifts/open` · `/sales/shifts/{id}/close` | `sales.shift.*` | |
 | ۴ | POST | `/sales/invoices` · `/{id}/hold` · `/{id}/finalize` · `/{id}/void` | `sales.invoice.*` | finalize = فروش + انبار + سند در یک تراکنش |
 | ۴ | POST | `/sales/invoices/{id}/returns` | `sales.return.create` | |

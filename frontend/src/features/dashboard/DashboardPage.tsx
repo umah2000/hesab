@@ -28,9 +28,9 @@ import { cn } from "@/lib/utils";
 
 const ROADMAP = [
   { phase: 1, title: "کاربران، نقش‌ها و ممیزی", icon: ShieldCheck, status: "done" as const },
-  { phase: 2, title: "هسته حسابداری", icon: BookOpenText, status: "active" as const },
-  { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "next" as const },
-  { phase: 4, title: "صندوق فروش و پایلوت", icon: ShoppingCart, status: "later" as const },
+  { phase: 2, title: "هسته حسابداری", icon: BookOpenText, status: "done" as const },
+  { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "active" as const },
+  { phase: 4, title: "صندوق فروش و پایلوت", icon: ShoppingCart, status: "next" as const },
 ];
 
 function StatTile({
