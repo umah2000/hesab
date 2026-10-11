@@ -230,6 +230,14 @@ EVENTS: tuple[EventDef, ...] = (
         ),
     ),
     EventDef(
+        "inventory.opening.finalized",
+        "موجودی اول دوره کالا",
+        (
+            RoleDef("inventory", "موجودی کالا", "1301"),
+            RoleDef("offset", "طرف مقابل موجودی اول دوره", "4101"),
+        ),
+    ),
+    EventDef(
         "inventory.adjustment.finalized",
         "تعدیل موجودی",
         (

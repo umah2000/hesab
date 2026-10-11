@@ -54,11 +54,22 @@ def _request_hash() -> str:
 
 
 def idempotent(
-    session: Session, user_id: uuid.UUID, action: Callable[[], BaseModel], status: int = 201
+    session: Session,
+    user_id: uuid.UUID,
+    action: Callable[[], BaseModel],
+    status: int = 201,
+    body: bytes | None = None,
 ) -> Response:
-    """Run ``action`` once per Idempotency-Key, inside the caller's unit of work."""
+    """Run ``action`` once per Idempotency-Key, inside the caller's unit of work.
+
+    ``body`` overrides the hashed request body (multipart uploads are already consumed).
+    """
     key = _key()
-    req_hash = _request_hash()
+    req_hash = (
+        _request_hash()
+        if body is None
+        else hashlib.sha256(request.method.encode() + request.path.encode() + body).hexdigest()
+    )
     existing = session.scalar(
         select(IdempotencyRecord).where(
             IdempotencyRecord.user_id == user_id, IdempotencyRecord.key == key
@@ -78,7 +89,7 @@ def idempotent(
         )
 
     result = action()
-    body = json.dumps(result.model_dump(mode="json"), ensure_ascii=False)
+    payload = json.dumps(result.model_dump(mode="json"), ensure_ascii=False)
     session.add(
         IdempotencyRecord(
             user_id=user_id,
@@ -86,9 +97,9 @@ def idempotent(
             endpoint=f"{request.method} {request.path}"[:200],
             request_hash=req_hash,
             status_code=status,
-            response_body=body,
+            response_body=payload,
         )
     )
     # A concurrent duplicate fails here on the unique constraint and rolls back.
     session.flush()
-    return Response(body, status=status, mimetype="application/json")
+    return Response(payload, status=status, mimetype="application/json")

@@ -15,6 +15,8 @@ from app.modules.iam.models import AppUser, Role, UserScope
 from app.modules.iam.permissions import ADMIN_ROLE
 from app.modules.iam.services.auth import validate_password
 from app.modules.iam.services.roles import sync_catalog
+from app.modules.inventory.services.catalog import seed_catalog
+from app.modules.inventory.services.stock import ensure_default_warehouses
 from app.modules.organization.models import Branch
 from app.modules.organization.services import ensure_organization
 
@@ -27,13 +29,25 @@ def register_cli(app: Flask) -> None:
             sync_catalog(s)
         click.echo("permissions synced")
 
-    @app.cli.command("seed-accounting")
-    def seed_accounting() -> None:
-        """Default chart of accounts, posting rules and the current fiscal year (idempotent)."""
+    def _seed_all() -> bool:
         with unit_of_work() as s:
             seeded = seed_defaults(s)
             ensure_year(s, current_jalali_year())
-        click.echo("chart seeded" if seeded else "chart already present; posting rules completed")
+            seed_catalog(s)
+            ensure_default_warehouses(s)
+        return seeded
+
+    @app.cli.command("seed-defaults")
+    def seed_defaults_cmd() -> None:
+        """Chart, posting rules, fiscal year, units, price list, warehouses (idempotent)."""
+        _seed_all()
+        click.echo("defaults ensured")
+
+    @app.cli.command("seed-accounting")
+    def seed_accounting() -> None:
+        """Alias of seed-defaults (kept for phase 2 instructions)."""
+        _seed_all()
+        click.echo("defaults ensured")
 
     @app.cli.command("setup")
     @click.option("--org-name", required=True, help="نام سازمان/فروشگاه")
@@ -60,9 +74,12 @@ def register_cli(app: Flask) -> None:
             sync_catalog(s)
             seed_defaults(s)
             ensure_year(s, current_jalali_year())
+            seed_catalog(s)
             code = branch_code.upper()
             if s.scalar(select(Branch).where(Branch.code == code)) is None:
                 s.add(Branch(code=code, name=branch_name, is_active=True))
+                s.flush()
+            ensure_default_warehouses(s)
             if s.scalar(select(AppUser).where(AppUser.username == admin_username)) is not None:
                 click.echo(f"user {admin_username!r} already exists; left unchanged")
                 return

@@ -79,11 +79,24 @@ def login(username: str, password: str, *, ip: str | None, user_agent: str | Non
             audit.record(s, "auth.login_failed", user_id=user.id, data={"reason": "locked"})
             failure = "locked"
         elif not verify_password(user.password_hash, password):
-            user.failed_attempts += 1
+            # Login bookkeeping uses atomic SQL updates instead of the ORM, so it never
+            # collides with optimistic row versions (two terminals logging in at once).
+            attempts = s.execute(
+                update(AppUser)
+                .where(AppUser.id == user.id)
+                .values(failed_attempts=AppUser.failed_attempts + 1)
+                .returning(AppUser.failed_attempts)
+            ).scalar_one()
             reason = "bad_password"
-            if user.failed_attempts >= settings.max_failed_logins:
-                user.locked_until = now + timedelta(minutes=settings.lockout_minutes)
-                user.failed_attempts = 0
+            if attempts >= settings.max_failed_logins:
+                s.execute(
+                    update(AppUser)
+                    .where(AppUser.id == user.id)
+                    .values(
+                        failed_attempts=0,
+                        locked_until=now + timedelta(minutes=settings.lockout_minutes),
+                    )
+                )
                 reason = "locked_now"
                 audit.record(
                     s,
@@ -95,11 +108,14 @@ def login(username: str, password: str, *, ip: str | None, user_agent: str | Non
             audit.record(s, "auth.login_failed", user_id=user.id, data={"reason": reason})
             failure = reason
         else:
+            values: dict[str, object] = {
+                "failed_attempts": 0,
+                "locked_until": None,
+                "last_login_at": now,
+            }
             if needs_rehash(user.password_hash):
-                user.password_hash = hash_password(password)
-            user.failed_attempts = 0
-            user.locked_until = None
-            user.last_login_at = now
+                values["password_hash"] = hash_password(password)
+            s.execute(update(AppUser).where(AppUser.id == user.id).values(**values))
             token, csrf = new_token(), new_token()
             expires = now + timedelta(hours=settings.session_absolute_hours)
             sess = UserSession(

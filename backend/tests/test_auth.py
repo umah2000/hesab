@@ -153,3 +153,21 @@ def test_audit_never_contains_password(app: Flask, api: Api, seed: Seed) -> None
         s.close()
     assert all("Secret-Value-99" not in (r or "") for r in rows)
     assert all(PASSWORD not in (r or "") for r in rows)
+
+
+def test_concurrent_logins_of_same_user(app: Flask, seed: Seed) -> None:
+    """Two terminals logging in as the same user at the same moment both succeed."""
+    import threading
+
+    codes: list[int] = []
+    clients = [Api(app.test_client()) for _ in range(4)]
+
+    def go(c: Api) -> None:
+        codes.append(c.login("admin").status_code)
+
+    threads = [threading.Thread(target=go, args=(c,)) for c in clients]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert codes == [200, 200, 200, 200]

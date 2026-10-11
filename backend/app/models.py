@@ -13,9 +13,37 @@ from app.modules.accounting.models import (
 )
 from app.modules.audit.models import AuditEvent
 from app.modules.iam.models import AppUser, Permission, Role, UserScope, UserSession
+from app.modules.inventory.models import (
+    Item,
+    ItemBarcode,
+    ItemGroup,
+    ItemPrice,
+    ItemUnit,
+    PriceList,
+    ScaleBarcodeRule,
+    StockBalance,
+    StockDocument,
+    StockDocumentLine,
+    StockLedger,
+    Unit,
+    Warehouse,
+)
 from app.modules.organization.models import Branch, CashRegister, Organization
 
 __all__ = [
+    "Item",
+    "ItemBarcode",
+    "ItemGroup",
+    "ItemPrice",
+    "ItemUnit",
+    "PriceList",
+    "ScaleBarcodeRule",
+    "StockBalance",
+    "StockDocument",
+    "StockDocumentLine",
+    "StockLedger",
+    "Unit",
+    "Warehouse",
     "Account",
     "DetailAccount",
     "FiscalPeriod",
