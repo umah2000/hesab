@@ -15,6 +15,7 @@ dependencies = [
     "flask-limiter>=3.8",
     "jdatetime>=5.0",
     "openpyxl>=3.1",
+    "waitress>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -52,6 +53,8 @@ ignore = ["S101", "UP047"]
 "tests/**" = ["S105", "S106", "S608"]
 # Raw T-SQL trigger bodies read better unwrapped.
 "migrations/versions/**" = ["E501"]
+# Test-environment tooling: fixed test passwords, http:// URLs, non-crypto randomness.
+"scripts/**" = ["S105", "S310", "S311", "E501"]
 
 [tool.mypy]
 python_version = "3.12"

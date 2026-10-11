@@ -57,6 +57,23 @@ Button (primary / secondary / ghost / danger / outline، حالت loading)، Inp
 | `screenshots/27-labels.png` | پیش‌نمایش برچسب قیمت | نمونه |
 | `screenshots/28-import.png` | ورود از Excel | — |
 | `screenshots/29-items-dark.png` | کالاها، حالت تیره | نمونه |
+| `screenshots/30-pos-open-shift.png` | صندوق: شروع شیفت | — |
+| `screenshots/31-pos-cart.png` | صندوق: سبد با اسکن، بارکد بسته، پروموشن و برچسب ترازو | نمونه (e2e) |
+| `screenshots/32-pos-supervisor-approval.png` | تأیید سرپرست برای حذف ردیف | نمونه (e2e) |
+| `screenshots/33-pos-payment-cash.png` | دریافت نقد و باقی‌مانده | نمونه (e2e) |
+| `screenshots/34-pos-sale-done.png` | پس از ثبت فروش | نمونه (e2e) |
+| `screenshots/35-receipt-80mm.png` | فیش ۸۰ میلی‌متری (نمای چاپ) | نمونه (e2e) |
+| `screenshots/36-pos-card-unknown.png` | کارت‌خوان آزمایشی: وضعیت نامشخص و استعلام | **Mock** |
+| `screenshots/37-pos-held.png` | فاکتورهای معلق | نمونه (e2e) |
+| `screenshots/38-pos-shift-closed.png` | بستن شیفت با شمارش کور | نمونه (e2e) |
+| `screenshots/39-dashboard-backup-warning.png` | هشدار پشتیبان‌گیری در داشبورد | واقعی (دیتابیس توسعه) |
+| `screenshots/40-sales-invoices.png` | فهرست فاکتورها | نمونه |
+| `screenshots/41-invoice-detail.png` | جزئیات فاکتور و فیش چاپ مجدد | نمونه |
+| `screenshots/42-return-dialog.png` | برگشت از فروش | نمونه (e2e) |
+| `screenshots/43-daily-report.png` | گزارش فروش روزانه | نمونه |
+| `screenshots/44-shifts.png` | شیفت‌ها و گزارش شیفت | نمونه |
+| `screenshots/45-promotions.png` | پروموشن‌ها | نمونه |
+| `screenshots/46-settings-sales-backup.png` | تنظیمات فروش و پشتیبان‌گیری | نمونه |
 
 ## طرح صندوق (فاز ۴) — تصمیم‌های کلیدی
 - فیلد اسکن همیشه فوکوس دارد و بزرگ است؛ نتیجه آخرین اسکن کنار آن نمایش داده می‌شود.

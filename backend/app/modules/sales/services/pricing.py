@@ -15,6 +15,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import or_, select, true
 from sqlalchemy.orm import Session
 
+from app.core import refcache
 from app.core.errors import DomainError, NotFoundError
 from app.modules.inventory.models import (
     Item,
@@ -129,37 +130,96 @@ class PricedCart:
         )
 
 
-def organization(s: Session) -> Organization:
-    org: Organization | None = s.scalar(select(Organization))
-    if org is None:
-        raise DomainError("سازمان تعریف نشده است", code="no_organization")
-    return org
+@dataclass(frozen=True)
+class SalesSettings:
+    name: str
+    display_currency: str
+    negative_stock_policy: str
+    default_vat_rate: Decimal
+    prices_include_vat: bool
+    cashier_discount_limit: Decimal
+    receipt_header: str | None
+    receipt_footer: str | None
+
+
+@dataclass(frozen=True)
+class RegisterRef:
+    id: uuid.UUID
+    branch_id: uuid.UUID
+    code: str
+    name: str
+
+
+@dataclass(frozen=True)
+class WarehouseRef:
+    id: uuid.UUID
+
+
+def organization(s: Session) -> SalesSettings:
+    def load() -> SalesSettings:
+        org: Organization | None = s.scalar(select(Organization))
+        if org is None:
+            raise DomainError("سازمان تعریف نشده است", code="no_organization")
+        return SalesSettings(
+            name=org.name,
+            display_currency=org.display_currency,
+            negative_stock_policy=org.negative_stock_policy,
+            default_vat_rate=org.default_vat_rate,
+            prices_include_vat=org.prices_include_vat,
+            cashier_discount_limit=org.cashier_discount_limit,
+            receipt_header=org.receipt_header,
+            receipt_footer=org.receipt_footer,
+        )
+
+    return refcache.get("organization", load)
 
 
 def register_and_warehouse(
     s: Session, register_id: uuid.UUID, branch_ids: frozenset[uuid.UUID] | None
-) -> tuple[CashRegister, Warehouse]:
-    reg = s.get(CashRegister, register_id)
-    if reg is None or (branch_ids is not None and reg.branch_id not in branch_ids):
+) -> tuple[RegisterRef, WarehouseRef]:
+    def load() -> tuple[RegisterRef, bool, WarehouseRef | None] | None:
+        reg = s.get(CashRegister, register_id)
+        if reg is None:
+            return None
+        # The branch's first active warehouse (by code) is the shop floor.
+        wh = s.scalar(
+            select(Warehouse.id)
+            .where(Warehouse.branch_id == reg.branch_id, Warehouse.is_active == true())
+            .order_by(Warehouse.code)
+        )
+        return (
+            RegisterRef(reg.id, reg.branch_id, reg.code, reg.name),
+            reg.is_active,
+            WarehouseRef(wh) if wh else None,
+        )
+
+    found = refcache.get(f"register:{register_id}", load)
+    if found is None or (branch_ids is not None and found[0].branch_id not in branch_ids):
         raise NotFoundError("صندوق یافت نشد")
-    if not reg.is_active:
+    reg, active, wh = found
+    if not active:
         raise DomainError("این صندوق غیرفعال است", code="register_inactive")
-    # The branch's first active warehouse (by code) is the shop floor.
-    wh = s.scalar(
-        select(Warehouse)
-        .where(Warehouse.branch_id == reg.branch_id, Warehouse.is_active == true())
-        .order_by(Warehouse.code)
-    )
     if wh is None:
         raise DomainError("برای این شعبه انباری تعریف نشده است", code="no_warehouse")
     return reg, wh
 
 
+def default_price_list_id(s: Session) -> uuid.UUID:
+    return refcache.get("price_list", lambda: catalog.default_price_list(s).id)
+
+
+def _unit_names(s: Session) -> dict[uuid.UUID, str]:
+    return refcache.get("units", lambda: {u.id: u.name for u in s.scalars(select(Unit))})
+
+
 def _is_scale_label(s: Session, code: str) -> bool:
     if len(code) != 13 or not code.isdigit():
         return False
-    prefixes = s.scalars(
-        select(ScaleBarcodeRule.prefix).where(ScaleBarcodeRule.is_active == true())
+    prefixes = refcache.get(
+        "scale_prefixes",
+        lambda: tuple(
+            s.scalars(select(ScaleBarcodeRule.prefix).where(ScaleBarcodeRule.is_active == true()))
+        ),
     )
     return any(code.startswith(p) for p in prefixes)
 
@@ -183,14 +243,14 @@ def price_cart(
         (u.item_id, u.unit_id): u.factor
         for u in s.scalars(select(ItemUnit).where(ItemUnit.item_id.in_(ids)))
     }
-    pl = catalog.default_price_list(s)
+    pl_id = default_price_list_id(s)
     prices = {
         (p.item_id, p.unit_id): p.price
         for p in s.scalars(
-            select(ItemPrice).where(ItemPrice.item_id.in_(ids), ItemPrice.price_list_id == pl.id)
+            select(ItemPrice).where(ItemPrice.item_id.in_(ids), ItemPrice.price_list_id == pl_id)
         )
     }
-    unit_names = {u.id: u.name for u in s.scalars(select(Unit))}
+    unit_names = _unit_names(s)
     group_ids = [i.group_id for i in items.values() if i.group_id]
     promos = list(
         s.scalars(
@@ -231,7 +291,7 @@ def price_cart(
         label_price: Decimal | None = None
         barcode = catalog.normalize_scan(inp.barcode) if inp.barcode else None
         if barcode and _is_scale_label(s, barcode):
-            found = catalog.lookup(s, barcode, pl.id)
+            found = catalog.lookup(s, barcode, pl_id)
             if found.item_id != item.id:
                 raise DomainError("برچسب ترازو با کالای ردیف مطابقت ندارد", code="label_mismatch")
             unit_id, factor, qty = item.base_unit_id, Decimal(1), found.qty

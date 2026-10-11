@@ -91,8 +91,15 @@ def invoice_out(s: Session, inv: SalesInvoice, warnings: list[str] | None = None
     items = (
         {i.id: i for i in s.scalars(select(Item).where(Item.id.in_(item_ids)))} if item_ids else {}
     )
-    units = {u.id: u.name for u in s.scalars(select(Unit))}
-    returned = _returned(s, [ln.id for ln in lines]) if inv.kind == "sale" else {}
+    unit_ids = list({ln.unit_id for ln in lines})
+    units = (
+        {u.id: u.name for u in s.scalars(select(Unit).where(Unit.id.in_(unit_ids)))}
+        if unit_ids
+        else {}
+    )
+    # A sale finalised in this very request cannot have returns yet.
+    fresh = inv.kind == "sale" and inv.finalized_at is not None and s.info.get("fresh") == inv.id
+    returned = _returned(s, [ln.id for ln in lines]) if inv.kind == "sale" and not fresh else {}
     return InvoiceOut(
         id=inv.id,
         kind=inv.kind,  # type: ignore[arg-type]
@@ -429,7 +436,7 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
                 "amount": str(cart.manual_discount_total),
             },
         )
-    s.refresh(inv)
+    s.info["fresh"] = inv.id
     return invoice_out(s, inv, cart.warnings)
 
 

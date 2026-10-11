@@ -7,7 +7,7 @@
 - 🏛️ [معماری](docs/architecture/overview.md) · [تصمیم‌ها](docs/architecture/decisions/)
 - ❓ [سؤال‌های باز](docs/open-questions.md)
 
-**وضعیت فعلی:** فاز ۱ پیاده‌سازی شد (ورود، کاربران، نقش‌ها و مجوزها، ممیزی، تنظیمات، شعب و صندوق‌ها + رابط کاربری). ماژول‌های تجاری (حسابداری، انبار، فروش) از فاز ۲ به بعد. [تصاویر و سیستم طراحی](docs/design/README.md)
+**وضعیت فعلی:** فازهای ۱ تا ۴ پیاده‌سازی شده‌اند: کاربران و مجوزها، حسابداری، کالا و انبار، صندوق فروش، شیفت، برگشت و پشتیبان‌گیری. فاز ۴ منتظر پایلوت است. نصب در فروشگاه: [راهنمای نصب در شبکه داخلی](docs/install/lan-install.md). [تصاویر و سیستم طراحی](docs/design/README.md)
 
 ## اجرای Backend روی ویندوز با SQL Server محلی
 
@@ -39,7 +39,7 @@ copy .env.example .env      # سپس NEXTCAM_DATABASE_URL و NEXTCAM_SECRET_KEY 
 alembic upgrade head
 flask --app app setup --org-name "نام فروشگاه"     # یک‌بار: سازمان، شعبه اصلی، نقش‌ها و کاربر admin (رمز را می‌پرسد)
 flask --app app seed-defaults                      # پس از به‌روزرسانی: کدینگ، سال مالی، واحدها و انبارهای پیش‌فرض (تکرارپذیر)
-flask --app app run
+flask --app app run          # توسعه؛ در فروشگاه: python -m app.serve (راهنمای نصب)
 ```
 بررسی: `http://127.0.0.1:5000/api/v1/system/ready` باید `{"database": "up", "status": "ok"}` برگرداند.
 

@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     # Mock payment terminal may never be enabled in production (see ADR-0008).
     enable_mock_payment_terminal: bool = False
 
+    # Production server (python -m app.serve). static_dir = built frontend (frontend/dist),
+    # so the shop LAN needs only this one service on one port.
+    host: str = "0.0.0.0"  # noqa: S104 - a LAN server by design; firewall per install guide
+    port: int = 8080
+    threads: int = 16
+    static_dir: str | None = None
+
     # Backups (phase 4, risk R2). A folder on the SQL Server machine; empty = SQL Server's
     # default backup folder. Keep this many recent files when the folder is local.
     backup_dir: str | None = None

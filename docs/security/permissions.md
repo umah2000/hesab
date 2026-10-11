@@ -25,6 +25,7 @@
 | `sales.pos.use` | | | | ✓ | ✓ | | | |
 | `sales.shift.open` · `.close` | | | | ✓ | ✓ | | | |
 | `sales.invoice.discount` (≤ سقف) | | ✓ | | ✓ | ✓¹ | | | |
+| `sales.invoice.discount_over_limit` (بالاتر از سقف / تأیید آن) | | ✓ | | ✓ | | | | |
 | `sales.invoice.line_delete_after_scan` | | ✓ | | ✓ | | | | |
 | `sales.invoice.void` | | ✓ | | ✓ | | | | |
 | `sales.return.create` | | ✓ | | ✓ | | | | |

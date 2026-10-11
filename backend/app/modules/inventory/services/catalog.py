@@ -8,6 +8,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import func, or_, select, true
 from sqlalchemy.orm import Session
 
+from app.core import refcache
 from app.core.db import utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.core.http import Page
@@ -483,6 +484,7 @@ def save_scale_rule(
     rule_id: uuid.UUID | None = None,
     version: str | None = None,
 ) -> ScaleRuleOut:
+    refcache.invalidate_after_commit(s)
     _check_rule(data)
     others = select(ScaleBarcodeRule).where(ScaleBarcodeRule.id != (rule_id or uuid.UUID(int=0)))
     for r in list(s.scalars(others)):
@@ -544,7 +546,7 @@ def lookup(s: Session, raw: str, price_list_id: uuid.UUID | None = None) -> Look
     code = normalize_scan(raw)
     if not code:
         raise DomainError("بارکد خالی است", code="empty_barcode")
-    pl = price_list_id or default_price_list(s).id
+    pl = price_list_id or refcache.get("price_list", lambda: default_price_list(s).id)
 
     def result(
         item: Item, unit_id: uuid.UUID, qty: Decimal, source: str, line_price: Decimal | None = None

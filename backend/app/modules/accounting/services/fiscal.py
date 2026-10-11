@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError
+from app.core.numbering import ensure_counters
 from app.modules.accounting.models import FiscalPeriod, FiscalYear
 from app.modules.accounting.schemas import FiscalPeriodOut, FiscalYearOut
 from app.modules.accounting.services.chart import check_version
@@ -116,6 +117,9 @@ def ensure_year(s: Session, jalali_year: int, actor_id: uuid.UUID | None = None)
             )
         )
     s.flush()
+    from app.modules.organization.models import Branch
+
+    ensure_counters(s, [fy.id], list(s.scalars(select(Branch.id))))
     s.refresh(fy)
     return fy
 
@@ -140,7 +144,13 @@ def current_jalali_year(today: date | None = None) -> int:
 
 
 def open_year_for(s: Session, d: date) -> FiscalYear:
-    """The open fiscal year containing ``d`` whose period is not locked."""
+    """The open fiscal year containing ``d`` whose period is not locked.
+
+    Checked once per date per transaction (a sale asks three times).
+    """
+    cache: dict[date, FiscalYear] = s.info.setdefault("open_year_for", {})
+    if d in cache:
+        return cache[d]
     fy = s.scalar(select(FiscalYear).where(FiscalYear.start_date <= d, FiscalYear.end_date >= d))
     if fy is None:
         raise DomainError("برای این تاریخ سال مالی تعریف نشده است", code="no_fiscal_year")
@@ -149,6 +159,7 @@ def open_year_for(s: Session, d: date) -> FiscalYear:
     period = next((p for p in fy.periods if p.start_date <= d <= p.end_date), None)
     if period is not None and period.is_locked:
         raise DomainError(f"دوره «{period.title}» قفل است", code="period_locked")
+    cache[d] = fy
     return fy
 
 
@@ -162,6 +173,7 @@ def set_period_lock(
     if p.fiscal_year.status == "closed" and not locked:
         raise DomainError("دوره‌های سال مالی بسته‌شده قابل بازگشایی نیست", code="fiscal_year_closed")
     p.is_locked = locked
+    s.info.pop("open_year_for", None)
     p.updated_at = utcnow()
     s.flush()
     audit.record(

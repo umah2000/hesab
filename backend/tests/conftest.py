@@ -16,12 +16,14 @@ from sqlalchemy import create_engine, text
 from werkzeug.test import TestResponse
 
 from app import create_app
+from app.core import refcache
 from app.core.config import Settings
 from app.core.db import unit_of_work
 from app.core.ratelimit import limiter
 from app.core.security import hash_password
 from app.modules.iam.guard import CSRF_COOKIE, CSRF_HEADER
 from app.modules.iam.models import AppUser, Role, UserScope
+from app.modules.iam.services.auth import forget_sessions
 from app.modules.iam.services.roles import sync_catalog
 from app.modules.organization.models import Branch
 from app.modules.organization.services import ensure_organization
@@ -136,6 +138,9 @@ def _wipe(url: str) -> None:
 def app(migrated_db: str | None) -> Iterator[Flask]:
     if migrated_db:
         _wipe(migrated_db)
+    # Process-wide caches must not carry rows from a wiped database into the next test.
+    refcache.clear()
+    forget_sessions()
     flask_app = create_app(_settings(migrated_db or UNREACHABLE_URL))
     flask_app.config["RATELIMIT_ENABLED"] = False
     limiter.enabled = False

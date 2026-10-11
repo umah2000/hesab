@@ -18,6 +18,7 @@ from app.modules.iam.permissions import ADMIN_ROLE
 from app.modules.iam.schemas import RoleRef, UserCreateIn, UserOut, UserUpdateIn
 from app.modules.iam.services.auth import (
     active_admin_count,
+    forget_sessions_after_commit,
     revoke_user_sessions,
     validate_password,
 )
@@ -153,6 +154,7 @@ def create_user(s: Session, actor: Actor, data: UserCreateIn) -> UserOut:
 def update_user(
     s: Session, actor: Actor, user_id: uuid.UUID, data: UserUpdateIn, version: str
 ) -> UserOut:
+    forget_sessions_after_commit(s)  # permissions or status may change
     user = _get(s, user_id)
     _check_version(user, version)
     before = to_out(user).model_dump(mode="json", exclude={"row_version"})

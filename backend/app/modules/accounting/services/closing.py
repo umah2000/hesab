@@ -154,6 +154,7 @@ def close_year(s: Session, actor: Actor, fy_id: uuid.UUID) -> dict[str, object]:
         result["opening_number"] = opening.number
 
     fy.status = "closed"
+    s.info.pop("open_year_for", None)
     fy.closed_at = utcnow()
     fy.updated_by = actor.user_id
     for p in fy.periods:

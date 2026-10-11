@@ -7,7 +7,9 @@ from flask import Flask
 from sqlalchemy import select
 
 from app.core.db import unit_of_work
+from app.core.numbering import ensure_counters
 from app.core.security import hash_password
+from app.modules.accounting.models import FiscalYear
 from app.modules.accounting.services.chart import seed_defaults
 from app.modules.accounting.services.fiscal import current_jalali_year, ensure_year
 from app.modules.audit import service as audit
@@ -36,6 +38,11 @@ def register_cli(app: Flask) -> None:
             ensure_year(s, current_jalali_year())
             seed_catalog(s)
             ensure_default_warehouses(s)
+            ensure_counters(
+                s,
+                list(s.scalars(select(FiscalYear.id).where(FiscalYear.status == "open"))),
+                list(s.scalars(select(Branch.id))),
+            )
         return seeded
 
     @app.cli.command("seed-defaults")
@@ -81,6 +88,11 @@ def register_cli(app: Flask) -> None:
                 s.add(Branch(code=code, name=branch_name, is_active=True))
                 s.flush()
             ensure_default_warehouses(s)
+            ensure_counters(
+                s,
+                list(s.scalars(select(FiscalYear.id).where(FiscalYear.status == "open"))),
+                list(s.scalars(select(Branch.id))),
+            )
             if s.scalar(select(AppUser).where(AppUser.username == admin_username)) is not None:
                 click.echo(f"user {admin_username!r} already exists; left unchanged")
                 return

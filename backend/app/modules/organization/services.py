@@ -7,8 +7,10 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import refcache
 from app.core.db import utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError
+from app.core.numbering import ensure_counters
 from app.modules.audit import service as audit
 from app.modules.iam.guard import Actor
 from app.modules.organization.models import Branch, CashRegister, Organization
@@ -63,6 +65,7 @@ def get_organization(s: Session) -> OrganizationOut:
 def update_organization(
     s: Session, actor: Actor, data: OrganizationUpdateIn, version: str
 ) -> OrganizationOut:
+    refcache.invalidate_after_commit(s)
     org = _org(s)
     _check_version(org.row_version, version)
     changes = data.model_dump(exclude_none=True)
@@ -142,6 +145,10 @@ def create_branch(s: Session, actor: Actor, data: BranchCreateIn) -> BranchOut:
     )
     s.add(b)
     s.flush()
+    from app.modules.accounting.models import FiscalYear
+
+    open_years = list(s.scalars(select(FiscalYear.id).where(FiscalYear.status == "open")))
+    ensure_counters(s, open_years, [b.id])
     audit.record(
         s,
         "branches.created",
@@ -157,6 +164,7 @@ def create_branch(s: Session, actor: Actor, data: BranchCreateIn) -> BranchOut:
 def update_branch(
     s: Session, actor: Actor, branch_id: uuid.UUID, data: BranchUpdateIn, version: str
 ) -> BranchOut:
+    refcache.invalidate_after_commit(s)
     b = _branch_for(s, actor, branch_id)
     _check_version(b.row_version, version)
     changes = data.model_dump(exclude_none=True)
@@ -201,6 +209,7 @@ def list_registers(s: Session, actor: Actor, branch_id: uuid.UUID) -> list[CashR
 
 
 def create_register(s: Session, actor: Actor, data: CashRegisterCreateIn) -> CashRegisterOut:
+    refcache.invalidate_after_commit(s)
     branch = _branch_for(s, actor, data.branch_id)
     code = data.code.upper()
     exists = s.scalar(
@@ -235,6 +244,7 @@ def create_register(s: Session, actor: Actor, data: CashRegisterCreateIn) -> Cas
 def update_register(
     s: Session, actor: Actor, register_id: uuid.UUID, data: CashRegisterUpdateIn, version: str
 ) -> CashRegisterOut:
+    refcache.invalidate_after_commit(s)
     r = s.get(CashRegister, register_id)
     if r is None or not actor.can_access_branch(r.branch_id):
         raise NotFoundError("صندوق یافت نشد")

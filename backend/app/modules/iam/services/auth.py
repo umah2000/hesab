@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import re
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from flask import current_app
-from sqlalchemy import func, select, true, update
+from sqlalchemy import event, func, select, true, update
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -167,9 +168,43 @@ def actor_for(user: AppUser, session_id: uuid.UUID) -> Actor:
     )
 
 
+# Every request resolves its session. With 3–7 registers scanning, that query was a
+# large share of the work, so a resolved session is reused for a few seconds.
+# Single-process deployment (like the rate limiter): any logout, revocation, user or
+# role change clears the whole cache at once, so those take effect immediately.
+_SESSION_CACHE_TTL = timedelta(seconds=5)
+_session_cache: dict[str, tuple[datetime, Actor, str, datetime, datetime]] = {}
+_session_lock = threading.Lock()
+
+
+def forget_sessions() -> None:
+    with _session_lock:
+        _session_cache.clear()
+
+
+def forget_sessions_after_commit(s: Session) -> None:
+    """Clear now and again once the change is committed (no stale re-cache in between)."""
+    forget_sessions()
+    s.info["forget_sessions"] = True
+
+
+@event.listens_for(Session, "after_commit")
+def _forget_after_commit(s: Session) -> None:
+    if s.info.pop("forget_sessions", False):
+        forget_sessions()
+
+
 def resolve_session(token: str) -> tuple[Actor, str]:
     settings = _settings()
     now = utcnow()
+    key = hash_token(token)
+    with _session_lock:
+        hit = _session_cache.get(key)
+    if hit is not None:
+        cached_at, actor, csrf_hash, expires_at, last_seen = hit
+        idle_deadline = last_seen + timedelta(minutes=settings.session_idle_minutes)
+        if now - cached_at < _SESSION_CACHE_TTL and now < expires_at and now < idle_deadline:
+            return actor, csrf_hash
     s = new_session()
     try:
         sess = s.scalar(select(UserSession).where(UserSession.token_hash == hash_token(token)))
@@ -186,13 +221,26 @@ def resolve_session(token: str) -> tuple[Actor, str]:
         if now - last_seen >= _LAST_SEEN_GRANULARITY:
             s.execute(update(UserSession).where(UserSession.id == sess.id).values(last_seen_at=now))
             s.commit()
-        return actor_for(user, sess.id), sess.csrf_hash
+            last_seen = now
+        actor = actor_for(user, sess.id)
+        with _session_lock:
+            if len(_session_cache) > 5000:
+                _session_cache.clear()
+            _session_cache[key] = (
+                now,
+                actor,
+                sess.csrf_hash,
+                _aware(sess.expires_at) or now,
+                last_seen,
+            )
+        return actor, sess.csrf_hash
     finally:
         s.close()
 
 
 def logout(actor: Actor) -> None:
     with unit_of_work() as s:
+        forget_sessions_after_commit(s)
         s.execute(
             update(UserSession)
             .where(UserSession.id == actor.session_id, UserSession.revoked_at.is_(None))
@@ -210,6 +258,7 @@ def logout(actor: Actor) -> None:
 def revoke_user_sessions(
     s: Session, user_id: uuid.UUID, *, except_session: uuid.UUID | None = None
 ) -> None:
+    forget_sessions_after_commit(s)
     stmt = (
         update(UserSession)
         .where(UserSession.user_id == user_id, UserSession.revoked_at.is_(None))

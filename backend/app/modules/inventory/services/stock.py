@@ -14,6 +14,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from app.core import refcache
 from app.core.db import utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.core.http import Page
@@ -742,6 +743,7 @@ def ensure_default_warehouses(s: Session) -> None:
 def create_warehouse(
     s: Session, actor: Actor, branch_id: uuid.UUID, code: str, name: str
 ) -> Warehouse:
+    refcache.invalidate_after_commit(s)
     if not actor.can_access_branch(branch_id):
         raise NotFoundError("شعبه یافت نشد")
     if s.scalar(select(Warehouse.id).where(Warehouse.code == code.upper())):

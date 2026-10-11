@@ -43,10 +43,21 @@
 | ۳ | GET/POST/PUT/DELETE | `/inventory/stock-documents` · `/{id}/finalize` | `inventory.stock.create` (تعدیل/شمارش: `inventory.stock.adjust`) | اول دوره، تعدیل، انتقال، شمارش |
 | ۳ | GET | `/inventory/balances` · `/kardex?item_id=&warehouse_id=` | `inventory.report.view` | balances جمع ارزش را هم برمی‌گرداند |
 | ۳ | GET/POST | `/inventory/import/{items,opening}/template` · `/preview` · `/commit` | `import.run` | multipart؛ همه یا هیچ؛ حداکثر ۲۵MB |
-| ۴ | POST | `/sales/shifts/open` · `/sales/shifts/{id}/close` | `sales.shift.*` | |
-| ۴ | POST | `/sales/invoices` · `/{id}/hold` · `/{id}/finalize` · `/{id}/void` | `sales.invoice.*` | finalize = فروش + انبار + سند در یک تراکنش |
-| ۴ | POST | `/sales/invoices/{id}/returns` | `sales.return.create` | |
-| ۴ | POST | `/payments/terminal-transactions` · `GET /{id}` · `POST /{id}/inquire` | `sales.payment.card` | |
-| ۴ | GET | `/sales/reports/daily` · `/shift/{id}` | `sales.report.view` | |
+| ۴ | GET | `/sales/registers/{id}/state` | `sales.pos.use` / گزارش | شیفت، معلق‌ها، کارت‌خوان، مجوزهای صندوق‌دار |
+| ۴ | POST | `/sales/shifts/open` · `/sales/shifts/{id}/close` (If-Match) | `sales.shift.open` / `sales.shift.close` | بستن با شمارش کور؛ کسری/اضافه سند می‌خورد |
+| ۴ | GET | `/sales/shifts` · `/sales/shifts/{id}/report` | صندوق‌دار (شیفت خود) / `sales.report.view` | |
+| ۴ | POST | `/sales/quote` | `sales.pos.use` | قیمت‌گذاری سبد بدون ثبت؛ هر اسکن |
+| ۴ | POST | `/sales/invoices` (Idempotency-Key) | `sales.pos.use` + مجوز هر روش پرداخت | فروش + انبار + سند + شماره در یک تراکنش |
+| ۴ | GET | `/sales/invoices` · `/sales/invoices/{id}` | `sales.report.view` / `sales.return.create` / صندوق‌دار (فاکتور خود) | |
+| ۴ | POST | `/sales/invoices/{id}/returns` (Idempotency-Key) | `sales.return.create` | با یک روش استرداد، مبلغ را سرور تعیین می‌کند |
+| ۴ | POST/GET | `/sales/held` · `/sales/held/{id}/recall` | `sales.pos.use` | تعلیق و بازیابی بین صندوق‌های شعبه |
+| ۴ | POST | `/sales/approvals` | `sales.pos.use` (+ رمز سرپرست) | محدودیت نرخ ۱۰ در دقیقه؛ یک‌بارمصرف، ۳ دقیقه |
+| ۴ | POST | `/sales/line-removals` | `sales.pos.use` (+ تأیید) | ممیزی حذف کالای اسکن‌شده |
+| ۴ | GET | `/sales/customers?q=` | `sales.payment.credit` / گزارش | سقف، مانده و اعتبار باقی‌مانده |
+| ۴ | GET/POST/PUT | `/sales/promotions` | `inventory.price.manage` | |
+| ۴ | GET | `/sales/reports/daily?date=` | `sales.report.view` | |
+| ۴ | POST/GET | `/payments/terminal-transactions` · `/{id}` · `/{id}/inquire` | `sales.payment.card` | فعلاً فقط Mock در dev/test |
+| ۴ | GET · POST | `/payments/terminal-transactions` (نامشخص‌ها) · `/{id}/resolve` | `payments.reconcile` | تطبیق دستی با گزارش بانک |
+| ۴ | GET · POST | `/system/backups` · `/system/backups/run` · `/system/backups/offsite-copied` | `settings.manage` / `audit.view` | CLI: `flask backup`، `flask backup-restore-test` |
 | ۵ | … | `/parties` · `/purchasing/*` · `/treasury/*` | | |
 | ۸ | POST | `/sync/push` · `GET /sync/pull?since=` | `sync.device` | [`protocol.md`](../sync/protocol.md) |

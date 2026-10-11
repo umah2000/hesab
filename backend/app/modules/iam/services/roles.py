@@ -14,6 +14,7 @@ from app.modules.iam.guard import Actor
 from app.modules.iam.models import Permission, Role, user_role
 from app.modules.iam.permissions import ADMIN_ROLE, CATALOG, CODES, SYSTEM_ROLES
 from app.modules.iam.schemas import PermissionOut, RoleCreateIn, RoleOut, RoleUpdateIn
+from app.modules.iam.services.auth import forget_sessions_after_commit
 
 
 def sync_catalog(s: Session) -> None:
@@ -111,6 +112,7 @@ def create_role(s: Session, actor: Actor, data: RoleCreateIn) -> RoleOut:
 def update_role(
     s: Session, actor: Actor, role_id: uuid.UUID, data: RoleUpdateIn, version: str
 ) -> RoleOut:
+    forget_sessions_after_commit(s)  # permissions or status may change
     role = s.get(Role, role_id)
     if role is None:
         raise NotFoundError("نقش یافت نشد")

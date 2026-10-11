@@ -31,6 +31,8 @@
 18. جداولی که trigger دارند باید `implicit_returning: False` داشته باشند (SQL Server با OUTPUT بدون INTO خطا می‌دهد).
 19. SQL Server بدون MARS: نتیجه query را قبل از اجرای query بعدی کامل بخوان (`list(s.scalars(...))`)؛ وگرنه «Connection is busy».
 20. انبار: موجودی و میانگین بها فقط در `inventory.services.stock.post_movement` با قفل `stock_balance` تغییر می‌کند (ADR-0012).
+21. فروش: قیمت، تخفیف و مالیات فقط در `sales.services.pricing` و همیشه در سرور حساب می‌شوند. فاکتور قطعی تغییرناپذیر است و اصلاح فقط با برگشت ممکن است (ADR-0013).
+22. دیتابیس با RCSI است. قفل صریح (`UPDLOCK`/`with_for_update`) فقط با seek روی کلید بگیر، چون scan زیر HOLDLOCK بین صندوق‌ها deadlock می‌سازد. cache درون‌پردازه‌ای (`refcache`، نشست) فقط داده‌ی مرجع را نگه می‌دارد و با `invalidate_after_commit` پاک می‌شود.
 
 ## روال کار
 - شاخه از `main`، PR، CI سبز. Conventional Commits.

@@ -12,6 +12,7 @@ from flask import Flask
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 
+from app.core import refcache
 from app.core.db import new_session, unit_of_work
 from app.modules.accounting.models import Account, DetailAccount, VoucherLine
 from app.modules.accounting.services.chart import seed_defaults
@@ -236,6 +237,7 @@ def test_prices_exclusive_of_vat_setting(app: Flask, pos: Pos) -> None:
     with app.app_context(), unit_of_work() as s:
         org = s.scalar(select(Organization))
         assert org is not None
+        refcache.invalidate_after_commit(s)
         org.prices_include_vat = False
     c = login(app, "cashier")
     open_shift(c, pos.r1)
@@ -494,6 +496,7 @@ def test_negative_stock_policy(app: Flask, pos: Pos) -> None:
     with app.app_context(), unit_of_work() as s:
         org = s.scalar(select(Organization))
         assert org is not None
+        refcache.invalidate_after_commit(s)
         org.negative_stock_policy = "deny"
     denied = sell(
         c, pos.r1, [{"item_id": pos.bread, "qty": "1"}], [{"method": "cash", "amount": "50000"}]
@@ -718,6 +721,7 @@ def test_concurrent_registers_never_oversell_and_numbers_are_gap_free(
     with app.app_context(), unit_of_work() as s:
         org = s.scalar(select(Organization))
         assert org is not None
+        refcache.invalidate_after_commit(s)
         org.negative_stock_policy = "deny"
         for i in range(3, 8):
             s.add(

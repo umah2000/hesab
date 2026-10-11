@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import BigInteger, Index, String, text
+from sqlalchemy import BigInteger, Index, String, insert, text
 from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
@@ -36,36 +36,76 @@ class NumberSequence(Base):
     next_value: Mapped[int] = mapped_column(BigInteger)
 
 
-_NEXT = text(
-    """
-    UPDATE number_sequence WITH (UPDLOCK, HOLDLOCK)
-    SET next_value = next_value + 1
-    OUTPUT deleted.next_value
-    WHERE doc_type = :doc_type AND fiscal_year_id = :fy
-      AND ((:branch IS NULL AND branch_id IS NULL) OR branch_id = :branch)
-    """
+# Equality on every key column (no "OR" on the nullable branch), so SQL Server seeks the
+# unique index and locks only that key — no key-range locks held for the transaction.
+_WHERE = "doc_type = :doc_type AND fiscal_year_id = :fy AND branch_id {}"
+_NEXT_WHERE = "n.doc_type = :doc_type AND n.fiscal_year_id = :fy AND n.branch_id {}"
+_NEXT_SQL = (
+    # INDEX hint (FROM clause): on a small table the optimizer prefers a scan, and a scan
+    # under HOLDLOCK range-locks every row it passes — two finalisations then deadlocked.
+    "UPDATE n SET next_value = n.next_value + 1 OUTPUT deleted.next_value "
+    "FROM number_sequence n WITH (UPDLOCK, HOLDLOCK, INDEX(uq_number_sequence_key)) WHERE "
 )
+_EXISTS_SQL = "SELECT 1 FROM number_sequence WHERE "
+
+
+def _where(branch_id: uuid.UUID | None) -> str:
+    return _WHERE.format("IS NULL" if branch_id is None else "= :branch")
+
+
+# Counters are created ahead of time (new fiscal year, new branch, seed-defaults), outside
+# any sale, so registers only ever UPDATE an existing row. Creating a first counter inside
+# concurrent business transactions deadlocked on key-range locks.
+ORG_COUNTERS = ("voucher",)
+BRANCH_COUNTERS = ("stock", "sales", "sales_return")
+
+
+def ensure_counters(
+    s: Session, fiscal_year_ids: list[uuid.UUID], branch_ids: list[uuid.UUID]
+) -> None:
+    keys: list[tuple[str, uuid.UUID, uuid.UUID | None]] = [
+        (d, fy, None) for fy in fiscal_year_ids for d in ORG_COUNTERS
+    ] + [(d, fy, b) for fy in fiscal_year_ids for b in branch_ids for d in BRANCH_COUNTERS]
+    for doc_type, fy, branch in keys:
+        params = {"doc_type": doc_type, "fy": fy, "branch": branch}
+        if s.execute(text(_EXISTS_SQL + _where(branch)), params).first() is None:
+            s.execute(
+                insert(NumberSequence).values(
+                    id=uuid.uuid4(),
+                    doc_type=doc_type,
+                    fiscal_year_id=fy,
+                    branch_id=branch,
+                    next_value=1,
+                )
+            )
+
+
+def _ensure_counter(s: Session, params: dict[str, object]) -> None:
+    """Fallback for a counter that was not created ahead of time (savepoint, in-transaction)."""
+    if s.execute(text(_EXISTS_SQL + _where(params["branch"])), params).first() is not None:  # type: ignore[arg-type]
+        return
+    try:
+        with s.begin_nested():
+            s.execute(
+                insert(NumberSequence).values(
+                    id=uuid.uuid4(),
+                    doc_type=params["doc_type"],
+                    fiscal_year_id=params["fy"],
+                    branch_id=params["branch"],
+                    next_value=1,
+                )
+            )
+    except IntegrityError:
+        pass  # a concurrent transaction created it first
 
 
 def next_number(
     s: Session, doc_type: str, fiscal_year_id: uuid.UUID, branch_id: uuid.UUID | None = None
 ) -> int:
-    params = {"doc_type": doc_type, "fy": fiscal_year_id, "branch": branch_id}
-    for _ in range(2):
-        value = s.execute(_NEXT, params).scalar()
-        if value is not None:
-            return int(value)
-        try:
-            with s.begin_nested():
-                s.add(
-                    NumberSequence(
-                        doc_type=doc_type,
-                        fiscal_year_id=fiscal_year_id,
-                        branch_id=branch_id,
-                        next_value=2,
-                    )
-                )
-            return 1
-        except IntegrityError:
-            continue  # a concurrent transaction created the counter first; use it
-    raise RuntimeError("could not allocate document number")
+    params: dict[str, object] = {"doc_type": doc_type, "fy": fiscal_year_id, "branch": branch_id}
+    _ensure_counter(s, params)
+    tail = _NEXT_WHERE.format("IS NULL" if branch_id is None else "= :branch")
+    value = s.execute(text(_NEXT_SQL + tail), params).scalar()
+    if value is None:
+        raise RuntimeError("document number counter is missing")
+    return int(value)

@@ -56,16 +56,19 @@ Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(f
 
 > رسید خرید و حواله فروش در فاز ۴ و ۵ با همین `post_movement` ثبت می‌شوند؛ جدول جدا برای آن‌ها ساخته نمی‌شود.
 
-## ۴. فروش و صندوق (فاز ۴)
+## ۴. فروش و صندوق (فاز ۴) — پیاده‌شده (migration `0005`)
 | جدول | ستون‌های کلیدی | نکته |
 |---|---|---|
-| `cash_shift` | cash_register_id, user_id, opened_at, opening_cash, closed_at, counted_cash, expected_cash, difference, status | |
-| `sales_invoice` | branch_id, cash_register_id, shift_id, customer_id?, device_number (UQ), number?, document_date, status (draft/held/final/voided), subtotal, discount_total, tax_total, grand_total, original_invoice_id? (برگشت), voucher_id, tax_invoice_number?, tax_submission_status? | فیلدهای `tax_*` رزرو |
-| `sales_invoice_line` | invoice_id, line_no, item_id, unit_id, qty, unit_price, discount, tax, line_total, promotion_id?, scanned_barcode | |
-| `promotion` | name, type (percent/amount/buy_x_get_y), scope (item/group), value, valid_from, valid_to, is_active | |
-| `payment` | invoice_id, method (cash/card/credit), amount, terminal_transaction_id? | پرداخت ترکیبی = چند ردیف |
-| `payment_terminal` | code, model, psp?, ip?, compatibility_status | |
-| `terminal_transaction` | terminal_id, invoice_id, request_id (UQ), amount, status (Created/Pending/Approved/Declined/Unknown/ReconciliationRequired/Cancelled), rrn?, trace_no?, masked_pan?, raw_response_redacted, is_simulated | هرگز PAN کامل/PIN |
+| `cash_shift` | branch_id, cash_register_id, user_id, status (open/closed), opened_at, opening_cash, closed_at, closed_by, expected_cash, counted_cash, difference, voucher_id | ایندکس یکتای فیلترشده: یک شیفت باز برای هر صندوق و هر کاربر |
+| `sales_invoice` | branch_id, cash_register_id, shift_id, fiscal_year_id, warehouse_id, kind (sale/return), status (draft/held/recalled/final), number, document_date, customer_id (تفصیلی شخص)، original_invoice_id، subtotal، discount_total، tax_total، grand_total، cost_total، cash_tendered، change_due، voucher_id، stock_document_id، tax_invoice_number?، tax_submission_status? | شماره یکتا در (سال، شعبه، نوع)؛ trigger: فاکتور قطعی تغییر یا حذف نمی‌شود؛ `tax_*` رزرو مؤدیان |
+| `sales_invoice_line` | invoice_id, line_no, item_id, unit_id, qty, base_qty, unit_price, price_source (list/scale), gross, promotion_id, promotion_discount, manual_discount, vat_exempt, vat_rate, tax, revenue, line_total, cost_total, scanned_barcode, original_line_id | trigger: ردیف فاکتور قطعی تغییرناپذیر |
+| `sales_payment` | invoice_id, seq, method (cash/card/credit), amount, card_reference?, terminal_transaction_id? | کارت بدون شماره پیگیری یا تراکنش تأییدشده ممنوع (CHECK)؛ هر تراکنش کارت‌خوان فقط یک پرداخت |
+| `promotion` | name, kind (percent/amount), scope (item/group), item_id/group_id, value, starts_on, ends_on, is_active | |
+| `sales_approval` | action (line_delete/discount_over_limit), cash_register_id, requested_by, approved_by, expires_at, used_at | تأیید سرپرست، یک‌بارمصرف |
+| `terminal_transaction` | request_id (UQ), cash_register_id, cart_id, adapter_id, amount, status (Created…Cancelled), rrn, trace_no, masked_pan, response_code, is_simulated, resolved_by, resolution_note | هرگز PAN کامل یا PIN |
+| `backup_log` | kind (backup/restore_test), status, started_at, finished_at, file_path, size_bytes, verified, message | |
+
+تغییر جداول قبلی: `organization` (default_vat_rate، prices_include_vat، cashier_discount_limit، backup_warning_days، receipt_header/footer)، `detail_account.credit_limit`، `stock_document` (انواع `sale`/`sale_return` و source_type/source_id). دیتابیس با `READ_COMMITTED_SNAPSHOT` (ADR-0013).
 
 ## ۵. طرف‌حساب، خرید، خزانه (فاز ۵) — خلاصه
 `party` (type: person/company، national_id، economic_code، postal_code، credit_limit، roles: customer/supplier)، `party_contact`، `purchase_order(_line)`، `purchase_invoice(_line)` (+ هزینه جانبی)، `cash_box`، `bank_account`، `receipt` / `disbursement`، `cheque` (direction، status، due_date، history)، `bank_statement_line`.
