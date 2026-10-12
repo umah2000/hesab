@@ -59,7 +59,13 @@ export const NAV_MAIN: NavItem[] = [
     keywords: "مشتری تأمین‌کننده طرف حساب بدهکار بستانکار party",
   },
   { to: "/purchasing", label: "خرید", icon: ShoppingBasket, comingInPhase: 5 },
-  { to: "/treasury", label: "خزانه‌داری", icon: Wallet, comingInPhase: 5 },
+  {
+    to: "/treasury",
+    label: "خزانه‌داری",
+    icon: Wallet,
+    permission: "treasury.manage",
+    keywords: "صندوق بانک دریافت پرداخت چک مغایرت treasury",
+  },
   { to: "/distribution", label: "ویزیتور و توزیع", icon: Truck, comingInPhase: 9 },
   { to: "/reports", label: "گزارش‌ها", icon: ChartColumnBig, comingInPhase: 7 },
 ];

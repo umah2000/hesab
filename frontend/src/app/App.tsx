@@ -44,6 +44,14 @@ import {
   ShiftsPage,
 } from "@/features/sales/SalesPages";
 import { SettingsPage } from "@/features/settings/SettingsPage";
+import {
+  ChequesPage,
+  MoneyAccountsPage,
+  ReconciliationPage,
+  TreasuryDocumentPage,
+  TreasuryDocumentsPage,
+  TreasuryLayout,
+} from "@/features/treasury/TreasuryPages";
 import { UsersPage } from "@/features/users/UsersPage";
 
 const queryClient = new QueryClient({
@@ -135,6 +143,18 @@ const router = createBrowserRouter([
           { path: "follow-ups", element: <FollowUpsPage /> },
           { path: "import", element: <PartiesImportPage /> },
           { path: ":id", element: <PartyDetailPage /> },
+        ],
+      },
+      {
+        path: "treasury",
+        element: <TreasuryLayout />,
+        children: [
+          { index: true, element: <Navigate to="documents" replace /> },
+          { path: "documents", element: <TreasuryDocumentsPage /> },
+          { path: "documents/:id", element: <TreasuryDocumentPage /> },
+          { path: "cheques", element: <ChequesPage /> },
+          { path: "accounts", element: <MoneyAccountsPage /> },
+          { path: "reconciliation", element: <ReconciliationPage /> },
         ],
       },
       { path: "login", element: <Navigate to="/" replace /> },
