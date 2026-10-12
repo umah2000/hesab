@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import func, select, true
+from sqlalchemy import func, or_, select, true
 from sqlalchemy.orm import Session
 
 from app.core.db import utcnow
@@ -212,8 +212,16 @@ def receivable_balance(s: Session, customer_id: uuid.UUID) -> Decimal:
 
 
 def list_customers(s: Session, q: str | None) -> list[CustomerOut]:
-    stmt = select(DetailAccount).where(
-        DetailAccount.kind == "person", DetailAccount.is_active == true()
+    from app.modules.parties.models import Party
+
+    stmt = (
+        select(DetailAccount)
+        .outerjoin(Party, Party.id == DetailAccount.id)
+        .where(
+            DetailAccount.kind == "person",
+            DetailAccount.is_active == true(),
+            or_(Party.id.is_(None), Party.is_customer == true()),
+        )
     )
     if q:
         stmt = stmt.where(DetailAccount.name.contains(q) | DetailAccount.code.contains(q))

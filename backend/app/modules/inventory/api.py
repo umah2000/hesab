@@ -11,8 +11,10 @@ from flask import Blueprint, Response, request
 from flask.typing import ResponseReturnValue
 from pydantic import BaseModel, Field
 
+from app.core import excel
 from app.core.db import new_session, unit_of_work
 from app.core.errors import DomainError
+from app.core.excel import ImportPreview, ImportResult
 from app.core.http import if_match, parse_body, parse_query, parse_uuid, to_json
 from app.core.idempotency import idempotent
 from app.core.openapi import doc
@@ -403,19 +405,8 @@ def kardex() -> ResponseReturnValue:
 
 # --- Excel import -----------------------------------------------------------
 
-XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-MAX_UPLOAD = 25 * 1024 * 1024
-
-
-def _upload() -> bytes:
-    request.max_content_length = MAX_UPLOAD
-    f = request.files.get("file")
-    if f is None:
-        raise DomainError("فایل Excel را انتخاب کنید", code="file_required")
-    data: bytes = f.read()
-    if not data.startswith(b"PK"):
-        raise DomainError("فقط فایل ‎.xlsx پذیرفته می‌شود", code="invalid_file")
-    return data
+XLSX = excel.XLSX
+_upload = excel.upload_bytes
 
 
 @bp.get("/import/<kind>/template")
@@ -438,7 +429,7 @@ def import_template(kind: str) -> ResponseReturnValue:
 
 @bp.post("/import/items/preview")
 @require("import.run")
-@doc("پیش‌نمایش ورود کالاها (بدون ذخیره)", response=importer.ImportPreview)
+@doc("پیش‌نمایش ورود کالاها (بدون ذخیره)", response=ImportPreview)
 def import_items_preview() -> ResponseReturnValue:
     data = _upload()
     s = new_session()
@@ -450,7 +441,7 @@ def import_items_preview() -> ResponseReturnValue:
 
 @bp.post("/import/items/commit")
 @require("import.run")
-@doc("ورود کالاها (همه یا هیچ)", response=importer.ImportResult, idempotent=True)
+@doc("ورود کالاها (همه یا هیچ)", response=ImportResult, idempotent=True)
 def import_items_commit() -> ResponseReturnValue:
     data = _upload()
     actor = current_actor()
@@ -475,7 +466,7 @@ class OpeningForm(BaseModel):
 
 @bp.post("/import/opening/preview")
 @require("import.run")
-@doc("پیش‌نمایش ورود موجودی اول دوره", response=importer.ImportPreview)
+@doc("پیش‌نمایش ورود موجودی اول دوره", response=ImportPreview)
 def import_opening_preview() -> ResponseReturnValue:
     data = _upload()
     s = new_session()
@@ -487,7 +478,7 @@ def import_opening_preview() -> ResponseReturnValue:
 
 @bp.post("/import/opening/commit")
 @require("import.run")
-@doc("ورود موجودی اول دوره به‌صورت سند پیش‌نویس", response=importer.ImportResult, idempotent=True)
+@doc("ورود موجودی اول دوره به‌صورت سند پیش‌نویس", response=ImportResult, idempotent=True)
 def import_opening_commit() -> ResponseReturnValue:
     data = _upload()
     form = OpeningForm.model_validate(request.form.to_dict())

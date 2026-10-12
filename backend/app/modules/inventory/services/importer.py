@@ -6,23 +6,24 @@ commit (all-or-nothing; refused while any row has an error).
 
 from __future__ import annotations
 
-import io
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 import jdatetime
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.worksheet.datavalidation import DataValidation
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core import excel
 from app.core.errors import DomainError
-from app.core.money import MONEY_PLACES
+from app.core.excel import ImportPreview, ImportResult, RowError
+from app.core.excel import decimal as _decimal
+from app.core.excel import read_rows as _read
+from app.core.excel import text as _text
+from app.core.excel import to_rials as _to_rials
+from app.core.excel import yes_no as _bool
 from app.modules.audit import service as audit
 from app.modules.iam.guard import Actor
 from app.modules.inventory.models import (
@@ -36,10 +37,6 @@ from app.modules.inventory.models import (
 from app.modules.inventory.schemas import StockDocIn, StockLineIn
 from app.modules.inventory.services.catalog import default_price_list, normalize_scan
 from app.modules.inventory.services.stock import create_doc
-
-MAX_ROWS = 50_000
-YES = {"بله", "آری", "yes", "y", "1", "true", "دارد", "✓"}
-NO = {"خیر", "نه", "no", "n", "0", "false", "ندارد", ""}
 
 ITEM_COLUMNS = [
     "کد کالا *",
@@ -57,60 +54,12 @@ ITEM_COLUMNS = [
 OPENING_COLUMNS = ["کد کالا یا بارکد *", "مقدار *", "بهای واحد *", "تاریخ انقضا (شمسی)"]
 
 
-class RowError(BaseModel):
-    row: int
-    column: str
-    message: str
-
-
-class ImportPreview(BaseModel):
-    total_rows: int
-    valid_rows: int
-    to_create: int
-    to_update: int
-    errors: list[RowError]
-    sample: list[dict[str, Any]]
-
-
-class ImportResult(BaseModel):
-    created: int
-    updated: int
-    document_id: uuid.UUID | None = None
-
-
 def _template(columns: list[str], title: str, example: list[Any], note: str) -> bytes:
-    wb = Workbook()
-    ws = wb.active
-    assert ws is not None
-    ws.title = title
-    ws.sheet_view.rightToLeft = True
-    ws.append(columns)
-    ws.append(example)
-    head = PatternFill("solid", fgColor="5146E5")
-    for c in ws[1]:
-        c.font = Font(bold=True, color="FFFFFF")
-        c.fill = head
-        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    for i, _ in enumerate(columns, start=1):
-        ws.column_dimensions[ws.cell(1, i).column_letter].width = 22
-    # Codes and barcodes as text, so Excel keeps leading zeros and long digit strings.
-    for col in ("A", "E", "H") if title == "کالاها" else ("A",):
-        ws.column_dimensions[col].number_format = "@"
-        for row in range(2, 3):
-            ws[f"{col}{row}"].number_format = "@"
     if title == "کالاها":
-        dv = DataValidation(type="list", formula1='"بله,خیر"', allow_blank=True)
-        ws.add_data_validation(dv)
-        dv.add(f"G2:G{MAX_ROWS + 1}")
-        dv.add(f"I2:I{MAX_ROWS + 1}")
-    info = wb.create_sheet("راهنما")
-    info.sheet_view.rightToLeft = True
-    for line in note.splitlines():
-        info.append([line])
-    info.column_dimensions["A"].width = 110
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+        return excel.template(
+            columns, title, example, note, text_columns=("A", "E", "H"), yes_no_columns=("G", "I")
+        )
+    return excel.template(columns, title, example, note)
 
 
 def items_template(currency: str) -> bytes:
@@ -152,62 +101,6 @@ def opening_template(currency: str) -> bytes:
         f"بهای واحد = بهای تمام‌شده خرید هر واحد به {unit}، نه قیمت فروش.\n"
         "نتیجه ورود یک «سند موجودی اول دوره» پیش‌نویس است؛ پس از بررسی آن را قطعی کنید.",
     )
-
-
-def _read(file_bytes: bytes, ncols: int) -> list[tuple[int, list[Any]]]:
-    try:
-        wb = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
-    except Exception as e:  # noqa: BLE001 - any parse failure is a user error here
-        raise DomainError("فایل Excel قابل خواندن نیست (فقط ‎.xlsx)", code="invalid_file") from e
-    ws = wb.worksheets[0]
-    rows = []
-    for idx, row in enumerate(ws.iter_rows(min_row=2, max_col=ncols, values_only=True), start=2):
-        values = list(row) + [None] * (ncols - len(row))
-        if all(v is None or str(v).strip() == "" for v in values):
-            continue
-        rows.append((idx, values))
-        if len(rows) > MAX_ROWS:
-            raise DomainError(f"حداکثر {MAX_ROWS} ردیف در هر فایل", code="too_many_rows")
-    wb.close()
-    return rows
-
-
-def _text(v: Any) -> str:
-    if v is None:
-        return ""
-    if isinstance(v, float) and v.is_integer():
-        v = int(v)
-    from app.core.money import _FA
-
-    return str(v).strip().translate(_FA)
-
-
-def _decimal(v: Any, places: str) -> Decimal:
-    s = _text(v).replace(",", "").replace("٬", "").replace("٫", ".")
-    try:
-        d = Decimal(s)
-    except InvalidOperation as e:
-        raise ValueError("عدد نامعتبر") from e
-    q = Decimal(places)
-    if d != d.quantize(q):
-        raise ValueError(f"حداکثر {len(places.split('.')[1]) if '.' in places else 0} رقم اعشار")
-    return d.quantize(q)
-
-
-def _to_rials(v: Any, currency: str) -> Decimal:
-    d = _decimal(v, "0.0001" if currency == "IRR" else "0.001")
-    if d < 0:
-        raise ValueError("منفی مجاز نیست")
-    return (d * 10 if currency == "IRT" else d).quantize(MONEY_PLACES)
-
-
-def _bool(v: Any) -> bool:
-    t = _text(v).lower()
-    if t in YES:
-        return True
-    if t in NO:
-        return False
-    raise ValueError("«بله» یا «خیر»")
 
 
 @dataclass

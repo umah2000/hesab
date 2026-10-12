@@ -47,7 +47,10 @@ def post_event(
     source_ref: str | None = None,
     source_id: uuid.UUID | None = None,
     description: str | None = None,
+    draft: bool = False,
 ) -> Voucher:
+    """Build the voucher from posting rules and finalise it (``draft=True``: leave it a
+    draft for an accountant to review, e.g. imported opening balances)."""
     event = EVENTS_BY_TYPE.get(event_type)
     if event is None:
         raise ValueError(f"unknown posting event {event_type!r}")
@@ -88,7 +91,7 @@ def post_event(
         source_ref=event_type,
         source_id=source_id,
     )
-    return finalize_voucher(s, v, actor_id)
+    return v if draft else finalize_voucher(s, v, actor_id)
 
 
 def list_rules(s: Session) -> list[PostingRuleOut]:

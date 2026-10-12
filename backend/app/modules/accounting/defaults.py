@@ -230,6 +230,65 @@ EVENTS: tuple[EventDef, ...] = (
         ),
     ),
     EventDef(
+        "purchase.return.finalized",
+        "برگشت از خرید",
+        (
+            RoleDef("payable", "کاهش بدهی به تأمین‌کننده", "3101"),
+            RoleDef("inventory", "موجودی کالا", "1301"),
+            RoleDef("vat_receivable", "مالیات خرید", "1402"),
+        ),
+    ),
+    EventDef(
+        "parties.opening",
+        "مانده افتتاحیه طرف‌حساب",
+        (
+            RoleDef("receivable", "طلب از طرف‌حساب", "1201"),
+            RoleDef("payable", "بدهی به طرف‌حساب", "3101"),
+            RoleDef("offset", "طرف مقابل مانده افتتاحیه", "4101"),
+        ),
+    ),
+    EventDef(
+        "treasury.receipt.finalized",
+        "دریافت",
+        (
+            RoleDef("cash", "صندوق", "1101"),
+            RoleDef("bank", "بانک", "1103"),
+            RoleDef("cheques_receivable", "اسناد دریافتنی", "1202"),
+            RoleDef("receivable", "کاهش طلب از مشتری", "1201"),
+            RoleDef("payable", "افزایش بدهی (دریافت از تأمین‌کننده)", "3101"),
+        ),
+    ),
+    EventDef(
+        "treasury.payment.finalized",
+        "پرداخت",
+        (
+            RoleDef("payable", "کاهش بدهی به تأمین‌کننده", "3101"),
+            RoleDef("receivable", "استرداد به مشتری", "1201"),
+            RoleDef("cash", "صندوق", "1101"),
+            RoleDef("bank", "بانک", "1103"),
+            RoleDef("cheques_payable", "اسناد پرداختنی", "3102"),
+        ),
+    ),
+    EventDef(
+        "treasury.transfer.finalized",
+        "انتقال وجه",
+        (
+            RoleDef("cash", "صندوق", "1101"),
+            RoleDef("bank", "بانک", "1103"),
+        ),
+    ),
+    EventDef(
+        "treasury.cheque.changed",
+        "تغییر وضعیت چک",
+        (
+            RoleDef("bank", "بانک", "1103"),
+            RoleDef("cheques_receivable", "اسناد دریافتنی", "1202"),
+            RoleDef("cheques_payable", "اسناد پرداختنی", "3102"),
+            RoleDef("receivable", "طلب از مشتری", "1201"),
+            RoleDef("payable", "بدهی به تأمین‌کننده", "3101"),
+        ),
+    ),
+    EventDef(
         "inventory.opening.finalized",
         "موجودی اول دوره کالا",
         (

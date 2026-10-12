@@ -47,6 +47,8 @@ CATALOG: tuple[PermissionDef, ...] = (
     PermissionDef("sales.payment.credit", "فروش", "فروش نسیه"),
     PermissionDef("sales.report.view", "فروش", "گزارش‌های فروش"),
     PermissionDef("payments.reconcile", "خزانه", "تطبیق تراکنش‌های نامشخص"),
+    PermissionDef("parties.view", "طرف‌حساب", "مشاهده طرف‌حساب‌ها، مانده و گردش"),
+    PermissionDef("parties.manage", "طرف‌حساب", "مدیریت طرف‌حساب‌ها و اطلاعات حساس"),
     PermissionDef("purchasing.manage", "خرید", "مدیریت خرید"),
     PermissionDef("treasury.manage", "خزانه", "مدیریت دریافت و پرداخت"),
 )
@@ -105,6 +107,8 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
                 "payments.reconcile",
                 "purchasing.manage",
                 "treasury.manage",
+                "parties.view",
+                "parties.manage",
             }
         ),
     ),
@@ -112,7 +116,14 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
         "ACC",
         "حسابدار",
         _all_starting("accounting.") - {"accounting.fiscal.close"}
-        | {"inventory.report.view", "sales.report.view", "payments.reconcile", "treasury.manage"},
+        | {
+            "inventory.report.view",
+            "sales.report.view",
+            "payments.reconcile",
+            "treasury.manage",
+            "parties.view",
+            "parties.manage",
+        },
     ),
     RoleDef(
         "SUP",
@@ -147,7 +158,15 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
     RoleDef(
         "PUR",
         "کارپرداز خرید",
-        frozenset({"inventory.item.manage", "inventory.report.view", "purchasing.manage"}),
+        frozenset(
+            {
+                "inventory.item.manage",
+                "inventory.report.view",
+                "purchasing.manage",
+                "parties.view",
+                "parties.manage",
+            }
+        ),
     ),
     RoleDef(
         "AUD",
@@ -158,6 +177,7 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
                 "accounting.report.view",
                 "inventory.report.view",
                 "sales.report.view",
+                "parties.view",
             }
         ),
     ),

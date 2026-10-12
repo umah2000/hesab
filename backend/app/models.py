@@ -29,6 +29,7 @@ from app.modules.inventory.models import (
     Warehouse,
 )
 from app.modules.organization.models import Branch, CashRegister, Organization
+from app.modules.parties.models import Party, PartyGroup, PartyNote
 from app.modules.sales.models import (
     CashShift,
     Promotion,
@@ -41,6 +42,9 @@ from app.modules.sales.models import (
 from app.modules.system.models import BackupLog
 
 __all__ = [
+    "Party",
+    "PartyGroup",
+    "PartyNote",
     "BackupLog",
     "CashShift",
     "Promotion",
