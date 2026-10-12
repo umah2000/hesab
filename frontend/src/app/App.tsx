@@ -25,6 +25,13 @@ import { LabelsPage } from "@/features/inventory/LabelsPage";
 import { StockDocEditorPage, StockDocsPage } from "@/features/inventory/StockDocsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import {
+  FollowUpsPage,
+  PartiesImportPage,
+  PartiesLayout,
+  PartiesListPage,
+  PartyDetailPage,
+} from "@/features/parties/PartiesPages";
 import { RolesPage } from "@/features/roles/RolesPage";
 import { PosPage } from "@/features/sales/PosPage";
 import {
@@ -117,6 +124,17 @@ const router = createBrowserRouter([
           { path: "daily", element: <DailyReportPage /> },
           { path: "promotions", element: <PromotionsPage /> },
           { path: "card-transactions", element: <CardTransactionsPage /> },
+        ],
+      },
+      {
+        path: "parties",
+        element: <PartiesLayout />,
+        children: [
+          { index: true, element: <Navigate to="list" replace /> },
+          { path: "list", element: <PartiesListPage /> },
+          { path: "follow-ups", element: <FollowUpsPage /> },
+          { path: "import", element: <PartiesImportPage /> },
+          { path: ":id", element: <PartyDetailPage /> },
         ],
       },
       { path: "login", element: <Navigate to="/" replace /> },

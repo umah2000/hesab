@@ -11,6 +11,7 @@ import {
   ShoppingBasket,
   ShoppingCart,
   Truck,
+  UserRound,
   Users,
   Wallet,
 } from "lucide-react";
@@ -49,6 +50,13 @@ export const NAV_MAIN: NavItem[] = [
     icon: BookOpenText,
     permission: ["accounting.account.manage", "accounting.voucher.create", "accounting.voucher.finalize", "accounting.report.view"],
     keywords: "سند دفتر تراز accounting voucher",
+  },
+  {
+    to: "/parties",
+    label: "طرف‌حساب‌ها",
+    icon: UserRound,
+    permission: ["parties.view", "parties.manage"],
+    keywords: "مشتری تأمین‌کننده طرف حساب بدهکار بستانکار party",
   },
   { to: "/purchasing", label: "خرید", icon: ShoppingBasket, comingInPhase: 5 },
   { to: "/treasury", label: "خزانه‌داری", icon: Wallet, comingInPhase: 5 },
