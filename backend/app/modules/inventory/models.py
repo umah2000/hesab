@@ -173,14 +173,15 @@ class Warehouse(EntityMixin, ActorMixin, VersionedMixin, Base):
 
 STOCK_DOC_TYPES = ("opening", "adjustment", "transfer", "count")
 # Created by other modules (sales, later purchasing), never by hand.
-SYSTEM_DOC_TYPES = ("sale", "sale_return")
+SYSTEM_DOC_TYPES = ("sale", "sale_return", "purchase", "purchase_return")
 
 
 class StockDocument(EntityMixin, ActorMixin, VersionedMixin, Base):
     __tablename__ = "stock_document"
     __table_args__ = (
         CheckConstraint(
-            "doc_type IN ('opening','adjustment','transfer','count','sale','sale_return')",
+            "doc_type IN ('opening','adjustment','transfer','count','sale','sale_return',"
+            "'purchase','purchase_return')",
             name="doc_type",
         ),
         CheckConstraint("status IN ('draft','final')", name="status"),
@@ -206,7 +207,7 @@ class StockDocument(EntityMixin, ActorMixin, VersionedMixin, Base):
     warehouse_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("warehouse.id"))
     dest_warehouse_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("warehouse.id"))
     fiscal_year_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("fiscal_year.id"))
-    doc_type: Mapped[str] = mapped_column(String(12))
+    doc_type: Mapped[str] = mapped_column(String(16))
     number: Mapped[int | None] = mapped_column(Integer)
     document_date: Mapped[date] = mapped_column(Date)
     status: Mapped[str] = mapped_column(String(8), default="draft")

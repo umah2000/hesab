@@ -57,7 +57,14 @@ def _where(branch_id: uuid.UUID | None) -> str:
 # any sale, so registers only ever UPDATE an existing row. Creating a first counter inside
 # concurrent business transactions deadlocked on key-range locks.
 ORG_COUNTERS = ("voucher",)
-BRANCH_COUNTERS = ("stock", "sales", "sales_return")
+BRANCH_COUNTERS = (
+    "stock",
+    "sales",
+    "sales_return",
+    "purchase",
+    "purchase_return",
+    "purchase_order",
+)
 
 
 def ensure_counters(

@@ -39,6 +39,11 @@ PASSWORD = "Test-Passw0rd"
 
 # Child tables first. audit_event needs its append-only trigger lifted for cleanup.
 _TABLES = [
+    "purchase_charge",
+    "purchase_invoice_line",
+    "purchase_invoice",
+    "purchase_order_line",
+    "purchase_order",
     "sales_payment",
     "sales_invoice_line",
     "sales_invoice",
@@ -125,6 +130,12 @@ def _wipe(url: str) -> None:
                 ("trg_sales_invoice_guard", "sales_invoice"),
                 ("trg_sales_invoice_line_guard", "sales_invoice_line"),
                 ("trg_sales_payment_guard", "sales_payment"),
+            ]
+        if conn.scalar(text("SELECT OBJECT_ID('purchase_invoice')")) is not None:
+            guarded += [
+                ("trg_purchase_invoice_guard", "purchase_invoice"),
+                ("trg_purchase_invoice_line_guard", "purchase_invoice_line"),
+                ("trg_purchase_charge_guard", "purchase_charge"),
             ]
         for trg, tbl in guarded:
             conn.execute(text(f"DISABLE TRIGGER {trg} ON {tbl}"))

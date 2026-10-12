@@ -236,6 +236,9 @@ EVENTS: tuple[EventDef, ...] = (
             RoleDef("payable", "کاهش بدهی به تأمین‌کننده", "3101"),
             RoleDef("inventory", "موجودی کالا", "1301"),
             RoleDef("vat_receivable", "مالیات خرید", "1402"),
+            # Inventory value leaving differs from the amount refunded (landed costs,
+            # last units at the running average).
+            RoleDef("price_difference", "تفاوت بهای برگشت از خرید", "6101"),
         ),
     ),
     EventDef(

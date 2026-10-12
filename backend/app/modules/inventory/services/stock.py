@@ -111,7 +111,8 @@ def post_movement(
     allow_negative: bool = False,
     value: Decimal | None = None,
 ) -> Posted:
-    """qty > 0 receipt at ``unit_cost`` (base unit) or exactly ``value``; qty < 0 issue at average.
+    """qty > 0 receipt at ``unit_cost`` (base unit) or exactly ``value``; qty < 0 issue at
+    average, or at exactly ``value`` (e.g. a purchase return at its purchase cost).
 
     Returns the movement value (positive for receipts, negative for issues).
     """
@@ -143,9 +144,20 @@ def post_movement(
                 code="insufficient_stock",
             )
         # Taking the last units takes the remaining value exactly (no rounding residue).
-        value = bal.value if out == bal.qty else _money(out * bal.avg_cost)
+        # An explicit value (purchase return at the original cost) is used otherwise.
+        explicit = value is not None and out != bal.qty
+        if out == bal.qty:
+            value = bal.value
+        elif value is None:
+            value = _money(out * bal.avg_cost)
+        else:
+            # Never take more value than the warehouse holds; the rest of the stock
+            # is revalued at what remains.
+            value = min(value, max(bal.value, Decimal(0)))
         bal.qty -= out
         bal.value -= value
+        if explicit and bal.qty > 0:
+            bal.avg_cost = (bal.value / bal.qty).quantize(COST_PLACES)
         entry = StockLedger(qty_out=out, value_out=value)
         posted = Posted(qty, -value)
     bal.last_movement_date = document.document_date
