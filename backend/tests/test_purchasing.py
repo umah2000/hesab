@@ -357,3 +357,110 @@ def test_dues_validation_and_permissions(app: Flask, buy: Buy) -> None:
             s.close()
     assert n == 2
     assert Decimal(due[0]["supplier_balance"]) == Decimal("23316000")
+
+
+def test_purchase_to_payment_books_agree(app: Flask, buy: Buy, seed: Seed) -> None:
+    """Purchase → return → receipt → payments (cash + cheque) → cheque cleared → transfer:
+    every voucher balances; inventory, cash and party balances agree with the books."""
+    api = buy.api
+    fin = finalize(buy, draft(buy)).get_json()
+    milk = next(ln for ln in fin["lines"] if ln["item_id"] == buy.milk)
+    ret = api.post(
+        f"/api/v1/purchasing/invoices/{fin['id']}/returns",
+        {
+            "document_date": D.isoformat(),
+            "reason": "خراب",
+            "lines": [{"original_line_id": milk["id"], "qty": "10"}],
+        },
+        idem=new_key(),
+    )
+    assert ret.status_code == 201, ret.get_json()
+
+    def new(path: str, body: dict) -> dict:
+        r = api.post(path, body, idem=new_key())
+        assert r.status_code == 201, r.get_json()
+        return r.get_json()
+
+    cash = new(
+        "/api/v1/treasury/accounts",
+        {"code": "CASH-1", "name": "صندوق", "kind": "cash", "branch_id": str(seed.branch_a)},
+    )["id"]
+    bank = new("/api/v1/treasury/accounts", {"code": "BANK-1", "name": "بانک", "kind": "bank"})[
+        "id"
+    ]
+    customer = new("/api/v1/parties", {"code": "C9", "name": "مشتری"})["id"]
+    base = {"branch_id": str(seed.branch_a), "document_date": D.isoformat()}
+    new(
+        "/api/v1/treasury/receipts",
+        {
+            **base,
+            "party_id": customer,
+            "lines": [{"method": "cash", "money_account_id": cash, "amount": "9000000"}],
+        },
+    )
+    pay = new(
+        "/api/v1/treasury/payments",
+        {
+            **base,
+            "party_id": buy.supplier,
+            "lines": [
+                {"method": "cash", "money_account_id": cash, "amount": "5000000"},
+                {
+                    "method": "cheque",
+                    "money_account_id": bank,
+                    "amount": "3000000",
+                    "cheque": {"number": "55", "due_date": D.isoformat()},
+                },
+            ],
+        },
+    )
+    # Until the cheque clears, the supplier is still owed it (as a cheque payable).
+    owed = api.get(f"/api/v1/parties/{buy.supplier}").get_json()["balance"]
+    assert owed == "-5800000.0000"
+    chq = api.get(f"/api/v1/treasury/cheques/{pay['lines'][1]['cheque_id']}").get_json()
+    cleared = api.post(
+        f"/api/v1/treasury/cheques/{chq['id']}/actions",
+        {"action": "clear", "event_date": D.isoformat()},
+        headers={"If-Match": chq["row_version"]},
+    )
+    assert cleared.status_code == 200, cleared.get_json()
+    new(
+        "/api/v1/treasury/transfers",
+        {**base, "from_account_id": cash, "to_account_id": bank, "amount": "4000000"},
+    )
+    # 11 658 000 bought − 858 000 returned − 5 000 000 cash − 3 000 000 cheque.
+    assert api.get(f"/api/v1/parties/{buy.supplier}").get_json()["balance"] == "-2800000.0000"
+
+    with app.app_context():
+        s = new_session()
+        try:
+            assert (
+                s.scalar(
+                    text(
+                        "SELECT COUNT(*) FROM voucher "
+                        "WHERE status = 'final' AND total_debit <> total_credit"
+                    )
+                )
+                == 0
+            )
+            acc = {
+                code: Decimal(v or 0)
+                for code, v in s.execute(
+                    text(
+                        "SELECT a.code, SUM(l.debit - l.credit) FROM voucher_line l "
+                        "JOIN voucher v ON v.id = l.voucher_id AND v.status = 'final' "
+                        "JOIN account a ON a.id = l.account_id GROUP BY a.code"
+                    )
+                ).all()
+            }
+            stock_value = s.scalar(text("SELECT SUM(value) FROM stock_balance"))
+        finally:
+            s.close()
+    balances = {
+        a["code"]: Decimal(a["balance"]) for a in api.get("/api/v1/treasury/accounts").get_json()
+    }
+    assert acc["1301"] == stock_value
+    assert acc["1101"] == balances["CASH-1"] == Decimal(0)
+    assert acc["1103"] == balances["BANK-1"] == Decimal(1000000)
+    assert acc.get("3102", Decimal(0)) == 0  # the only issued cheque has cleared
+    assert acc["3101"] == Decimal(-2800000 - 100000)  # supplier + carrier

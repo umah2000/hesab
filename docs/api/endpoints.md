@@ -59,5 +59,19 @@
 | ۴ | POST/GET | `/payments/terminal-transactions` · `/{id}` · `/{id}/inquire` | `sales.payment.card` | فعلاً فقط Mock در dev/test |
 | ۴ | GET · POST | `/payments/terminal-transactions` (نامشخص‌ها) · `/{id}/resolve` | `payments.reconcile` | تطبیق دستی با گزارش بانک |
 | ۴ | GET · POST | `/system/backups` · `/system/backups/run` · `/system/backups/offsite-copied` | `settings.manage` / `audit.view` | CLI: `flask backup`، `flask backup-restore-test` |
-| ۵ | … | `/parties` · `/purchasing/*` · `/treasury/*` | | |
+| ۵ | GET/POST · GET/PUT | `/parties` · `/parties/{id}` | `parties.view` / `parties.manage` | فیلتر نقش و مانده؛ اطلاعات حساس بدون manage پوشیده |
+| ۵ | GET | `/parties/{id}/statement?date_from&date_to` | `parties.view` | گردش و مانده از اسناد قطعی |
+| ۵ | GET/POST · POST | `/parties/{id}/notes` · `/parties/notes/{id}/done` · `GET /parties/follow-ups` | `parties.view` | یادداشت و پیگیری |
+| ۵ | GET · POST | `/parties/import/template` · `/preview` · `/commit` | `import.run` (+ `parties.manage`) | مانده افتتاحیه ← سند پیش‌نویس |
+| ۵ | GET/POST · GET/PUT · POST | `/purchasing/orders` · `/{id}` · `/{id}/approve\|cancel\|close` | `purchasing.manage` | |
+| ۵ | GET/POST · GET/PUT/DELETE | `/purchasing/invoices` · `/{id}` | `purchasing.manage` | پیش‌نویس با محاسبه سرور و هشدار قیمت |
+| ۵ | POST | `/purchasing/invoices/{id}/finalize` (If-Match) | `purchasing.manage` | رسید انبار + سند + شماره |
+| ۵ | POST | `/purchasing/invoices/{id}/returns` (Idempotency-Key) | `purchasing.manage` | برگشت با بهای ورود |
+| ۵ | GET | `/purchasing/items/{id}/price-history` · `/purchasing/dues?days=` | `purchasing.manage` | |
+| ۵ | GET/POST · PUT | `/treasury/accounts` · `/{id}` | `treasury.manage` | صندوق و بانک با مانده |
+| ۵ | POST | `/treasury/receipts` · `/payments` · `/transfers` · `/settlements` (Idempotency-Key) | `treasury.manage` | قطعی هنگام ثبت |
+| ۵ | GET · POST | `/treasury/documents` · `/{id}` · `/{id}/reverse` (If-Match) | `treasury.manage` | برگشت با سند معکوس |
+| ۵ | GET · POST | `/treasury/cheques` · `/{id}` · `/{id}/actions` (If-Match) | `treasury.manage` | واگذاری، وصول، برگشت، استرداد، ابطال |
+| ۵ | GET · POST | `/treasury/statements/template` · `/treasury/accounts/{id}/statement` · `/preview` · `/commit` · `/auto-match` | `treasury.manage` | ردیف تکراری نادیده |
+| ۵ | GET · POST | `/treasury/accounts/{id}/reconciliation?as_of=` · `/treasury/statement-lines/{id}/candidates` · `/match` · `/unmatch` | `treasury.manage` | مغایرت‌گیری |
 | ۸ | POST | `/sync/push` · `GET /sync/pull?since=` | `sync.device` | [`protocol.md`](../sync/protocol.md) |

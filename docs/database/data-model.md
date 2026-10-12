@@ -70,8 +70,24 @@ Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(f
 
 تغییر جداول قبلی: `organization` (default_vat_rate، prices_include_vat، cashier_discount_limit، backup_warning_days، receipt_header/footer)، `detail_account.credit_limit`، `stock_document` (انواع `sale`/`sale_return` و source_type/source_id). دیتابیس با `READ_COMMITTED_SNAPSHOT` (ADR-0013).
 
-## ۵. طرف‌حساب، خرید، خزانه (فاز ۵) — خلاصه
-`party` (type: person/company، national_id، economic_code، postal_code، credit_limit، roles: customer/supplier)، `party_contact`، `purchase_order(_line)`، `purchase_invoice(_line)` (+ هزینه جانبی)، `cash_box`، `bank_account`، `receipt` / `disbursement`، `cheque` (direction، status، due_date، history)، `bank_statement_line`.
+## ۵. طرف‌حساب، خرید، خزانه (فاز ۵) — پیاده‌شده (migrationهای `0007` تا `0009`، ADR-0014)
+| جدول | ستون‌های کلیدی | نکته |
+|---|---|---|
+| `party` | id (= `detail_account.id`)، party_type (person/company)، is_customer، is_supplier، group_id، national_id، economic_code، registration_no، phone، mobile، email، postal_code، city، address، payment_terms_days | دست‌کم یک نقش (CHECK)؛ national_id یکتا (فیلترشده)؛ سقف اعتبار همان `detail_account.credit_limit` |
+| `party_group` | code، name | |
+| `party_note` | party_id، body، follow_up_on، done، created_by | پیگیری‌های سررسیده |
+| `purchase_order` / `_line` | branch_id، warehouse_id، supplier_id، status (draft/approved/closed/cancelled)، number، order_date، expected_date · ردیف: item_id، unit_id، qty، base_qty، unit_cost | |
+| `purchase_invoice` | kind (invoice/return)، status (draft/final)، branch_id، warehouse_id، supplier_id، number، document_date، supplier_invoice_no/date، due_date، order_id، original_invoice_id، subtotal، discount_total، tax_total، charges_total، grand_total، cost_total، voucher_id، stock_document_id | trigger: قطعی تغییرناپذیر؛ شماره یکتا در (سال، شعبه، نوع) |
+| `purchase_invoice_line` | qty، base_qty، unit_cost، gross، discount، net، vat_rate، tax، landed، total_cost، expiry_date، order_line_id، original_line_id | landed = سهم هزینه جانبی؛ total_cost = net + landed |
+| `purchase_charge` | description، amount، payee_id (NULL = تأمین‌کننده) | |
+| `money_account` | id (= `detail_account.id` از نوع cash/bank)، kind، branch_id، bank_name، bank_branch، account_no، iban | مانده از اسناد قطعی |
+| `treasury_document` | kind (receipt/payment/transfer/settlement)، status (draft/final/reversed)، number، document_date، party_id، against، from/to_account_id، amount، fee، voucher_id، reversal_voucher_id | trigger: فقط final ← reversed |
+| `treasury_line` | method (cash/bank/cheque)، money_account_id، amount، reference، cheque_id | |
+| `cheque` | direction (received/issued)، status، party_id، number، sayad_id، bank_name، drawer، amount، due_date، money_account_id، document_id | مشخصات تغییرناپذیر (trigger)؛ صیادی یکتا در هر جهت |
+| `cheque_event` | cheque_id، seq، event_date، from_status، to_status، money_account_id، voucher_id، note | append-only (trigger) |
+| `bank_statement_line` | money_account_id، seq، line_date، amount (± )، description، reference، balance، fingerprint، voucher_line_id | (حساب، fingerprint) یکتا؛ voucher_line_id یکتا (فیلترشده) |
+
+تغییر جداول قبلی: `stock_document.doc_type` به ۱۶ نویسه با انواع `purchase` و `purchase_return`.
 
 ## ۶. همگام‌سازی (فاز ۸)
 `sync_device`، `sync_inbox` (operation_id UQ، device_id، payload، received_at، status، error)، `sync_conflict`.
