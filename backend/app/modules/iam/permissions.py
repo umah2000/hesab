@@ -127,7 +127,6 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
                 "sales.pos.use",
                 "sales.shift.open",
                 "sales.shift.close",
-                "sales.invoice.discount",
                 "sales.payment.cash",
                 "sales.payment.card",
             }

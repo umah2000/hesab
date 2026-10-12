@@ -405,7 +405,10 @@ function Workspace({ state }: { state: RegisterState }) {
 
   const openPay = (mode: PayMode) => {
     if (!q || !cart.lines.length) return;
-    if (q.needs_discount_approval && !can("sales.invoice.discount_over_limit") && !discountApproval) {
+    const manual = Number(q.manual_discount_total) > 0;
+    const needsApproval =
+      manual && !can("sales.invoice.discount_over_limit") && (!can("sales.invoice.discount") || q.needs_discount_approval);
+    if (needsApproval && !discountApproval) {
       setDialog({
         kind: "approval",
         action: "discount_over_limit",
@@ -481,7 +484,7 @@ function Workspace({ state }: { state: RegisterState }) {
         else setDialog({ kind: "held" });
       } else if (e.key === "F6") {
         e.preventDefault();
-        if (can("sales.invoice.discount") && q) setDialog({ kind: "discount" });
+        if (q) setDialog({ kind: "discount" });
       } else if (e.key === "F12") {
         e.preventDefault();
         if (cart.lines.length) toast.info("فاکتور جاری خالی نیست");
@@ -614,7 +617,7 @@ function Workspace({ state }: { state: RegisterState }) {
             <PayButton label="نسیه" k="F11" onClick={() => openPay("credit")} disabled={!q || !can("sales.payment.credit")} />
           </Card>
           <Card className="grid grid-cols-2 gap-2 p-3 text-sm">
-            <Button variant="outline" onClick={() => setDialog({ kind: "discount" })} disabled={!q || !can("sales.invoice.discount")}>تخفیف (F6)</Button>
+            <Button variant="outline" onClick={() => setDialog({ kind: "discount" })} disabled={!q}>تخفیف (F6)</Button>
             <Button variant="outline" onClick={() => cart.lines.length && setDialog({ kind: "hold" })} disabled={!cart.lines.length}>
               <PauseCircle /> تعلیق (F4)
             </Button>

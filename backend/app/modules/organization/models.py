@@ -38,10 +38,11 @@ class Organization(EntityMixin, ActorMixin, VersionedMixin, Base):
     last_offsite_backup_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Sales settings (phase 4, ADR-0013).
     default_vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal(10))
-    # Shelf prices are consumer prices including VAT; tax is extracted from them.
-    prices_include_vat: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Owner decision (1405/07/20): shelf prices exclude VAT; tax is added on the invoice.
+    prices_include_vat: Mapped[bool] = mapped_column(Boolean, default=False)
     # Manual discount a cashier may give without a supervisor, as % of the invoice.
-    cashier_discount_limit: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal(5))
+    # Owner decision: 0 — cashiers give no discount; only promotions apply.
+    cashier_discount_limit: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal(0))
     backup_warning_days: Mapped[int] = mapped_column(Integer, default=3)
     receipt_header: Mapped[str | None] = mapped_column(Unicode(500))
     receipt_footer: Mapped[str | None] = mapped_column(Unicode(500))

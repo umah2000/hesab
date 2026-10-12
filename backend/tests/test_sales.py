@@ -54,6 +54,12 @@ def pos(app: Flask, seed: Seed) -> Pos:
         ensure_year(s, 1405)
         seed_catalog(s)
         ensure_default_warehouses(s)
+        # The amounts in these tests were written for VAT-inclusive prices and a 5 % cashier
+        # limit; the shop's own defaults (exclusive, 0 %) are covered by
+        # test_owner_defaults_vat_exclusive_and_no_cashier_discount.
+        org = s.scalar(select(Organization))
+        assert org is not None
+        org.prices_include_vat, org.cashier_discount_limit = True, Decimal(5)
         regs = [
             CashRegister(branch_id=seed.branch_a, code="R1", name="صندوق ۱", is_active=True),
             CashRegister(branch_id=seed.branch_a, code="R2", name="صندوق ۲", is_active=True),
@@ -231,6 +237,47 @@ def test_cash_sale_posts_stock_and_voucher(app: Flask, pos: Pos) -> None:
         c, pos.r1, [{"item_id": pos.bread, "qty": "1"}], [{"method": "cash", "amount": "50000"}]
     )
     assert second.get_json()["number"] == 2
+
+
+def test_owner_defaults_vat_exclusive_and_no_cashier_discount(app: Flask, seed: Seed) -> None:
+    """A fresh organization: shelf prices exclude VAT; cashiers give no manual discount."""
+    with app.app_context():
+        s = new_session()
+        org = s.scalar(select(Organization))
+        assert org is not None
+        assert (org.prices_include_vat, org.cashier_discount_limit) == (False, Decimal(0))
+        s.close()
+    from app.modules.iam.permissions import SYSTEM_ROLES
+
+    cashier = next(r for r in SYSTEM_ROLES if r.code == "CSH")
+    assert "sales.invoice.discount" not in cashier.permissions
+
+
+def test_cashier_manual_discount_needs_supervisor(app: Flask, pos: Pos) -> None:
+    c = login(app, "cashier")
+    open_shift(c, pos.r1)
+    lines = [{"item_id": pos.milk, "qty": "1"}]
+    # 1 % — inside the 5 % limit, but the cashier role has no discount permission.
+    refused = sell(c, pos.r1, lines, [{"method": "cash", "amount": "108900"}], discount="1100")
+    assert refused.get_json()["error"]["code"] == "approval_required"
+    ok = c.post(
+        "/api/v1/sales/approvals",
+        {
+            "cash_register_id": pos.r1,
+            "action": "discount_over_limit",
+            "username": "super",
+            "password": "Test-Passw0rd",
+        },
+    ).get_json()
+    done = sell(
+        c,
+        pos.r1,
+        lines,
+        [{"method": "cash", "amount": "108900"}],
+        discount="1100",
+        approval_id=ok["id"],
+    )
+    assert done.status_code == 201, done.get_json()
 
 
 def test_prices_exclusive_of_vat_setting(app: Flask, pos: Pos) -> None:

@@ -277,11 +277,15 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
     cart = price_cart(s, data, warehouse_id=wh.id, today=today)
 
     approver: uuid.UUID | None = None
-    if cart.manual_discount_total:
-        if not actor.has("sales.invoice.discount"):
-            raise PermissionDeniedError("مجوز تخفیف دستی را ندارید")
-        if cart.needs_discount_approval and not actor.has("sales.invoice.discount_over_limit"):
-            approver = approvals.consume(s, actor, data.approval_id, "discount_over_limit", reg.id)
+    # Promotions apply on their own. A manual discount needs the discount permission within
+    # the cashier limit; without it (the default cashier role) or above the limit, a
+    # supervisor approves it on the register.
+    if (
+        cart.manual_discount_total
+        and not actor.has("sales.invoice.discount_over_limit")
+        and (not actor.has("sales.invoice.discount") or cart.needs_discount_approval)
+    ):
+        approver = approvals.consume(s, actor, data.approval_id, "discount_over_limit", reg.id)
 
     _check_payment_methods(actor, data.payments)
     paid = sum((p.amount for p in data.payments), ZERO)
