@@ -8,7 +8,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/feedback";
 import { Field, Select } from "@/components/ui/form-controls";
 import { JalaliDateInput } from "@/features/accounting/inputs";
-import { ApiError, newIdempotencyKey } from "@/lib/api";
+import { ApiError, newIdempotencyKey, upload } from "@/lib/api";
 import { toFaDigits } from "@/lib/format";
 import { todayIso } from "@/lib/jalali";
 import { useWarehouses } from "./api";
@@ -21,22 +21,6 @@ type Preview = {
   errors: { row: number; column: string; message: string }[];
 };
 type Result = { created: number; updated: number; document_id: string | null };
-
-function readCookie(name: string) {
-  return document.cookie.split("; ").find((c) => c.startsWith(`${name}=`))?.split("=")[1] ?? "";
-}
-
-async function upload<T>(path: string, file: File, extra: Record<string, string> = {}, key?: string): Promise<T> {
-  const form = new FormData();
-  form.append("file", file);
-  for (const [k, v] of Object.entries(extra)) form.append(k, v);
-  const headers: Record<string, string> = { "X-CSRF-Token": decodeURIComponent(readCookie("nextcam_csrf")) };
-  if (key) headers["Idempotency-Key"] = key;
-  const res = await fetch(`/api/v1${path}`, { method: "POST", body: form, headers, credentials: "same-origin" });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data?.error?.code ?? "error", data?.error?.message ?? "خطا");
-  return data as T;
-}
 
 function Importer({
   kind,

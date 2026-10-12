@@ -84,3 +84,31 @@ export function newIdempotencyKey(): string {
 }
 
 export type Page<T> = { items: T[]; total: number; page: number; page_size: number };
+
+/** Multipart upload of one file (Excel imports); same CSRF and error handling as JSON calls. */
+export async function upload<T>(
+  path: string,
+  file: File,
+  extra: Record<string, string> = {},
+  idempotencyKey?: string,
+): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  for (const [k, v] of Object.entries(extra)) form.append(k, v);
+  const headers: Record<string, string> = {};
+  const csrf = readCookie("nextcam_csrf");
+  if (csrf) headers["X-CSRF-Token"] = csrf;
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, { method: "POST", body: form, headers, credentials: "same-origin" });
+  } catch {
+    throw new ApiError(0, "network_error", "ارتباط با سرور برقرار نشد");
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const err = data?.error ?? {};
+    throw new ApiError(res.status, err.code ?? "error", err.message || "خطای ناشناخته", err.details, err.incident);
+  }
+  return data as T;
+}

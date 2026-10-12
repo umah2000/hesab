@@ -75,12 +75,25 @@ export type ScaleRule = {
   row_version: string;
 };
 
-export type DocType = "opening" | "adjustment" | "transfer" | "count";
+/** Manual types are created here; the rest are written by sales and purchasing. */
+export type DocType =
+  | "opening"
+  | "adjustment"
+  | "transfer"
+  | "count"
+  | "sale"
+  | "sale_return"
+  | "purchase"
+  | "purchase_return";
 export const DOC_LABEL: Record<DocType, string> = {
   opening: "موجودی اول دوره",
   adjustment: "تعدیل موجودی",
   transfer: "انتقال بین انبارها",
   count: "شمارش موجودی",
+  sale: "فروش",
+  sale_return: "برگشت از فروش",
+  purchase: "خرید",
+  purchase_return: "برگشت از خرید",
 };
 
 export type StockLine = {
