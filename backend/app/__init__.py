@@ -42,6 +42,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     from app.modules.sales.api import bp as sales_bp
     from app.modules.sales.api import payments_bp
     from app.modules.system.api import bp as system_bp
+    from app.modules.treasury.api import bp as treasury_bp
 
     api = "/api/v1"
     app.register_blueprint(system_bp, url_prefix=f"{api}/system")
@@ -56,6 +57,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(sales_bp, url_prefix=f"{api}/sales")
     app.register_blueprint(parties_bp, url_prefix=f"{api}/parties")
     app.register_blueprint(purchasing_bp, url_prefix=f"{api}/purchasing")
+    app.register_blueprint(treasury_bp, url_prefix=f"{api}/treasury")
     app.register_blueprint(payments_bp, url_prefix=f"{api}/payments")
     register_cli(app)
     if settings.static_dir:

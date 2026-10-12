@@ -47,8 +47,22 @@ from app.modules.sales.models import (
     TerminalTransaction,
 )
 from app.modules.system.models import BackupLog
+from app.modules.treasury.models import (
+    BankStatementLine,
+    Cheque,
+    ChequeEvent,
+    MoneyAccount,
+    TreasuryDocument,
+    TreasuryLine,
+)
 
 __all__ = [
+    "BankStatementLine",
+    "Cheque",
+    "ChequeEvent",
+    "MoneyAccount",
+    "TreasuryDocument",
+    "TreasuryLine",
     "PurchaseCharge",
     "PurchaseInvoice",
     "PurchaseInvoiceLine",

@@ -39,6 +39,12 @@ PASSWORD = "Test-Passw0rd"
 
 # Child tables first. audit_event needs its append-only trigger lifted for cleanup.
 _TABLES = [
+    "bank_statement_line",
+    "cheque_event",
+    "treasury_line",
+    "cheque",
+    "treasury_document",
+    "money_account",
     "purchase_charge",
     "purchase_invoice_line",
     "purchase_invoice",
@@ -130,6 +136,13 @@ def _wipe(url: str) -> None:
                 ("trg_sales_invoice_guard", "sales_invoice"),
                 ("trg_sales_invoice_line_guard", "sales_invoice_line"),
                 ("trg_sales_payment_guard", "sales_payment"),
+            ]
+        if conn.scalar(text("SELECT OBJECT_ID('treasury_document')")) is not None:
+            guarded += [
+                ("trg_treasury_document_guard", "treasury_document"),
+                ("trg_treasury_line_guard", "treasury_line"),
+                ("trg_cheque_guard", "cheque"),
+                ("trg_cheque_event_append_only", "cheque_event"),
             ]
         if conn.scalar(text("SELECT OBJECT_ID('purchase_invoice')")) is not None:
             guarded += [
