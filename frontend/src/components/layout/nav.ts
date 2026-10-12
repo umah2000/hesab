@@ -58,7 +58,13 @@ export const NAV_MAIN: NavItem[] = [
     permission: ["parties.view", "parties.manage"],
     keywords: "مشتری تأمین‌کننده طرف حساب بدهکار بستانکار party",
   },
-  { to: "/purchasing", label: "خرید", icon: ShoppingBasket, comingInPhase: 5 },
+  {
+    to: "/purchasing",
+    label: "خرید",
+    icon: ShoppingBasket,
+    permission: "purchasing.manage",
+    keywords: "خرید فاکتور سفارش تأمین‌کننده سررسید purchase",
+  },
   {
     to: "/treasury",
     label: "خزانه‌داری",

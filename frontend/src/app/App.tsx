@@ -32,6 +32,14 @@ import {
   PartiesListPage,
   PartyDetailPage,
 } from "@/features/parties/PartiesPages";
+import {
+  PurchaseDuesPage,
+  PurchaseInvoicePage,
+  PurchaseInvoicesPage,
+  PurchaseOrderPage,
+  PurchaseOrdersPage,
+  PurchasingLayout,
+} from "@/features/purchasing/PurchasingPages";
 import { RolesPage } from "@/features/roles/RolesPage";
 import { PosPage } from "@/features/sales/PosPage";
 import {
@@ -143,6 +151,19 @@ const router = createBrowserRouter([
           { path: "follow-ups", element: <FollowUpsPage /> },
           { path: "import", element: <PartiesImportPage /> },
           { path: ":id", element: <PartyDetailPage /> },
+        ],
+      },
+      {
+        path: "purchasing",
+        element: <PurchasingLayout />,
+        children: [
+          { index: true, element: <Navigate to="invoices" replace /> },
+          { path: "invoices", element: <PurchaseInvoicesPage /> },
+          // One route for "new" and ids: saving a new invoice keeps the page mounted.
+          { path: "invoices/:id", element: <PurchaseInvoicePage /> },
+          { path: "orders", element: <PurchaseOrdersPage /> },
+          { path: "orders/:id", element: <PurchaseOrderPage /> },
+          { path: "dues", element: <PurchaseDuesPage /> },
         ],
       },
       {
