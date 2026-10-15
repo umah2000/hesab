@@ -169,7 +169,9 @@ def quote() -> ResponseReturnValue:
     s = new_session()
     try:
         _, wh = pricing.register_and_warehouse(s, data.cash_register_id, actor.branch_ids)
-        return to_json(pricing.price_cart(s, data, warehouse_id=wh.id, today=tehran_today()).out())
+        return to_json(
+            pricing.quote_out(pricing.price_cart(s, data, warehouse_id=wh.id, today=tehran_today()))
+        )
     finally:
         s.close()
 

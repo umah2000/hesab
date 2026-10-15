@@ -8,6 +8,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from nextcam_core import receipt
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -34,7 +35,6 @@ from app.modules.devices.schemas import (
     PrintReceiptIn,
     RegisterDeviceOut,
 )
-from app.modules.devices.services import receipt
 from app.modules.iam.guard import Actor, NotAuthenticatedError
 from app.modules.organization.models import Branch, CashRegister, Organization
 from app.modules.sales.services.invoices import get_invoice

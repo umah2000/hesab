@@ -1,7 +1,9 @@
 """Receipt print payload: everything formatted here (Persian digits, toman/rial, Jalali
-date), so the agent only lays text out and never decides amounts.
+date), so the printer side only lays text out and never decides amounts.
 
-Same content as the browser receipt (frontend ``Receipt.tsx``).
+Same content as the browser receipt (frontend ``Receipt.tsx``). Used by the server for
+online receipts and by the register agent for offline ones (device number instead of
+the final number).
 """
 
 from __future__ import annotations
@@ -11,9 +13,7 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-import jdatetime
-
-from app.modules.sales.schemas import InvoiceOut
+from nextcam_core.jalali import to_jalali
 
 FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
 METHOD = {"cash": "نقد", "card": "کارت", "credit": "نسیه"}
@@ -40,11 +40,12 @@ def qty(v: Decimal) -> str:
 
 def jalali(dt: datetime, tz: str) -> str:
     local = dt.astimezone(ZoneInfo(tz))
-    return fa(jdatetime.datetime.fromgregorian(datetime=local).strftime("%Y/%m/%d  %H:%M"))
+    jy, jm, jd = to_jalali(local.date())
+    return fa(f"{jy:04d}/{jm:02d}/{jd:02d}  {local:%H:%M}")
 
 
 def build(
-    inv: InvoiceOut,
+    inv: Any,
     *,
     organization: str,
     header: str | None,
@@ -54,14 +55,17 @@ def build(
     reprint: bool,
     open_drawer: bool,
     cut: bool,
+    device_number: str | None = None,
 ) -> dict[str, Any]:
+    """``inv`` is a final invoice (server ``InvoiceOut``) or an offline sale with the same
+    attribute names. Offline sales have no final number yet: the device number is shown."""
     is_return = inv.kind == "return"
 
     def m(d: Decimal) -> str:
         return money(d, currency)
 
     meta = [
-        ["شماره", fa(inv.number or 0)],
+        ["شماره", fa(inv.number or 0)] if not device_number else ["شماره صندوق", fa(device_number)],
         ["تاریخ", jalali(inv.finalized_at or inv.created_at, timezone)],
         ["صندوق", inv.register_name],
         ["صندوق‌دار", inv.cashier_name],
@@ -103,6 +107,8 @@ def build(
     if inv.change_due:
         totals.append({"label": "باقی‌مانده", "value": m(inv.change_due), "bold": False})
     notes = ["* کالای معاف از مالیات"] if any(ln.vat_exempt for ln in inv.lines) else []
+    if device_number:
+        notes.append("ثبت در حالت آفلاین؛ شماره قطعی پس از اتصال به سرور داده می‌شود.")
     return {
         "title": organization,
         "header": (header or "").splitlines(),

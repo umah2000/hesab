@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from decimal import ROUND_HALF_UP, Decimal
 
+from nextcam_core import CoreError
+from nextcam_core.scan import ScaleRule, ean13_check_digit, normalize_scan, parse_scale
 from sqlalchemy import func, or_, select, true
 from sqlalchemy.orm import Session
 
@@ -57,19 +59,7 @@ DEFAULT_UNITS = (
 
 # A scanner on a Persian Windows keyboard layout types Persian characters for
 # the same keys. Map them back to the US layout the barcode was encoded with.
-_FA_LAYOUT = str.maketrans(
-    "۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩ضصثقفغعهخحجچشسیبلاتنمکگظطزرذدپوئ",
-    "01234567890123456789qwertyuiop[]asdfghjkl;'zxcvbnm,.",
-)
-
-
-def normalize_scan(raw: str) -> str:
-    return raw.strip().translate(_FA_LAYOUT).upper().replace(" ", "")
-
-
-def ean13_check_digit(first12: str) -> int:
-    total = sum(int(d) * (3 if i % 2 else 1) for i, d in enumerate(first12))
-    return (10 - total % 10) % 10
+__all__ = ["ean13_check_digit", "normalize_scan"]
 
 
 def seed_catalog(s: Session) -> None:
@@ -587,38 +577,34 @@ def lookup(s: Session, raw: str, price_list_id: uuid.UUID | None = None) -> Look
         )
 
     if len(code) == 13 and code.isdigit():
-        rules = list(
-            s.scalars(select(ScaleBarcodeRule).where(ScaleBarcodeRule.is_active == true()))
-        )
-        for rule in rules:
-            if not code.startswith(rule.prefix):
-                continue
-            if ean13_check_digit(code[:12]) != int(code[12]):
-                raise DomainError(
-                    "رقم کنترل بارکد ترازو نادرست است؛ دوباره اسکن کنید", code="bad_check_digit"
+        rules = [
+            ScaleRule(r.prefix, r.item_code_length, r.value_type, r.value_decimals)
+            for r in s.scalars(select(ScaleBarcodeRule).where(ScaleBarcodeRule.is_active == true()))
+        ]
+
+        def find_plu(plu: str) -> uuid.UUID | None:
+            return s.scalar(
+                select(Item.id).where(
+                    or_(Item.scale_code == plu, Item.scale_code == plu.lstrip("0"))
                 )
-            start = len(rule.prefix)
-            plu = code[start : start + rule.item_code_length]
-            value = Decimal(code[start + rule.item_code_length : 12])
-            scaled = s.scalar(
-                select(Item).where(or_(Item.scale_code == plu, Item.scale_code == plu.lstrip("0")))
             )
-            if scaled is None:
-                raise NotFoundError(f"کالایی با کد ترازو {plu} تعریف نشده است")
-            scale = Decimal(10) ** rule.value_decimals
-            if rule.value_type == "weight":
-                qty = (value / scale).quantize(Decimal("0.001"))
-                if qty <= 0:
-                    raise DomainError("وزن برچسب صفر است", code="zero_weight")
-                return result(scaled, scaled.base_unit_id, qty, "scale_weight")
-            price = (value * scale).quantize(MONEY_PLACES)  # label price → rials
-            unit_price = _price(s, scaled, scaled.base_unit_id, pl)
-            qty = (
-                (price / unit_price).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
-                if unit_price
-                else Decimal(1)
+
+        def base_price(item_id: uuid.UUID) -> Decimal | None:
+            it = s.get(Item, item_id)
+            return _price(s, it, it.base_unit_id, pl) if it else None
+
+        try:
+            hit = parse_scale(code, rules, find_plu, base_price)
+        except CoreError as e:
+            if e.not_found:
+                raise NotFoundError(e.message) from e
+            raise DomainError(e.message, code=e.code) from e
+        if hit is not None:
+            scaled = s.get(Item, hit.item_id)
+            assert scaled is not None
+            return result(
+                scaled, scaled.base_unit_id, hit.qty, hit.source, line_price=hit.line_price
             )
-            return result(scaled, scaled.base_unit_id, qty, "scale_price", line_price=price)
 
     by_code = s.scalar(select(Item).where(Item.code == code))
     if by_code is not None:

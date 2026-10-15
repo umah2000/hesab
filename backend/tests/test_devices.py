@@ -7,10 +7,10 @@ from decimal import Decimal
 import pytest
 from flask import Flask
 from flask.testing import FlaskClient
+from nextcam_core.receipt import money
 from sqlalchemy import text
 
 from app.core.db import new_session, unit_of_work
-from app.modules.devices.services.receipt import money
 from tests.conftest import Api, new_key
 from tests.test_sales import Pos, login, open_shift, pos, sell  # noqa: F401 - fixture
 

@@ -1,0 +1,25 @@
+name: nextcam-core
+
+on:
+  push:
+    branches: [main]
+    paths: ["packages/nextcam-core/**", ".github/workflows/core.yml"]
+  pull_request:
+    paths: ["packages/nextcam-core/**", ".github/workflows/core.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: packages/nextcam-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]" jdatetime
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy nextcam_core
+      - run: pytest -q

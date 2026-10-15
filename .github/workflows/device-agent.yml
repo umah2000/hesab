@@ -3,9 +3,9 @@ name: device-agent
 on:
   push:
     branches: [main]
-    paths: ["device-agent/**", ".github/workflows/device-agent.yml"]
+    paths: ["device-agent/**", "packages/**", ".github/workflows/device-agent.yml"]
   pull_request:
-    paths: ["device-agent/**", ".github/workflows/device-agent.yml"]
+    paths: ["device-agent/**", "packages/**", ".github/workflows/device-agent.yml"]
 
 jobs:
   test:

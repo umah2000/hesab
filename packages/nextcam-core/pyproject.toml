@@ -1,0 +1,31 @@
+[project]
+name = "nextcam-core"
+version = "0.8.0"
+description = "NEXTCAM pure business core shared by the server and the register agent: pricing, barcodes, receipts (ADR-0017)"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["nextcam_core*"]
+
+[tool.setuptools.package-data]
+nextcam_core = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"

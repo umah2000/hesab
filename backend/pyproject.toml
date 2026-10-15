@@ -16,6 +16,8 @@ dependencies = [
     "jdatetime>=5.0",
     "openpyxl>=3.1",
     "waitress>=3.0",
+    # Shared with the register agent; install first: pip install -e ../packages/nextcam-core
+    "nextcam-core>=0.8",
 ]
 
 [project.optional-dependencies]
@@ -60,3 +62,5 @@ ignore = ["S101", "UP047"]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+# The shared core is installed editable; let mypy read its sources directly.
+mypy_path = "../packages/nextcam-core"

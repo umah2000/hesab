@@ -3,9 +3,9 @@ name: backend
 on:
   push:
     branches: [main]
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "packages/**", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "packages/**", ".github/workflows/backend.yml"]
 
 jobs:
   test:
@@ -43,7 +43,7 @@ jobs:
       - name: Create test database
         run: |
           docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "CREATE DATABASE nextcam_test"
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ../packages/nextcam-core -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy app

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+from nextcam_core.pricing import ItemRef
 from sqlalchemy import func, or_, select, true
 from sqlalchemy.orm import Session
 
@@ -452,7 +453,7 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
     return invoice_out(s, inv, cart.warnings)
 
 
-def _lines_from_cart(inv: SalesInvoice, cart: PricedCart) -> list[tuple[SalesInvoiceLine, Item]]:
+def _lines_from_cart(inv: SalesInvoice, cart: PricedCart) -> list[tuple[SalesInvoiceLine, ItemRef]]:
     out = []
     for ln in cart.lines:
         row = SalesInvoiceLine(
