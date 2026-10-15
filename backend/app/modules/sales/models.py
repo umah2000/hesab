@@ -96,6 +96,13 @@ class SalesInvoice(EntityMixin, ActorMixin, VersionedMixin, Base):
         Index("ix_sales_invoice_branch_date", "branch_id", "document_date", "status"),
         Index("ix_sales_invoice_shift", "shift_id"),
         Index("ix_sales_invoice_original", "original_invoice_id"),
+        # Offline sales: the number printed on the receipt at the register (ADR-0005).
+        Index(
+            "uq_sales_invoice_device_number",
+            "device_number",
+            unique=True,
+            mssql_where=text("device_number IS NOT NULL"),
+        ),
         {"implicit_returning": False},
     )
 
@@ -122,6 +129,9 @@ class SalesInvoice(EntityMixin, ActorMixin, VersionedMixin, Base):
     stock_document_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("stock_document.id"))
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Reserved for the Moadian tax system (version 2, ADR-0009).
+    # Offline sale (ADR-0017): receipt number from the register and when it really happened.
+    device_number: Mapped[str | None] = mapped_column(String(32))
+    sold_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     tax_invoice_number: Mapped[str | None] = mapped_column(String(32))
     tax_submission_status: Mapped[str | None] = mapped_column(String(16))
 

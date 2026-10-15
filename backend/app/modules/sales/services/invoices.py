@@ -244,14 +244,19 @@ def list_customers(s: Session, q: str | None) -> list[CustomerOut]:
 
 
 def _stock_document(
-    s: Session, inv: SalesInvoice, doc_type: str, description: str
+    s: Session,
+    inv: SalesInvoice,
+    doc_type: str,
+    description: str,
+    on: date | None = None,
+    fiscal_year_id: uuid.UUID | None = None,
 ) -> StockDocument:
     doc = StockDocument(
         branch_id=inv.branch_id,
         warehouse_id=inv.warehouse_id,
-        fiscal_year_id=inv.fiscal_year_id,
+        fiscal_year_id=fiscal_year_id or inv.fiscal_year_id,
         doc_type=doc_type,
-        document_date=inv.document_date,
+        document_date=on or inv.document_date,
         status="final",
         description=description,
         source_type="sales_invoice",
@@ -375,66 +380,17 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
         )
     s.flush()
 
-    # Stock: one issue per line, locked in item order so registers never deadlock.
-    cost = ZERO
-    goods = [ln for ln in lines if ln[1].item_type == "goods"]
-    if goods:
-        doc = _stock_document(s, inv, "sale", f"فروش صندوق {reg.name}")
-        allow_negative = org.negative_stock_policy != "deny"
-        for n, (row, item) in enumerate(sorted(goods, key=lambda x: str(x[1].id)), start=1):
-            sdl = StockDocumentLine(
-                document_id=doc.id,
-                line_no=n,
-                item_id=item.id,
-                unit_id=item.base_unit_id,
-                qty=row.base_qty,
-                base_qty=row.base_qty,
-            )
-            s.add(sdl)
-            s.flush()
-            posted = post_movement(
-                s,
-                item_id=item.id,
-                warehouse_id=wh.id,
-                qty=-row.base_qty,
-                unit_cost=None,
-                document=doc,
-                line=sdl,
-                allow_negative=allow_negative,
-            )
-            row.cost_total = sdl.total_cost = -posted.value
-            cost += -posted.value
-        inv.stock_document_id = doc.id
-    inv.cost_total = cost
-
-    revenue = sum((r.revenue for r, _ in lines), ZERO)
-    entries = [
-        Entry("cash", debit=tender.cash),
-        Entry("card", debit=tender.card),
-        Entry(
-            "receivable", debit=tender.credit, detail_account_id=customer.id if customer else None
-        ),
-        Entry("discount", debit=cart.discount_total),
-        Entry("revenue", credit=revenue + cart.discount_total),
-        Entry("vat_payable", credit=cart.tax_total),
-        Entry("cogs", debit=cost),
-        Entry("inventory", credit=cost),
-    ]
-    inv.number = next_number(s, "sales", fy.id, reg.branch_id)
-    v = post_event(
+    book_sale(
         s,
-        event_type="sales.invoice.finalized",
-        document_date=today,
-        branch_id=reg.branch_id,
-        entries=entries,
+        inv,
+        lines,
+        tender,
+        fiscal_year_id=fy.id,
+        register_name=reg.name,
+        allow_negative=org.negative_stock_policy != "deny",
         actor_id=actor.user_id,
-        source_id=inv.id,
-        description=f"فروش شماره {inv.number} — {reg.name}",
+        stock_date=today,
     )
-    inv.voucher_id = v.id
-    s.flush()  # line costs are written while the invoice is still a draft (DB guard)
-    inv.status, inv.finalized_at = "final", utcnow()
-    s.flush()
     if approver is not None:
         audit.record(
             s,
@@ -451,6 +407,92 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
         )
     s.info["fresh"] = inv.id
     return invoice_out(s, inv, cart.warnings)
+
+
+def book_sale(
+    s: Session,
+    inv: SalesInvoice,
+    lines: list[tuple[SalesInvoiceLine, ItemRef]],
+    tender: _Tender,
+    *,
+    fiscal_year_id: uuid.UUID,
+    register_name: str,
+    allow_negative: bool,
+    actor_id: uuid.UUID | None,
+    stock_date: date,
+    stock_fiscal_year_id: uuid.UUID | None = None,
+) -> None:
+    """Stock issue, voucher, final number and the flip to final — one transaction.
+
+    Shared by online checkout and offline sales arriving from a register (ADR-0017);
+    ``stock_date`` may be later than the sale date (the ledger never goes backwards),
+    even in the next fiscal year (``stock_fiscal_year_id``).
+    """
+    # Stock: one issue per line, locked in item order so registers never deadlock.
+    cost = ZERO
+    goods = [ln for ln in lines if ln[1].item_type == "goods"]
+    if goods:
+        doc = _stock_document(
+            s,
+            inv,
+            "sale",
+            f"فروش صندوق {register_name}",
+            stock_date,
+            stock_fiscal_year_id,
+        )
+        for n, (row, item) in enumerate(sorted(goods, key=lambda x: str(x[1].id)), start=1):
+            sdl = StockDocumentLine(
+                document_id=doc.id,
+                line_no=n,
+                item_id=item.id,
+                unit_id=item.base_unit_id,
+                qty=row.base_qty,
+                base_qty=row.base_qty,
+            )
+            s.add(sdl)
+            s.flush()
+            posted = post_movement(
+                s,
+                item_id=item.id,
+                warehouse_id=inv.warehouse_id,
+                qty=-row.base_qty,
+                unit_cost=None,
+                document=doc,
+                line=sdl,
+                allow_negative=allow_negative,
+            )
+            row.cost_total = sdl.total_cost = -posted.value
+            cost += -posted.value
+        inv.stock_document_id = doc.id
+    inv.cost_total = cost
+
+    revenue = sum((r.revenue for r, _ in lines), ZERO)
+    entries = [
+        Entry("cash", debit=tender.cash),
+        Entry("card", debit=tender.card),
+        Entry("receivable", debit=tender.credit, detail_account_id=inv.customer_id),
+        Entry("discount", debit=inv.discount_total),
+        Entry("revenue", credit=revenue + inv.discount_total),
+        Entry("vat_payable", credit=inv.tax_total),
+        Entry("cogs", debit=cost),
+        Entry("inventory", credit=cost),
+    ]
+    inv.number = next_number(s, "sales", fiscal_year_id, inv.branch_id)
+    v = post_event(
+        s,
+        event_type="sales.invoice.finalized",
+        document_date=inv.document_date,
+        branch_id=inv.branch_id,
+        entries=entries,
+        actor_id=actor_id,
+        source_id=inv.id,
+        description=f"فروش شماره {inv.number} — {register_name}"
+        + (f" (آفلاین، صندوق {inv.device_number})" if inv.device_number else ""),
+    )
+    inv.voucher_id = v.id
+    s.flush()  # line costs are written while the invoice is still a draft (DB guard)
+    inv.status, inv.finalized_at = "final", utcnow()
+    s.flush()
 
 
 def _lines_from_cart(inv: SalesInvoice, cart: PricedCart) -> list[tuple[SalesInvoiceLine, ItemRef]]:

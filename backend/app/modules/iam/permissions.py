@@ -51,6 +51,7 @@ CATALOG: tuple[PermissionDef, ...] = (
     PermissionDef("parties.manage", "طرف‌حساب", "مدیریت طرف‌حساب‌ها و اطلاعات حساس"),
     PermissionDef("purchasing.manage", "خرید", "مدیریت خرید"),
     PermissionDef("treasury.manage", "خزانه", "مدیریت دریافت و پرداخت"),
+    PermissionDef("sync.resolve", "صندوق", "رسیدگی به تعارض فروش‌های آفلاین"),
     PermissionDef("reports.dashboard", "گزارش", "داشبورد مدیریتی (فروش، سود، موجودی، طلب)"),
     PermissionDef("devices.manage", "سخت‌افزار", "تعریف و تنظیم Device Agent و چاپگر"),
     PermissionDef("sales.drawer.open", "فروش", "باز کردن کشوی پول بدون فروش"),
@@ -116,6 +117,7 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
                 "devices.manage",
                 "sales.drawer.open",
                 "reports.dashboard",
+                "sync.resolve",
             }
         ),
     ),

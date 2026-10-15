@@ -83,6 +83,8 @@ def device_out(s: Session, d: Device, code: str | None = None) -> DeviceOut:
         agent_version=d.agent_version,
         platform=d.platform,
         printer_state=d.printer_state,
+        offline_queue=d.offline_queue,
+        last_sync_at=d.last_sync_at,
         printer_transport=d.printer_transport,
         printer_address=d.printer_address,
         paper_width=d.paper_width,
@@ -312,10 +314,13 @@ def poll(s: Session, d: Device, data: PollIn) -> PollOut:
         or now - seen >= SEEN_EVERY
         or data.printer_state != d.printer_state
         or (data.agent_version and data.agent_version != d.agent_version)
+        or (data.offline_queue is not None and data.offline_queue != d.offline_queue)
     ):
         d.last_seen_at, d.printer_state = now, data.printer_state
         if data.agent_version:
             d.agent_version = data.agent_version
+        if data.offline_queue is not None:
+            d.offline_queue = data.offline_queue
     # Stale work is dropped, never printed late; a sent job with no answer is reported.
     for j in list(
         s.scalars(

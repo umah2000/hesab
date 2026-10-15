@@ -75,6 +75,9 @@ class Device(EntityMixin, ActorMixin, VersionedMixin, Base):
     platform: Mapped[str | None] = mapped_column(Unicode(100))
     # Latest self-reported printer state ("ok" or a short error), never trusted for logic.
     printer_state: Mapped[str | None] = mapped_column(Unicode(200))
+    # Offline sales waiting on the register (self-reported with every poll).
+    offline_queue: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Receipt printer.
     printer_transport: Mapped[str] = mapped_column(String(8), default="none")
     # tcp: host:port · windows: printer name · serial: COM port (with baud, e.g. COM3:9600).

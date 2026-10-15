@@ -37,7 +37,16 @@ from app.modules.sales.models import Promotion
 from app.modules.sales.schemas import CartIn, QuoteLineOut, QuoteOut
 
 ZERO = Decimal(0)
-__all__ = ["PricedCart", "PricedLine", "fmt_qty", "price_cart", "quote_out", "rial"]
+__all__ = [
+    "LineIn",
+    "PricedCart",
+    "PricedLine",
+    "fmt_qty",
+    "price_cart",
+    "price_lines",
+    "quote_out",
+    "rial",
+]
 
 
 def domain_error(e: CoreError) -> DomainError:
@@ -272,6 +281,33 @@ class DbCatalog:
         return LabelHit(found.item_id, found.qty, found.source, line_price)
 
 
+def core_settings(s: Session) -> CoreSettings:
+    org = organization(s)
+    return CoreSettings(
+        default_vat_rate=org.default_vat_rate,
+        prices_include_vat=org.prices_include_vat,
+        cashier_discount_limit=org.cashier_discount_limit,
+        negative_stock_policy=org.negative_stock_policy,
+    )
+
+
+def price_lines(
+    s: Session,
+    lines: list[LineIn],
+    *,
+    warehouse_id: uuid.UUID,
+    today: date,
+    discount: Decimal = ZERO,
+    negative_policy: str | None = None,
+) -> PricedCart:
+    try:
+        return core_price_cart(
+            DbCatalog(s, warehouse_id), core_settings(s), lines, discount, today, negative_policy
+        )
+    except CoreError as e:
+        raise domain_error(e) from e
+
+
 def price_cart(
     s: Session,
     data: CartIn,
@@ -280,13 +316,6 @@ def price_cart(
     today: date,
     negative_policy: str | None = None,
 ) -> PricedCart:
-    org = organization(s)
-    settings = CoreSettings(
-        default_vat_rate=org.default_vat_rate,
-        prices_include_vat=org.prices_include_vat,
-        cashier_discount_limit=org.cashier_discount_limit,
-        negative_stock_policy=org.negative_stock_policy,
-    )
     lines = [
         LineIn(
             item_id=inp.item_id,
@@ -297,9 +326,11 @@ def price_cart(
         )
         for inp in data.lines
     ]
-    try:
-        return core_price_cart(
-            DbCatalog(s, warehouse_id), settings, lines, data.discount, today, negative_policy
-        )
-    except CoreError as e:
-        raise domain_error(e) from e
+    return price_lines(
+        s,
+        lines,
+        warehouse_id=warehouse_id,
+        today=today,
+        discount=data.discount,
+        negative_policy=negative_policy,
+    )

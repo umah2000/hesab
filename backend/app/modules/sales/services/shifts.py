@@ -14,6 +14,7 @@ from app.core.errors import ConflictError, DomainError, NotFoundError, Permissio
 from app.modules.accounting.services.chart import check_version
 from app.modules.accounting.services.posting import Entry, post_event
 from app.modules.audit import service as audit
+from app.modules.devices.models import Device
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
 from app.modules.inventory.services.stock import tehran_today
@@ -205,6 +206,18 @@ def close_shift(
         raise DomainError(
             "تراکنش کارت‌خوان با وضعیت نامشخص روی این صندوق هست؛ ابتدا آن را روشن کنید",
             code="unresolved_card_transaction",
+        )
+    # Offline sales still on the register belong in this count (ADR-0017).
+    waiting = s.scalar(
+        select(func.coalesce(func.sum(Device.offline_queue), 0)).where(
+            Device.cash_register_id == sh.cash_register_id, Device.status == "active"
+        )
+    )
+    if waiting:
+        raise DomainError(
+            f"{waiting} فروش آفلاین هنوز از صندوق به سرور نرسیده است؛ "
+            "پس از همگام‌سازی شیفت را ببندید",
+            code="offline_sales_pending",
         )
     expected = expected_cash(s, sh)
     diff = data.counted_cash - expected

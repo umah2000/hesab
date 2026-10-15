@@ -62,6 +62,8 @@ class DeviceOut(BaseModel):
     agent_version: str | None
     platform: str | None
     printer_state: str | None
+    offline_queue: int
+    last_sync_at: datetime | None
     printer_transport: str
     printer_address: str | None
     paper_width: int
@@ -105,6 +107,8 @@ class AgentJob(BaseModel):
 class PollIn(_In):
     agent_version: str | None = Field(default=None, max_length=20)
     printer_state: str | None = Field(default=None, max_length=200)
+    # Offline sales still waiting on the register (ADR-0017).
+    offline_queue: int | None = Field(default=None, ge=0, le=1_000_000)
 
 
 class PollOut(BaseModel):

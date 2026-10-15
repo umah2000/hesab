@@ -48,6 +48,7 @@ from app.modules.sales.models import (
     SalesPayment,
     TerminalTransaction,
 )
+from app.modules.sync.models import SyncOperation
 from app.modules.system.models import BackupLog
 from app.modules.treasury.models import (
     BankStatementLine,
@@ -59,6 +60,7 @@ from app.modules.treasury.models import (
 )
 
 __all__ = [
+    "SyncOperation",
     "SavedReportFilter",
     "Device",
     "DeviceJob",
