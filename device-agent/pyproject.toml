@@ -1,0 +1,43 @@
+[project]
+name = "nextcam-agent"
+version = "0.6.0"
+description = "NEXTCAM Device Agent: drives a register's receipt printer and cash drawer (ADR-0015)"
+requires-python = ">=3.12"
+dependencies = ["pillow>=11"]
+
+[project.optional-dependencies]
+windows = ["pywin32>=306; sys_platform == 'win32'"]
+serial = ["pyserial>=3.5"]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+
+[project.scripts]
+nextcam-agent = "nextcam_agent.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["nextcam_agent*"]
+
+[tool.setuptools.package-data]
+nextcam_agent = ["fonts/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = ["serial", "win32print", "win32serviceutil", "win32service", "win32event", "servicemanager"]
+ignore_missing_imports = true
