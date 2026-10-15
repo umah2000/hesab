@@ -39,6 +39,7 @@ PASSWORD = "Test-Passw0rd"
 
 # Child tables first. audit_event needs its append-only trigger lifted for cleanup.
 _TABLES = [
+    "saved_report_filter",
     "device_job",
     "device",
     "bank_statement_line",

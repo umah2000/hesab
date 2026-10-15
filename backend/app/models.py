@@ -38,6 +38,7 @@ from app.modules.purchasing.models import (
     PurchaseOrder,
     PurchaseOrderLine,
 )
+from app.modules.reports.models import SavedReportFilter
 from app.modules.sales.models import (
     CashShift,
     Promotion,
@@ -58,6 +59,7 @@ from app.modules.treasury.models import (
 )
 
 __all__ = [
+    "SavedReportFilter",
     "Device",
     "DeviceJob",
     "BankStatementLine",
