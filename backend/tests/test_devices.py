@@ -194,6 +194,24 @@ def test_print_receipt_drawer_and_job_lifecycle(app: Flask, pos: Pos) -> None:  
     failed = agent.result(again["id"], "failed", "کاغذ تمام شده").get_json()
     assert (failed["status"], failed["error"]) == ("failed", "کاغذ تمام شده")
 
+    # Automatic printing off: a cash sale still opens the drawer, once, without paper.
+    quiet = sell(
+        c, pos.r1, [{"item_id": pos.milk, "qty": "1"}], [{"method": "cash", "amount": "110000"}]
+    ).get_json()
+    pulse = c.post("/api/v1/devices/print-receipt", {"invoice_id": quiet["id"], "paper": False})
+    assert pulse.status_code == 201, pulse.get_json()
+    pj = agent.poll().get_json()["job"]
+    assert (pj["kind"], pj["payload"]) == ("drawer", {"pin": 2})
+    agent.result(pj["id"])
+    again_pulse = c.post(
+        "/api/v1/devices/print-receipt", {"invoice_id": quiet["id"], "paper": False}
+    )
+    assert again_pulse.get_json()["error"]["code"] == "no_drawer"
+    late = c.post("/api/v1/devices/print-receipt", {"invoice_id": quiet["id"]}).get_json()
+    late_pl = agent.poll().get_json()["job"]["payload"]
+    assert late_pl["open_drawer"] is False and late_pl["heading"] == "فاکتور فروش"
+    agent.result(late["id"])
+
     card = sell(
         c,
         pos.r1,
@@ -266,6 +284,8 @@ def test_print_receipt_drawer_and_job_lifecycle(app: Flask, pos: Pos) -> None:  
     assert page["kind"] == "test" and page["payload"]["heading"] == "صفحه آزمایشی چاپگر"
     hist = boss.get(f"/api/v1/devices/{dev['id']}/jobs").get_json()
     assert sorted(j["status"] for j in hist) == [
+        "done",
+        "done",
         "done",
         "expired",
         "failed",

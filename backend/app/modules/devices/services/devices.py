@@ -424,14 +424,16 @@ def print_receipt(s: Session, actor: Actor, data: PrintReceiptIn) -> JobOut:
     if inv.status != "final":
         raise DomainError("فقط فاکتور قطعی چاپ می‌شود", code="not_final")
     d = _printing_device(s, inv.cash_register_id)
-    printed = s.scalar(
-        select(DeviceJob.id)
-        .where(DeviceJob.source_id == inv.id, DeviceJob.kind == "receipt")
-        .limit(1)
-    )
-    reprint = data.reprint or printed is not None
-    org = s.scalars(select(Organization)).one()
+    prior = list(s.scalars(select(DeviceJob.kind).where(DeviceJob.source_id == inv.id)))
+    reprint = data.reprint or "receipt" in prior
     has_cash = any(p.method == "cash" and p.amount > 0 for p in inv.payments)
+    # The drawer opens once per cash sale or cash refund: with its first job only.
+    open_drawer = d.drawer_enabled and has_cash and not prior and not data.reprint
+    if not data.paper:
+        if not open_drawer:
+            raise DomainError("کشوی پول برای این فاکتور باز نمی‌شود", code="no_drawer")
+        return job_out(_enqueue(s, actor, d, "drawer", {"pin": d.drawer_pin}, inv.id))
+    org = s.scalars(select(Organization)).one()
     payload = receipt.build(
         inv,
         organization=org.name,
@@ -440,8 +442,7 @@ def print_receipt(s: Session, actor: Actor, data: PrintReceiptIn) -> JobOut:
         currency=org.display_currency,
         timezone=org.timezone,
         reprint=reprint,
-        # The drawer opens with the first print of a cash sale or cash refund only.
-        open_drawer=d.drawer_enabled and has_cash and not reprint,
+        open_drawer=open_drawer,
         cut=d.cut_paper,
     )
     j = _enqueue(s, actor, d, "receipt", payload, inv.id)

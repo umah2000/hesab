@@ -1,9 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, ScanBarcode } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/form-controls";
 import { ApiError, api, type Page } from "@/lib/api";
 import { toFaDigits } from "@/lib/format";
+import { fromPersianLayout } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import type { ItemSummary, Lookup } from "./api";
 import { trimQty } from "./api";
@@ -75,9 +77,21 @@ export const ItemSearch = React.forwardRef<
       return;
     }
     setBusy(true);
+    const lookup = (code: string) => api.get<Lookup>(`/inventory/items/lookup?barcode=${encodeURIComponent(code)}`);
     try {
-      const l = await api.get<Lookup>(`/inventory/items/lookup?barcode=${encodeURIComponent(q)}`);
-      pick({ item_id: l.item_id, code: l.code, name: l.name, unit_id: l.unit_id, qty: trimQty(l.qty), barcode: q, source: l.source });
+      let code = q;
+      let l: Lookup;
+      try {
+        l = await lookup(code);
+      } catch (e) {
+        // A scanner typing through a Persian keyboard layout sends Persian letters.
+        const latin = fromPersianLayout(q);
+        if (!latin || !(e instanceof ApiError) || e.status !== 404) throw e;
+        l = await lookup(latin);
+        code = latin;
+        toast.warning("زبان صفحه‌کلید روی فارسی است؛ برای اسکن مطمئن آن را انگلیسی کنید");
+      }
+      pick({ item_id: l.item_id, code: l.code, name: l.name, unit_id: l.unit_id, qty: trimQty(l.qty), barcode: code, source: l.source });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "کالا یافت نشد");
       setText("");

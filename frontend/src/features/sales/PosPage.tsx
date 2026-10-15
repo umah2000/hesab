@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, CheckCircle2, Minus, MonitorSmartphone, PauseCircle, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Inbox, Minus, MonitorSmartphone, MonitorUp, PauseCircle, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -7,9 +7,11 @@ import { Logo } from "@/components/layout/Logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge, EmptyState, ErrorBox, Spinner } from "@/components/ui/feedback";
-import { Field } from "@/components/ui/form-controls";
+import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { Field, Input } from "@/components/ui/form-controls";
 import { MoneyInput } from "@/features/accounting/inputs";
 import { useMe } from "@/features/auth/auth";
+import { type Job, printViaAgent, useRegisterDevice } from "@/features/devices/api";
 import { trimQty } from "@/features/inventory/api";
 import { ItemSearch, type Picked } from "@/features/inventory/ItemSearch";
 import type { Branch, CashRegister } from "@/features/settings/types";
@@ -19,6 +21,7 @@ import { inputToRials, sumRials } from "@/lib/money";
 import { addQty, fromQtyUnits, qtyUnits } from "@/lib/qty";
 import { cn } from "@/lib/utils";
 import { type ApprovalAction, ApprovalDialog } from "./ApprovalDialog";
+import { openCustomerDisplay, useDisplayPublisher } from "./CustomerDisplay";
 import { type CartLine, type Invoice, type Quote, type RegisterState, storedRegister, storeRegister } from "./api";
 import { type PayMode, PaymentDialog, type PayResult } from "./PaymentDialog";
 import { CloseShiftDialog, DiscountDialog, HeldDialog, HoldDialog, QtyDialog } from "./PosDialogs";
@@ -259,6 +262,15 @@ function Workspace({ state }: { state: RegisterState }) {
   const [autoPrint, setAutoPrint] = React.useState(() => localStorage.getItem("nc.autoprint") !== "0");
   const scanRef = React.useRef<HTMLInputElement>(null);
   const payKey = React.useRef(newIdempotencyKey());
+  const device = useRegisterDevice(reg);
+  const viaAgent = !!device.data?.printer && device.data.online;
+  const publish = useDisplayPublisher(reg);
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  /** Receipt through the register's Device Agent when it is online, otherwise the browser. */
+  const printInvoice = (inv: Invoice, reprint: boolean) => {
+    if (viaAgent) void printViaAgent(inv.id, { reprint, browserPrint: printReceipt });
+    else setTimeout(printReceipt, 50);
+  };
   const money = (v: string) => formatMoney(v, currency);
 
   const payload = {
@@ -393,7 +405,12 @@ function Workspace({ state }: { state: RegisterState }) {
       reset();
       for (const w of inv.warnings) toast.warning(w);
       toast.success(`فاکتور ${toFaDigits(inv.number ?? 0)} ثبت شد`);
-      if (autoPrint) setTimeout(printReceipt, 50);
+      if (autoPrint) printInvoice(inv, false);
+      else if (viaAgent && device.data?.drawer && inv.payments.some((p) => p.method === "cash")) {
+        // No paper, but the cash drawer still has to open for a cash sale.
+        api.post<Job>("/devices/print-receipt", { invoice_id: inv.id, paper: false }).catch(() => undefined);
+      }
+      publish({ type: "paid", total: inv.grand_total, change: inv.change_due && Number(inv.change_due) ? inv.change_due : null, currency });
       qc.invalidateQueries({ queryKey: ["inventory"] });
     },
     onError: (e) => {
@@ -507,6 +524,16 @@ function Workspace({ state }: { state: RegisterState }) {
   });
 
   const itemCount = cart.lines.length;
+  React.useEffect(() => {
+    if (!q) return;
+    publish({
+      type: "cart",
+      lines: q.lines.map((l) => ({ name: l.item_name, qty: trimQty(l.qty), unit: l.unit_name, total: l.line_total })),
+      total: q.grand_total,
+      discount: q.discount_total,
+      currency,
+    });
+  }, [q, publish, currency]);
 
   return (
     <>
@@ -523,7 +550,7 @@ function Workspace({ state }: { state: RegisterState }) {
           <div className="surface min-h-0 flex-1 overflow-y-auto rounded-2xl">
             {!cart.lines.length ? (
               lastInvoice ? (
-                <LastSale invoice={lastInvoice} currency={currency} />
+                <LastSale invoice={lastInvoice} currency={currency} onReprint={() => printInvoice(lastInvoice, true)} />
               ) : (
                 <EmptyState icon={ShoppingCart} title="آماده فروش" description="کالا را اسکن کنید. F5 فاکتورهای معلق، F12 بستن شیفت." />
               )
@@ -636,6 +663,14 @@ function Workspace({ state }: { state: RegisterState }) {
               />
               چاپ خودکار فیش پس از ثبت
             </label>
+            <Button variant="ghost" size="sm" onClick={() => openCustomerDisplay(reg, state.organization_name)}>
+              <MonitorUp /> نمایشگر مشتری
+            </Button>
+            {can("sales.drawer.open") && device.data?.drawer ? (
+              <Button variant="ghost" size="sm" onClick={() => setDrawerOpen(true)} disabled={!device.data.online}>
+                <Inbox /> باز کردن کشو
+              </Button>
+            ) : null}
           </Card>
         </aside>
       </div>
@@ -647,6 +682,13 @@ function Workspace({ state }: { state: RegisterState }) {
           </span>
         ))}
         <span className="flex-1" />
+        <span>
+          {device.data?.printer
+            ? device.data.online
+              ? "چاپگر صندوق: متصل"
+              : "چاپگر صندوق: قطع — چاپ با مرورگر"
+            : "چاپ فیش با مرورگر"}
+        </span>
         <span>شیفت از {formatTime(state.shift?.opened_at ?? new Date())}</span>
       </footer>
 
@@ -655,6 +697,8 @@ function Workspace({ state }: { state: RegisterState }) {
           <Receipt invoice={lastInvoice} currency={currency} organization={state.organization_name} header={state.receipt_header} footer={state.receipt_footer} />
         </div>
       ) : null}
+
+      {drawerOpen ? <DrawerDialog register={reg} onClose={() => setDrawerOpen(false)} /> : null}
 
       {dialog?.kind === "pay" && q ? (
         <PaymentDialog
@@ -754,7 +798,7 @@ function PayButton({ label, k, onClick, disabled, tone }: { label: string; k: st
   );
 }
 
-function LastSale({ invoice, currency }: { invoice: Invoice; currency: DisplayCurrency }) {
+function LastSale({ invoice, currency, onReprint }: { invoice: Invoice; currency: DisplayCurrency; onReprint: () => void }) {
   const change = invoice.change_due && Number(invoice.change_due) ? invoice.change_due : null;
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
@@ -766,10 +810,37 @@ function LastSale({ invoice, currency }: { invoice: Invoice; currency: DisplayCu
           <div className="tabular text-3xl font-black">{formatMoney(change, currency)}</div>
         </div>
       ) : null}
-      <Button variant="outline" onClick={printReceipt}>
+      <Button variant="outline" onClick={onReprint}>
         <Printer /> چاپ دوباره فیش
       </Button>
       <p className="text-sm text-ink-faint">برای فروش بعدی کالا را اسکن کنید.</p>
     </div>
+  );
+}
+
+function DrawerDialog({ register, onClose }: { register: string; onClose: () => void }) {
+  const [reason, setReason] = React.useState("");
+  const open = useMutation({
+    mutationFn: () => api.post<Job>("/devices/open-drawer", { cash_register_id: register, reason: reason.trim() }),
+    onSuccess: () => {
+      toast.success("فرمان باز شدن کشو ارسال شد");
+      onClose();
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "خطا"),
+  });
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title="باز کردن کشوی پول بدون فروش" description="علت در رویدادهای ممیزی ثبت می‌شود.">
+        <Field label="علت">
+          <Input autoFocus aria-label="علت باز کردن کشو" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="مثلاً پول خرد برای صندوق دیگر" />
+        </Field>
+        <DialogFooter>
+          <Button loading={open.isPending} disabled={reason.trim().length < 2} onClick={() => open.mutate()}>
+            <Inbox /> باز کن
+          </Button>
+          <Button variant="ghost" onClick={onClose}>انصراف</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -3,6 +3,7 @@ import {
   Boxes,
   ChartColumnBig,
   LayoutDashboard,
+  Printer,
   type LucideIcon,
   ReceiptText,
   ScrollText,
@@ -80,5 +81,6 @@ export const NAV_ADMIN: NavItem[] = [
   { to: "/users", label: "کاربران", icon: Users, permission: "users.manage", keywords: "user" },
   { to: "/roles", label: "نقش‌ها و مجوزها", icon: ShieldCheck, permission: "roles.manage", keywords: "role permission" },
   { to: "/audit", label: "رویدادهای ممیزی", icon: ScrollText, permission: "audit.view", keywords: "audit log" },
+  { to: "/devices", label: "دستگاه‌های صندوق", icon: Printer, permission: "devices.manage", keywords: "چاپگر فیش کشو agent printer device" },
   { to: "/settings", label: "تنظیمات", icon: Settings, keywords: "settings شعبه صندوق" },
 ];

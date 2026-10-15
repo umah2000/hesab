@@ -24,6 +24,7 @@ import { ItemsPage } from "@/features/inventory/ItemsPage";
 import { LabelsPage } from "@/features/inventory/LabelsPage";
 import { StockDocEditorPage, StockDocsPage } from "@/features/inventory/StockDocsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { DevicesPage } from "@/features/devices/DevicesPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import {
   FollowUpsPage,
@@ -41,6 +42,7 @@ import {
   PurchasingLayout,
 } from "@/features/purchasing/PurchasingPages";
 import { RolesPage } from "@/features/roles/RolesPage";
+import { CustomerDisplayPage } from "@/features/sales/CustomerDisplay";
 import { PosPage } from "@/features/sales/PosPage";
 import {
   CardTransactionsPage,
@@ -90,6 +92,8 @@ function NotFound() {
 const router = createBrowserRouter([
   // Full-screen register, outside the back-office shell.
   { path: "/pos", element: <PosPage />, errorElement: <RouteError /> },
+  // Second monitor at the register: what the customer sees (fed by the POS tab).
+  { path: "/display", element: <CustomerDisplayPage />, errorElement: <RouteError /> },
   {
     path: "/",
     element: <AppShell />,
@@ -100,6 +104,7 @@ const router = createBrowserRouter([
       { path: "roles", element: <RolesPage /> },
       { path: "audit", element: <AuditPage /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "devices", element: <DevicesPage /> },
       { path: "account", element: <AccountPage /> },
       {
         path: "accounting",

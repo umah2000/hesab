@@ -141,6 +141,8 @@ class RegisterDeviceOut(BaseModel):
 class PrintReceiptIn(_In):
     invoice_id: uuid.UUID
     reprint: bool = False
+    # False: no paper (automatic printing is off) — only the drawer of a cash sale opens.
+    paper: bool = True
 
 
 class DrawerIn(_In):
