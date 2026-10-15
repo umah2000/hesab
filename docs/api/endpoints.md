@@ -80,4 +80,8 @@
 | ۶ | POST | `/devices/open-drawer` | `sales.drawer.open` | با علت؛ ممیزی |
 | ۶ | POST | `/devices/agent/pair` | عمومی، ۱۰ در دقیقه | کد یک‌بارمصرف ← توکن دستگاه |
 | ۶ | POST | `/devices/agent/poll` · `/devices/agent/jobs/{id}/result` | `Authorization: Bearer` توکن دستگاه | بدون کوکی |
+| ۷ | GET | `/reports` | هر مجوز گزارش | فهرست گزارش‌های مجاز کاربر |
+| ۷ | GET | `/reports/dashboard?date_from&date_to&branch_id` | `reports.dashboard` | شاخص‌ها، نمودار روزانه، پرفروش‌ها، مانده‌ها |
+| ۷ | GET | `/reports/{key}?…[&format=xlsx]` | مجوز همان گزارش (ADR-0016) | `sales`، `cash-shortages`، `stock-movement`، `slow-moving`، `near-expiry`، `debtors`، `creditors`، `money-flow`، `profit-loss`، `balance-sheet`؛ خروجی Excel ممیزی می‌شود |
+| ۷ | GET · POST · DELETE | `/reports/saved-filters` · `/{id}` | هر مجوز گزارش | فقط فیلترهای خود کاربر |
 | ۸ | POST | `/sync/push` · `GET /sync/pull?since=` | `sync.device` | [`protocol.md`](../sync/protocol.md) |

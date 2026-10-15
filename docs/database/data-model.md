@@ -95,6 +95,11 @@ Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(f
 | `device` | name، branch_id، cash_register_id، status (pending/active/revoked)، pairing_code_hash، pairing_expires_at، token_hash، paired_at، last_seen_at، agent_version، platform، printer_state، printer_transport (none/tcp/windows/serial)، printer_address، paper_width (58/80)، cut_paper، drawer_enabled، drawer_pin (2/5) | یک دستگاه فعال برای هر صندوق (ایندکس فیلترشده)؛ کد و توکن فقط hash |
 | `device_job` | device_id، kind (receipt/drawer/test)، status (queued/sent/done/failed/expired)، payload (JSON داده، نه بایت)، source_id (فاکتور)، attempts، sent_at، finished_at، error | بیش از ۲ دقیقه در صف ← expired؛ تکرار خودکار ندارد |
 
+## ۵-ب. گزارش‌ها (فاز ۷) — migration `0011`
+| جدول | ستون‌های کلیدی | نکته |
+|---|---|---|
+| `saved_report_filter` | user_id، report، name، params (JSON) | یکتا در (کاربر، گزارش، نام)؛ اشتراکی نیست |
+
 ## ۶. همگام‌سازی (فاز ۸)
 `sync_device`، `sync_inbox` (operation_id UQ، device_id، payload، received_at، status، error)، `sync_conflict`.
 
