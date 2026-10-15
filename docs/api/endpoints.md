@@ -74,4 +74,10 @@
 | ۵ | GET · POST | `/treasury/cheques` · `/{id}` · `/{id}/actions` (If-Match) | `treasury.manage` | واگذاری، وصول، برگشت، استرداد، ابطال |
 | ۵ | GET · POST | `/treasury/statements/template` · `/treasury/accounts/{id}/statement` · `/preview` · `/commit` · `/auto-match` | `treasury.manage` | ردیف تکراری نادیده |
 | ۵ | GET · POST | `/treasury/accounts/{id}/reconciliation?as_of=` · `/treasury/statement-lines/{id}/candidates` · `/match` · `/unmatch` | `treasury.manage` | مغایرت‌گیری |
+| ۶ | GET/POST · GET/PUT | `/devices` · `/devices/{id}` | `devices.manage` | کد جفت‌سازی فقط در پاسخ ایجاد |
+| ۶ | POST | `/devices/{id}/pairing-code` · `/revoke` · `/test-print` · `GET /devices/{id}/jobs` | `devices.manage` | |
+| ۶ | GET · POST | `/devices/registers/{register_id}` · `/devices/print-receipt` (`paper=false`: فقط کشو) · `GET /devices/jobs/{id}` | `sales.pos.use` / گزارش فروش | چاپ از Agent؛ در خطا چاپ مرورگر |
+| ۶ | POST | `/devices/open-drawer` | `sales.drawer.open` | با علت؛ ممیزی |
+| ۶ | POST | `/devices/agent/pair` | عمومی، ۱۰ در دقیقه | کد یک‌بارمصرف ← توکن دستگاه |
+| ۶ | POST | `/devices/agent/poll` · `/devices/agent/jobs/{id}/result` | `Authorization: Bearer` توکن دستگاه | بدون کوکی |
 | ۸ | POST | `/sync/push` · `GET /sync/pull?since=` | `sync.device` | [`protocol.md`](../sync/protocol.md) |
