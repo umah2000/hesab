@@ -1,9 +1,9 @@
 [project]
 name = "nextcam-agent"
-version = "0.6.0"
-description = "NEXTCAM Device Agent: drives a register's receipt printer and cash drawer (ADR-0015)"
+version = "0.8.0"
+description = "NEXTCAM Device Agent: receipt printer, cash drawer and offline register gateway (ADR-0015, ADR-0017)"
 requires-python = ">=3.12"
-dependencies = ["pillow>=11"]
+dependencies = ["pillow>=11", "nextcam-core>=0.8"]
 
 [project.optional-dependencies]
 windows = ["pywin32>=306; sys_platform == 'win32'"]
@@ -37,6 +37,7 @@ ignore = ["RUF001", "RUF002", "RUF003", "S101"]
 [tool.mypy]
 strict = true
 python_version = "3.12"
+mypy_path = "../packages/nextcam-core"
 
 [[tool.mypy.overrides]]
 module = ["serial", "win32print", "win32serviceutil", "win32service", "win32event", "servicemanager"]

@@ -22,6 +22,7 @@ from nextcam_agent import escpos, transports
 from nextcam_agent.client import ServerClient, ServerError, Unauthorized
 from nextcam_agent.config import AgentConfig
 from nextcam_agent.render import receipt_image
+from nextcam_agent.syncer import Local
 
 log = logging.getLogger("nextcam_agent")
 MAX_BACKOFF = 10.0
@@ -43,8 +44,11 @@ class Agent:
         cfg: AgentConfig,
         client: ServerClient,
         make_transport: Callable[[str, str | None], transports.Transport] = transports.make,
+        local: Local | None = None,
     ) -> None:
         self.cfg, self.client, self.make_transport = cfg, client, make_transport
+        self.local = local
+        self._printer: dict[str, Any] | None = None
         self.status = Status()
         self._done: deque[str] = deque(maxlen=500)
         self._lock = threading.Lock()
@@ -54,8 +58,17 @@ class Agent:
     def step(self) -> bool:
         """Poll once; returns True when a job was handled."""
         with self._lock:
-            resp = self.client.poll(self.status.printer_state)
+            if self.local is None:
+                resp = self.client.poll(self.status.printer_state)
+            else:
+                resp = self.client.poll(self.status.printer_state, self.local.store.pending_count())
             self.status.connected = True
+            if self.local is not None:
+                self.local.server_ok()
+                if resp.get("printer") != self._printer:
+                    # Kept for printing offline sales while the server is unreachable.
+                    self._printer = resp.get("printer")
+                    self.local.store.put_json("printer", self._printer)
             self.status.last_poll_at = datetime.now(UTC).isoformat(timespec="seconds")
             job = resp.get("job")
             if not job or job["id"] in self._done:
@@ -83,6 +96,11 @@ class Agent:
                 except OSError:
                     time.sleep(0.5 * (attempt + 1))
             return True
+
+    def print_local(self, job: dict[str, Any], printer: dict[str, Any]) -> tuple[bool, str | None]:
+        """An offline receipt (gateway): one job at a time with the server's jobs."""
+        with self._lock:
+            return self.execute(job, printer)
 
     def execute(self, job: dict[str, Any], printer: dict[str, Any]) -> tuple[bool, str | None]:
         try:
@@ -133,6 +151,8 @@ class Agent:
                 log.error("device token rejected; pairing required")
                 return
             except (ServerError, OSError, ValueError) as e:
+                if self.local is not None and not isinstance(e, ServerError):
+                    self.local.server_down(str(e))
                 self.status.connected = False
                 self.status.last_error = str(e)[:200]
                 log.warning("server unreachable: %s", e)
@@ -150,4 +170,5 @@ class Agent:
             "last_poll_at": s.last_poll_at,
             "last_error": s.last_error,
             "recent_jobs": list(s.recent_jobs),
+            "offline": self.local.status() if self.local else None,
         }

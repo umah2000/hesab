@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from app.core.db import new_session, unit_of_work, utcnow
 from app.core.errors import DomainError
 from app.modules.accounting.services.fiscal import open_year_for
+from app.modules.audit import service as audit
 from app.modules.devices.models import Device
 from app.modules.iam.models import AppUser
 from app.modules.inventory.models import Item, ItemUnit
@@ -42,7 +43,7 @@ from app.modules.sales.models import CashShift, SalesInvoice, SalesInvoiceLine, 
 from app.modules.sales.services import pricing
 from app.modules.sales.services.invoices import METHOD_PERMISSION, _Tender, book_sale
 from app.modules.sync.models import SyncOperation
-from app.modules.sync.schemas import OfflineOpIn, OfflineSaleIn, PushResult
+from app.modules.sync.schemas import OfflineOpIn, OfflineRemovalIn, OfflineSaleIn, PushResult
 from app.modules.sync.services.snapshot import number_prefix
 
 ZERO = Decimal(0)
@@ -288,6 +289,35 @@ def apply_sale(s: Session, d: Device, sale: OfflineSaleIn, *, force: bool = Fals
     return Applied(inv, difference)
 
 
+def apply_removal(s: Session, d: Device, rm: OfflineRemovalIn) -> None:
+    """Audit a scanned line removed offline. No supervisor could approve it, so the
+    event says so; it is a fact to record, never a conflict."""
+    if d.cash_register_id is None or rm.cash_register_id != d.cash_register_id:
+        raise Rejected("حذف ردیف متعلق به صندوق این دستگاه نیست", code="wrong_register")
+    reg, _ = pricing.register_and_warehouse(s, d.cash_register_id, None)
+    shift = s.get(CashShift, rm.shift_id)
+    if shift is None or shift.cash_register_id != reg.id or shift.user_id != rm.user_id:
+        raise Rejected("شیفت حذف ردیف با صندوق و صندوق‌دار نمی‌خواند", code="bad_shift")
+    item = s.get(Item, rm.item_id)
+    audit.record(
+        s,
+        "sales.line_removed",
+        user_id=rm.user_id,
+        branch_id=reg.branch_id,
+        entity_type="item",
+        entity_id=rm.item_id,
+        data={
+            "register": reg.code,
+            "item": item.code if item else None,
+            "qty": str(rm.qty),
+            "line_total": str(rm.line_total),
+            "approved_by": None,
+            "offline": True,
+            "removed_at": rm.removed_at.isoformat(),
+        },
+    )
+
+
 # --- push -----------------------------------------------------------------------
 
 
@@ -388,7 +418,7 @@ def push_one(device_id: uuid.UUID, raw: dict[str, Any]) -> PushResult:
     except ValidationError as e:
         where = ".".join(str(p) for p in e.errors()[0]["loc"]) if e.errors() else ""
         return _record(device_id, op_id, raw, "rejected", "invalid", f"داده نامعتبر: {where}")
-    if op.sale.id != op.id:
+    if op.sale is not None and op.sale.id != op.id:
         return _record(
             device_id, op_id, raw, "rejected", "invalid", "شناسه عملیات و فاکتور یکی نیست"
         )
@@ -397,6 +427,21 @@ def push_one(device_id: uuid.UUID, raw: dict[str, Any]) -> PushResult:
         with unit_of_work() as s:
             d = s.get(Device, device_id)
             assert d is not None
+            if op.removal is not None:
+                apply_removal(s, d, op.removal)
+                rec = SyncOperation(
+                    id=op_id,
+                    device_id=device_id,
+                    op_type="line_removal",
+                    status="applied",
+                    local_time=op.local_time,
+                    received_at=utcnow(),
+                    payload=json.dumps(raw, ensure_ascii=False, default=str),
+                )
+                s.add(rec)
+                s.flush()
+                return result_of(rec)
+            assert op.sale is not None
             done = apply_sale(s, d, op.sale)
             rec = SyncOperation(
                 id=op_id,

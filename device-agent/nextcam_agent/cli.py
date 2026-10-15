@@ -10,12 +10,17 @@ import signal
 import sys
 import threading
 import urllib.request
+from collections.abc import Callable
 from logging.handlers import RotatingFileHandler
 
 from nextcam_agent import __version__, config
 from nextcam_agent.client import ServerClient, ServerError
+from nextcam_agent.gateway import Gateway
+from nextcam_agent.gateway import serve_in_background as serve_gateway
 from nextcam_agent.localapi import serve_in_background
 from nextcam_agent.runner import Agent
+from nextcam_agent.store import Store
+from nextcam_agent.syncer import Local, Syncer
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -51,21 +56,48 @@ def build_agent() -> Agent:
     token = config.load_token()
     if cfg is None or token is None:
         raise SystemExit("ابتدا با «nextcam-agent pair» جفت‌سازی کنید")
-    return Agent(cfg, ServerClient(cfg.server_url, token))
+    local = Local(Store(config.data_dir() / "register.db"))
+    return Agent(cfg, ServerClient(cfg.server_url, token), local=local)
+
+
+def start_services(agent: Agent, stop: threading.Event) -> Callable[[], None]:
+    """Status page, register gateway and offline sync around the polling loop."""
+    assert agent.local is not None
+    cfg = agent.cfg
+    status = serve_in_background(cfg.status_port, agent.snapshot)
+    gw = Gateway(
+        cfg.server_url,
+        agent.local,
+        config.data_dir() / "spa",
+        port=cfg.gateway_port,
+        device_id=cfg.device_id,
+        print_fn=agent.print_local,
+    )
+    gateway = serve_gateway(gw)
+    syncer = Syncer(agent.local, agent.client)
+    threading.Thread(target=syncer.run, args=(stop,), name="sync", daemon=True).start()
+    logging.info("register gateway on http://127.0.0.1:%d/", cfg.gateway_port)
+
+    def shutdown() -> None:
+        status.shutdown()
+        gateway.shutdown()
+
+    return shutdown
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     setup_logging(args.verbose)
     agent = build_agent()
     stop = threading.Event()
-    srv = serve_in_background(agent.cfg.status_port, agent.snapshot)
+    shutdown = start_services(agent, stop)
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())
     logging.info("agent %s started for %s", __version__, agent.cfg.device_name)
     try:
         agent.run(stop)
     finally:
-        srv.shutdown()
+        stop.set()
+        shutdown()
     return 0 if agent.status.paired else 2
 
 
@@ -98,6 +130,20 @@ def cmd_render(args: argparse.Namespace) -> int:
 
 
 def cmd_unpair(args: argparse.Namespace) -> int:
+    db = config.data_dir() / "register.db"
+    if db.exists():
+        store = Store(db)
+        try:
+            pending = store.pending_count()
+        finally:
+            store.close()
+        if pending and not args.force:
+            print(
+                f"{pending} فروش آفلاین هنوز به سرور نرسیده است؛ ابتدا اتصال را برقرار کنید "
+                "(یا همین دستگاه را با کد تازه دوباره جفت کنید). حذف آن‌ها یعنی از دست رفتن فروش.",
+                file=sys.stderr,
+            )
+            return 1
     config.forget()
     print("تنظیمات و توکن این رایانه پاک شد")
     return 0
@@ -121,7 +167,9 @@ def main(argv: list[str] | None = None) -> int:
     pn.add_argument("--bin")
     pn.add_argument("--width", type=int, default=80, choices=(58, 80))
     pn.set_defaults(fn=cmd_render)
-    sub.add_parser("unpair", help="حذف توکن و تنظیمات از این رایانه").set_defaults(fn=cmd_unpair)
+    pu = sub.add_parser("unpair", help="حذف توکن و تنظیمات از این رایانه")
+    pu.add_argument("--force", action="store_true", help="حتی با فروش آفلاین ارسال‌نشده")
+    pu.set_defaults(fn=cmd_unpair)
     args = p.parse_args(argv)
     return int(args.fn(args))
 

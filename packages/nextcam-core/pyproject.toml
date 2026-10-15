@@ -3,7 +3,8 @@ name = "nextcam-core"
 version = "0.8.0"
 description = "NEXTCAM pure business core shared by the server and the register agent: pricing, barcodes, receipts (ADR-0017)"
 requires-python = ">=3.12"
-dependencies = []
+# Windows has no IANA time-zone database of its own (receipt dates).
+dependencies = ["tzdata; sys_platform == 'win32'"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]

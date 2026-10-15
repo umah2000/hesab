@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e ".[dev,windows,serial]"
+      - run: pip install -e ../packages/nextcam-core -e ".[dev,windows,serial]"
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy nextcam_agent --exclude service.py

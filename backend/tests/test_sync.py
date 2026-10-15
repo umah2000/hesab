@@ -383,3 +383,29 @@ def test_device_without_register_has_no_snapshot(app: Flask, pos: Pos) -> None: 
         "/api/v1/sync/agent/snapshot", headers={"Authorization": f"Bearer {agent.token}"}
     )
     assert r.get_json()["error"]["code"] == "no_register"
+
+
+def test_offline_line_removal_is_audited(app: Flask, pos: Pos) -> None:  # noqa: F811
+    reg = Register(app, pos)
+    open_shift(login(app, "cashier"), pos.r1)
+    snap = reg.snapshot().get_json()
+    op = {
+        "id": str(uuid.uuid4()),
+        "type": "line_removal",
+        "local_time": datetime.now(UTC).isoformat(),
+        "removal": {
+            "cash_register_id": pos.r1,
+            "shift_id": snap["shift"]["id"],
+            "user_id": snap["shift"]["user_id"],
+            "item_id": pos.milk,
+            "qty": "1",
+            "line_total": "110000",
+            "removed_at": datetime.now(UTC).isoformat(),
+        },
+    }
+    mixed = dict(op, id=str(uuid.uuid4()), sale={})
+    res = reg.push(op, mixed)
+    assert [(r["status"], r["code"]) for r in res] == [("applied", None), ("rejected", "invalid")]
+    events = reg.boss.get("/api/v1/audit/events?action=sales.line_removed").get_json()
+    rows = events["items"] if isinstance(events, dict) else events
+    assert any(e["data"].get("offline") is True for e in rows), rows

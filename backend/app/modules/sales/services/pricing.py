@@ -97,6 +97,7 @@ def quote_out(cart: PricedCart) -> QuoteOut:
 @dataclass(frozen=True)
 class SalesSettings:
     name: str
+    timezone: str
     display_currency: str
     negative_stock_policy: str
     default_vat_rate: Decimal
@@ -126,6 +127,7 @@ def organization(s: Session) -> SalesSettings:
             raise DomainError("سازمان تعریف نشده است", code="no_organization")
         return SalesSettings(
             name=org.name,
+            timezone=org.timezone,
             display_currency=org.display_currency,
             negative_stock_policy=org.negative_stock_policy,
             default_vat_rate=org.default_vat_rate,

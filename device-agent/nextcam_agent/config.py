@@ -33,6 +33,8 @@ class AgentConfig:
     poll_interval: float = 1.0
     # Local diagnostics page; bound to 127.0.0.1 only.
     status_port: int = 47615
+    # Register gateway (ADR-0017): the POS opens http://127.0.0.1:<gateway_port>/.
+    gateway_port: int = 47616
     # Development only: send print jobs here instead of the configured printer
     # (e.g. "file:C:\\temp\\receipts.bin"); never set on a register.
     printer_override: str | None = None

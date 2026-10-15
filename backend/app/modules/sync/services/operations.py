@@ -143,6 +143,7 @@ def resolve(
         d = s.get(Device, op.device_id)
         assert d is not None
         sale = OfflineOpIn.model_validate(json.loads(op.payload)).sale
+        assert sale is not None  # only sales can be in conflict
         done = apply_sale(s, d, sale, force=True)
         op.invoice_id, op.price_difference = done.invoice.id, done.price_difference
         op.status = "resolved"

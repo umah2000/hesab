@@ -18,8 +18,7 @@ import win32event
 import win32service
 import win32serviceutil
 
-from nextcam_agent.cli import build_agent, setup_logging
-from nextcam_agent.localapi import serve_in_background
+from nextcam_agent.cli import build_agent, setup_logging, start_services
 
 
 class AgentService(win32serviceutil.ServiceFramework):  # type: ignore[misc]
@@ -41,11 +40,12 @@ class AgentService(win32serviceutil.ServiceFramework):  # type: ignore[misc]
         servicemanager.LogInfoMsg("NEXTCAM Device Agent starting")
         setup_logging()
         agent = build_agent()
-        srv = serve_in_background(agent.cfg.status_port, agent.snapshot)
+        shutdown = start_services(agent, self.stop_event)
         try:
             agent.run(self.stop_event)
         finally:
-            srv.shutdown()
+            self.stop_event.set()
+            shutdown()
 
 
 if __name__ == "__main__":

@@ -51,7 +51,9 @@ def upgrade() -> None:
         sa.Column(
             "row_version", mssql.ROWVERSION(), server_default=sa.FetchedValue(), nullable=False
         ),
-        sa.CheckConstraint("op_type IN ('sale')", name=op.f("ck_sync_operation_op_type")),
+        sa.CheckConstraint(
+            "op_type IN ('sale','line_removal')", name=op.f("ck_sync_operation_op_type")
+        ),
         sa.CheckConstraint(
             "status IN ('applied','rejected','conflict','resolved','discarded')",
             name=op.f("ck_sync_operation_status"),

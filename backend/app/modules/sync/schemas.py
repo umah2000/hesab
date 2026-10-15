@@ -11,7 +11,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_serializer
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 from app.core.money import Money
 from app.modules.inventory.schemas import Qty
@@ -94,6 +101,7 @@ class SnapPromotion(BaseModel):
 
 class SnapSettings(BaseModel):
     organization_name: str
+    timezone: str
     display_currency: str
     default_vat_rate: Decimal
     prices_include_vat: bool
@@ -196,11 +204,32 @@ class OfflineSaleIn(_In):
     note: str | None = Field(default=None, max_length=300)
 
 
+class OfflineRemovalIn(_In):
+    """A scanned line taken off the cart while offline (audited, ADR-0017)."""
+
+    cash_register_id: uuid.UUID
+    shift_id: uuid.UUID
+    user_id: uuid.UUID
+    item_id: uuid.UUID
+    qty: Qty = Field(gt=0)
+    line_total: Money = Field(ge=0)
+    removed_at: AwareDatetime
+
+
 class OfflineOpIn(_In):
     id: uuid.UUID
-    type: Literal["sale"]
+    type: Literal["sale", "line_removal"]
     local_time: AwareDatetime
-    sale: OfflineSaleIn
+    sale: OfflineSaleIn | None = None
+    removal: OfflineRemovalIn | None = None
+
+    @model_validator(mode="after")
+    def _one(self) -> OfflineOpIn:
+        if (self.type == "sale") != (self.sale is not None) or (self.type == "line_removal") != (
+            self.removal is not None
+        ):
+            raise ValueError("operation body does not match its type")
+        return self
 
 
 class PushIn(BaseModel):

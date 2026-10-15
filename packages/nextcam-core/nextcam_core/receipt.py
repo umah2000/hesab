@@ -65,7 +65,8 @@ def build(
         return money(d, currency)
 
     meta = [
-        ["شماره", fa(inv.number or 0)] if not device_number else ["شماره صندوق", fa(device_number)],
+        # A register number is a code staff type into search: kept in Latin characters.
+        ["شماره", fa(inv.number or 0)] if not device_number else ["شماره صندوق", device_number],
         ["تاریخ", jalali(inv.finalized_at or inv.created_at, timezone)],
         ["صندوق", inv.register_name],
         ["صندوق‌دار", inv.cashier_name],

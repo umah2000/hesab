@@ -22,22 +22,41 @@ class Unauthorized(ServerError):
 
 class ServerClient:
     def __init__(self, server_url: str, token: str | None = None, timeout: float = 10.0) -> None:
-        self.base = server_url.rstrip("/") + "/api/v1/devices/agent"
+        self.root = server_url.rstrip("/")
+        self.base = self.root + "/api/v1/devices/agent"
         self.token, self.timeout = token, timeout
 
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        headers["User-Agent"] = f"nextcam-agent/{__version__}"
+        return self._call("POST", self.base + path, body)[1]
+
+    def _call(
+        self,
+        method: str,
+        url: str,
+        body: dict[str, Any] | None = None,
+        extra: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> tuple[int, dict[str, Any], str | None]:
+        """(status, json body, ETag). 304 comes back as (304, {}, etag)."""
+        headers = {"Accept": "application/json", "User-Agent": f"nextcam-agent/{__version__}"}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        headers.update(extra or {})
         req = urllib.request.Request(  # noqa: S310 - URL is the configured server
-            self.base + path, data=json.dumps(body).encode(), headers=headers, method="POST"
+            url,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers=headers,
+            method=method,
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as resp:  # noqa: S310
                 data = resp.read()
-                return json.loads(data) if data else {}
+                return resp.status, (json.loads(data) if data else {}), resp.headers.get("ETag")
         except urllib.error.HTTPError as e:
+            if e.code == 304:
+                return 304, {}, e.headers.get("ETag")
             try:
                 err = json.loads(e.read()).get("error", {})
             except (ValueError, AttributeError):
@@ -50,8 +69,30 @@ class ServerClient:
             "/pair", {"code": code, "agent_version": __version__, "platform": platform}
         )
 
-    def poll(self, printer_state: str | None) -> dict[str, Any]:
-        return self._post("/poll", {"agent_version": __version__, "printer_state": printer_state})
+    def poll(self, printer_state: str | None, offline_queue: int | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"agent_version": __version__, "printer_state": printer_state}
+        if offline_queue is not None:
+            body["offline_queue"] = offline_queue
+        return self._post("/poll", body)
+
+    # --- offline sync (ADR-0017) ---------------------------------------------------------
+
+    def snapshot(self, etag: str | None) -> tuple[dict[str, Any] | None, str | None]:
+        """(snapshot, etag); (None, etag) when unchanged."""
+        status, body, tag = self._call(
+            "GET",
+            self.root + "/api/v1/sync/agent/snapshot",
+            extra={"If-None-Match": etag} if etag else None,
+            timeout=max(self.timeout, 60.0),
+        )
+        return (None if status == 304 else body), tag
+
+    def push(self, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        _, body, _ = self._call(
+            "POST", self.root + "/api/v1/sync/agent/push", {"ops": ops}, timeout=60.0
+        )
+        results: list[dict[str, Any]] = body["results"]
+        return results
 
     def result(self, job_id: str, ok: bool, error: str | None = None) -> dict[str, Any]:
         return self._post(

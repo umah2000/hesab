@@ -120,6 +120,7 @@ def snapshot(s: Session, d: Device) -> SnapshotOut:
         shift=shift_out,
         settings=SnapSettings(
             organization_name=org.name,
+            timezone=org.timezone,
             display_currency=org.display_currency,
             default_vat_rate=org.default_vat_rate,
             prices_include_vat=org.prices_include_vat,

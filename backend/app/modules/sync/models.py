@@ -34,7 +34,7 @@ class SyncOperation(EntityMixin, VersionedMixin, Base):
         CheckConstraint(
             "status IN ('applied','rejected','conflict','resolved','discarded')", name="status"
         ),
-        CheckConstraint("op_type IN ('sale')", name="op_type"),
+        CheckConstraint("op_type IN ('sale','line_removal')", name="op_type"),
         Index("ix_sync_operation_status", "status", "received_at"),
         Index("ix_sync_operation_device", "device_id", "received_at"),
     )
