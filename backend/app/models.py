@@ -12,6 +12,7 @@ from app.modules.accounting.models import (
     VoucherLine,
 )
 from app.modules.audit.models import AuditEvent
+from app.modules.devices.models import Device, DeviceJob
 from app.modules.iam.models import AppUser, Permission, Role, UserScope, UserSession
 from app.modules.inventory.models import (
     Item,
@@ -57,6 +58,8 @@ from app.modules.treasury.models import (
 )
 
 __all__ = [
+    "Device",
+    "DeviceJob",
     "BankStatementLine",
     "Cheque",
     "ChequeEvent",

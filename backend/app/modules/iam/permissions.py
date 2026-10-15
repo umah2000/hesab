@@ -51,6 +51,8 @@ CATALOG: tuple[PermissionDef, ...] = (
     PermissionDef("parties.manage", "طرف‌حساب", "مدیریت طرف‌حساب‌ها و اطلاعات حساس"),
     PermissionDef("purchasing.manage", "خرید", "مدیریت خرید"),
     PermissionDef("treasury.manage", "خزانه", "مدیریت دریافت و پرداخت"),
+    PermissionDef("devices.manage", "سخت‌افزار", "تعریف و تنظیم Device Agent و چاپگر"),
+    PermissionDef("sales.drawer.open", "فروش", "باز کردن کشوی پول بدون فروش"),
 )
 
 CODES: frozenset[str] = frozenset(p.code for p in CATALOG)
@@ -79,6 +81,7 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
                 "branches.manage",
                 "audit.view",
                 "import.run",
+                "devices.manage",
             }
         ),
     ),
@@ -109,6 +112,8 @@ SYSTEM_ROLES: tuple[RoleDef, ...] = (
                 "treasury.manage",
                 "parties.view",
                 "parties.manage",
+                "devices.manage",
+                "sales.drawer.open",
             }
         ),
     ),
