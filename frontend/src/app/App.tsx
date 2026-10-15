@@ -41,6 +41,7 @@ import {
   PurchaseOrdersPage,
   PurchasingLayout,
 } from "@/features/purchasing/PurchasingPages";
+import { ReportPage, ReportsHome } from "@/features/reports/ReportsPage";
 import { RolesPage } from "@/features/roles/RolesPage";
 import { CustomerDisplayPage } from "@/features/sales/CustomerDisplay";
 import { PosPage } from "@/features/sales/PosPage";
@@ -105,6 +106,8 @@ const router = createBrowserRouter([
       { path: "audit", element: <AuditPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "devices", element: <DevicesPage /> },
+      { path: "reports", element: <ReportsHome /> },
+      { path: "reports/:key", element: <ReportPage /> },
       { path: "account", element: <AccountPage /> },
       {
         path: "accounting",

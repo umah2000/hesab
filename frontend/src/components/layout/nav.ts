@@ -74,7 +74,13 @@ export const NAV_MAIN: NavItem[] = [
     keywords: "صندوق بانک دریافت پرداخت چک مغایرت treasury",
   },
   { to: "/distribution", label: "ویزیتور و توزیع", icon: Truck, comingInPhase: 9 },
-  { to: "/reports", label: "گزارش‌ها", icon: ChartColumnBig, comingInPhase: 7 },
+  {
+    to: "/reports",
+    label: "گزارش‌ها",
+    icon: ChartColumnBig,
+    permission: ["reports.dashboard", "sales.report.view", "inventory.report.view", "accounting.report.view", "parties.view", "treasury.manage"],
+    keywords: "گزارش سود زیان ترازنامه بدهکاران کم‌گردش انقضا report",
+  },
 ];
 
 export const NAV_ADMIN: NavItem[] = [

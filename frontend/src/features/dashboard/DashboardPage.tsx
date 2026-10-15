@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
+  BarChart3,
+  Printer,
   ArrowLeft,
-  BookOpenText,
   Boxes,
   Building2,
   CircleCheck,
@@ -27,13 +28,15 @@ import type { Organization } from "@/features/settings/types";
 import { api, type Page } from "@/lib/api";
 import { formatDate, formatDateTime, formatTime, toFaDigits } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ManagementDashboard } from "@/features/reports/ManagementDashboard";
 
 const ROADMAP = [
-  { phase: 1, title: "کاربران، نقش‌ها و ممیزی", icon: ShieldCheck, status: "done" as const },
-  { phase: 2, title: "هسته حسابداری", icon: BookOpenText, status: "done" as const },
   { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "done" as const },
-  { phase: 4, title: "صندوق فروش و پایلوت", icon: ShoppingCart, status: "active" as const },
-  { phase: 5, title: "خرید، خزانه و طرف‌حساب", icon: Wallet, status: "next" as const },
+  { phase: 4, title: "صندوق فروش (منتظر پایلوت)", icon: ShoppingCart, status: "done" as const },
+  { phase: 5, title: "خرید، خزانه و طرف‌حساب", icon: Wallet, status: "done" as const },
+  { phase: 6, title: "سخت‌افزار (منتظر آزمون دستگاه)", icon: Printer, status: "done" as const },
+  { phase: 7, title: "گزارش‌ساز و داشبورد", icon: BarChart3, status: "active" as const },
+  { phase: 8, title: "چندشعبه و آفلاین", icon: Building2, status: "next" as const },
 ];
 
 function StatTile({
@@ -133,6 +136,8 @@ export function DashboardPage() {
           </div>
         </Card>
       ) : null}
+
+      {can("reports.dashboard") ? <ManagementDashboard /> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
