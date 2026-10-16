@@ -100,8 +100,14 @@ Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(f
 |---|---|---|
 | `saved_report_filter` | user_id، report، name، params (JSON) | یکتا در (کاربر، گزارش، نام)؛ اشتراکی نیست |
 
-## ۶. همگام‌سازی (فاز ۸)
-`sync_device`، `sync_inbox` (operation_id UQ، device_id، payload، received_at، status، error)، `sync_conflict`.
+## ۶. همگام‌سازی (فاز ۸) — migration `0012`، ADR-0017
+| جدول | ستون‌های کلیدی | نکته |
+|---|---|---|
+| `sync_operation` | id (= operation_id = شناسه‌ی فاکتور)، device_id، op_type (sale/line_removal)، status (applied/rejected/conflict/resolved/discarded)، device_number، local_time، received_at، payload (JSON کامل)، code، message، price_difference، invoice_id، resolved_by، resolved_at، resolution_note | یک ردیف برای هر عملیات؛ ارسال دوباره همان پاسخ را می‌گیرد؛ تعارض تا تصمیم انسانی می‌ماند |
+| `sales_invoice` (+) | device_number (یکتا با ایندکس فیلترشده)، sold_at | شماره‌ی صندوق و زمان واقعی فروش آفلاین |
+| `device` (+) | offline_queue، last_sync_at | صف گزارش‌شده با هر poll؛ بستن شیفت را نگه می‌دارد |
+
+صف محلی صندوق (SQLite روی همان رایانه، `register.db`): `meta` (snapshot، ETag، تنظیم چاپگر، دنباله‌ی شماره)، `sessions` (هش نشست ← کاربر)، `ops` (عملیات، نمای فاکتور، کسر موجودی محلی، وضعیت پاسخ سرور).
 
 ## روابط اصلی
 ```mermaid

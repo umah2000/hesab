@@ -84,4 +84,8 @@
 | ۷ | GET | `/reports/dashboard?date_from&date_to&branch_id` | `reports.dashboard` | شاخص‌ها، نمودار روزانه، پرفروش‌ها، مانده‌ها |
 | ۷ | GET | `/reports/{key}?…[&format=xlsx]` | مجوز همان گزارش (ADR-0016) | `sales`، `cash-shortages`، `stock-movement`، `slow-moving`، `near-expiry`، `debtors`، `creditors`، `money-flow`، `profit-loss`، `balance-sheet`؛ خروجی Excel ممیزی می‌شود |
 | ۷ | GET · POST · DELETE | `/reports/saved-filters` · `/{id}` | هر مجوز گزارش | فقط فیلترهای خود کاربر |
-| ۸ | POST | `/sync/push` · `GET /sync/pull?since=` | `sync.device` | [`protocol.md`](../sync/protocol.md) |
+| ۸ | GET | `/sync/agent/snapshot` (If-None-Match) | `Authorization: Bearer` توکن دستگاه | داده‌ی فروش آفلاین صندوق؛ بدون تغییر ← 304 ([`protocol.md`](../sync/protocol.md)) |
+| ۸ | POST | `/sync/agent/push` `{ops: [...]}` | `Authorization: Bearer` توکن دستگاه | هر عملیات جدا و یک‌بار؛ `applied`/`rejected`/`conflict` |
+| ۸ | GET · GET | `/sync/operations?status=open\|conflict\|…&device_id` · `/sync/operations/{id}` | `sync.resolve` | محدوده‌ی شعبه |
+| ۸ | POST | `/sync/operations/{id}/resolve` `{action: apply\|discard, note}` (If-Match) | `sync.resolve` | ممیزی؛ ردشده فقط discard |
+| ۸ | POST | `/devices/agent/poll` با `offline_queue` | توکن دستگاه | تا صف صفر نشود بستن شیفت آن صندوق ممکن نیست |

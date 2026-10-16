@@ -8,6 +8,7 @@ import json
 import threading
 import uuid
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -489,3 +490,29 @@ def test_socket_server_end_to_end(env) -> None:  # type: ignore[no-untyped-def]
     finally:
         srv.shutdown()
         srv.server_close()
+
+
+def test_queued_sales_survive_a_restart(env, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    up, gw, local, syncer, _ = env
+    call(gw, "GET", "/api/v1/auth/me")
+    syncer.pull()
+    go_offline(up, gw)
+    sale_id = str(uuid.uuid4())
+    body = cart(
+        {"item_id": MILK, "qty": "1"}, id=sale_id, payments=[{"method": "cash", "amount": "121000"}]
+    )
+    assert call(gw, "POST", "/api/v1/sales/invoices", body).status == 201
+    local.store.close()  # power cut: only what is on disk is left
+
+    store = Store(tmp_path / "register.db")
+    try:
+        again = Local(store)
+        assert store.pending_count() == 1 and store.op(sale_id) is not None
+        snap = again.snapshot()
+        assert snap is not None and snap.stock(MILK) == Decimal("9.000")
+        nxt = Gateway(up.url, again, tmp_path / "spa", port=PORT)
+        nxt.local.server_down("still down")
+        second = js(call(nxt, "POST", "/api/v1/sales/invoices", dict(body, id=str(uuid.uuid4()))))
+        assert second["device_number"] == "AB12CD34-2"  # the sequence continues, never repeats
+    finally:
+        store.close()
