@@ -44,6 +44,7 @@ import {
 import { ReportPage, ReportsHome } from "@/features/reports/ReportsPage";
 import { RolesPage } from "@/features/roles/RolesPage";
 import { CustomerDisplayPage } from "@/features/sales/CustomerDisplay";
+import { OfflineSalesPage } from "@/features/sales/OfflineSalesPage";
 import { PosPage } from "@/features/sales/PosPage";
 import {
   CardTransactionsPage,
@@ -148,6 +149,7 @@ const router = createBrowserRouter([
           { path: "daily", element: <DailyReportPage /> },
           { path: "promotions", element: <PromotionsPage /> },
           { path: "card-transactions", element: <CardTransactionsPage /> },
+          { path: "offline", element: <OfflineSalesPage /> },
         ],
       },
       {

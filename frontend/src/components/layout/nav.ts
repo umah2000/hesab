@@ -35,8 +35,8 @@ export const NAV_MAIN: NavItem[] = [
     to: "/sales",
     label: "فروش و شیفت‌ها",
     icon: ReceiptText,
-    permission: ["sales.report.view", "sales.return.create", "inventory.price.manage", "payments.reconcile"],
-    keywords: "فاکتور برگشت شیفت پروموشن گزارش فروش",
+    permission: ["sales.report.view", "sales.return.create", "inventory.price.manage", "payments.reconcile", "sync.resolve"],
+    keywords: "فاکتور برگشت شیفت پروموشن گزارش فروش آفلاین تعارض",
   },
   {
     to: "/inventory",

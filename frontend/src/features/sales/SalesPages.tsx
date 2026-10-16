@@ -44,6 +44,7 @@ const TABS = [
   { to: "/sales/daily", label: "گزارش روزانه", perm: ["sales.report.view"] },
   { to: "/sales/promotions", label: "پروموشن‌ها", perm: ["inventory.price.manage", "sales.report.view"] },
   { to: "/sales/card-transactions", label: "تراکنش‌های نامشخص کارت", perm: ["payments.reconcile"] },
+  { to: "/sales/offline", label: "فروش‌های آفلاین", perm: ["sync.resolve"] },
 ];
 
 export function SalesLayout() {

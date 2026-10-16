@@ -76,6 +76,10 @@ export function DevicesPage() {
             <li>دستگاه را این‌جا تعریف کنید و چاپگر آن را تنظیم کنید؛ یک کد جفت‌سازی ۱۵ دقیقه‌ای نمایش داده می‌شود.</li>
             <li>روی رایانه صندوق فرمان جفت‌سازی را اجرا کنید (راهنمای نصب Device Agent).</li>
             <li>«چاپ آزمایشی» را بزنید. تا پیش از آزمون موفق روی همان چاپگر، پشتیبانی آن مدل تأییدنشده است.</li>
+            <li>
+              برای فروش هنگام قطع شبکه، صندوق را از نشانی <span dir="ltr" className="font-mono">http://127.0.0.1:47616/pos</span> روی همان رایانه باز کنید.
+              فروش‌های آفلاین پس از وصل‌شدن ارسال می‌شوند و تعارض‌ها در «فروش ← فروش‌های آفلاین» می‌آیند.
+            </li>
           </ol>
         </CardBody>
       </Card>
@@ -120,7 +124,11 @@ export function DevicesPage() {
                       {d.printer_state && d.printer_state !== "ok" ? <Badge tone="danger">{d.printer_state}</Badge> : null}
                     </Td>
                     <Td>{d.drawer_enabled ? `فعال (پایه ${toFaDigits(d.drawer_pin)})` : "—"}</Td>
-                    <Td className="text-ink-soft">{d.last_seen_at ? formatDateTime(d.last_seen_at) : "—"}</Td>
+                    <Td className="text-ink-soft">
+                      <div>{d.last_seen_at ? formatDateTime(d.last_seen_at) : "—"}</div>
+                      {d.offline_queue > 0 ? <Badge tone="warning">{toFaDigits(d.offline_queue)} فروش آفلاین ارسال‌نشده</Badge> : null}
+                      {d.last_sync_at ? <div className="text-xs text-ink-faint">آخرین ارسال آفلاین: {formatDateTime(d.last_sync_at)}</div> : null}
+                    </Td>
                     <Td>
                       {d.status !== "revoked" ? (
                         <div className="flex flex-wrap justify-end gap-1">

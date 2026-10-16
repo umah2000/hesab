@@ -31,7 +31,11 @@ export function Receipt({
         <div className="mt-1 font-bold">{isReturn ? "رسید برگشت از فروش" : "فاکتور فروش"}{reprint ? " (چاپ مجدد)" : ""}</div>
       </div>
       <div className="my-1 flex justify-between border-y border-dashed border-black py-1">
-        <span>شماره: {toFaDigits(invoice.number ?? 0)}</span>
+        {invoice.number == null && invoice.device_number ? (
+          <span dir="ltr">شماره صندوق: {invoice.device_number}</span>
+        ) : (
+          <span>شماره: {toFaDigits(invoice.number ?? 0)}</span>
+        )}
         <span>{formatDateTime(invoice.finalized_at ?? invoice.created_at)}</span>
       </div>
       <div className="flex justify-between">
@@ -77,6 +81,9 @@ export function Receipt({
         {invoice.change_due && Number(invoice.change_due) ? <Row label="باقی‌مانده (پس داده شد)" value={money(invoice.change_due)} /> : null}
       </div>
       {invoice.lines.some((l) => l.vat_exempt) ? <div className="mt-1 text-[8pt]">* کالای معاف از مالیات</div> : null}
+      {invoice.device_number && invoice.number == null ? (
+        <div className="mt-1 text-[8pt]">ثبت در حالت آفلاین؛ شماره قطعی پس از اتصال به سرور داده می‌شود.</div>
+      ) : null}
       {footer ? <div className="mt-2 border-t border-dashed border-black pt-1 text-center whitespace-pre-line">{footer}</div> : null}
     </div>
   );

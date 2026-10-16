@@ -1,4 +1,4 @@
-import type { DisplayCurrency } from "@/lib/format";
+import { type DisplayCurrency, toFaDigits } from "@/lib/format";
 
 export type Method = "cash" | "card" | "credit";
 export const METHOD_LABEL: Record<Method, string> = { cash: "نقد", card: "کارت", credit: "نسیه" };
@@ -137,7 +137,16 @@ export type Invoice = {
   lines: InvoiceLine[];
   payments: Payment[];
   warnings: string[];
+  /** Sold while the server was unreachable: the register's number until it syncs. */
+  device_number?: string | null;
+  offline?: boolean;
 };
+
+/** "فاکتور ۱۲" online, "فیش صندوق AB12CD34-3" for an offline sale not yet numbered. */
+export function invoiceLabel(inv: Pick<Invoice, "number" | "device_number">): string {
+  if (inv.number == null && inv.device_number) return `فیش صندوق ${inv.device_number}`;
+  return `فاکتور ${toFaDigits(inv.number ?? 0)}`;
+}
 
 export type InvoiceSummary = {
   id: string;

@@ -17,6 +17,9 @@ export type Device = {
   agent_version: string | null;
   platform: string | null;
   printer_state: string | null;
+  /** Offline sales still on the register (ADR-0017). */
+  offline_queue: number;
+  last_sync_at: string | null;
   printer_transport: Transport;
   printer_address: string | null;
   paper_width: 58 | 80;

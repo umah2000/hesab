@@ -15,6 +15,8 @@ export class ApiError extends Error {
   }
 }
 
+import { noteGatewayHeaders } from "./gateway";
+
 const BASE = "/api/v1";
 
 function readCookie(name: string): string | null {
@@ -52,6 +54,7 @@ async function request<T>(method: string, path: string, opts: Options = {}): Pro
     throw new ApiError(0, "network_error", "ارتباط با سرور برقرار نشد");
   }
 
+  noteGatewayHeaders(res.headers);
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {

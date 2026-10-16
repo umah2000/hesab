@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, CheckCircle2, Inbox, Minus, MonitorSmartphone, MonitorUp, PauseCircle, Plus, Printer, ShoppingCart, Trash2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Inbox, Minus, MonitorSmartphone, MonitorUp, PauseCircle, Plus, Printer, ShoppingCart, Trash2, WifiOff } from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -16,13 +16,14 @@ import { trimQty } from "@/features/inventory/api";
 import { ItemSearch, type Picked } from "@/features/inventory/ItemSearch";
 import type { Branch, CashRegister } from "@/features/settings/types";
 import { ApiError, api, newIdempotencyKey } from "@/lib/api";
+import { useGateway } from "@/lib/gateway";
 import { type DisplayCurrency, formatLongDate, formatMoney, formatTime, toFaDigits } from "@/lib/format";
 import { inputToRials, sumRials } from "@/lib/money";
 import { addQty, fromQtyUnits, qtyUnits } from "@/lib/qty";
 import { cn } from "@/lib/utils";
 import { type ApprovalAction, ApprovalDialog } from "./ApprovalDialog";
 import { openCustomerDisplay, useDisplayPublisher } from "./CustomerDisplay";
-import { type CartLine, type Invoice, type Quote, type RegisterState, storedRegister, storeRegister } from "./api";
+import { type CartLine, type Invoice, invoiceLabel, type Quote, type RegisterState, storedRegister, storeRegister } from "./api";
 import { type PayMode, PaymentDialog, type PayResult } from "./PaymentDialog";
 import { CloseShiftDialog, DiscountDialog, HeldDialog, HoldDialog, QtyDialog } from "./PosDialogs";
 import { printReceipt, Receipt } from "./Receipt";
@@ -57,6 +58,7 @@ function PosFrame({ state, children }: { state?: RegisterState; children: React.
     retry: false,
   });
   const online = health.isSuccess && !health.isError;
+  const gateway = useGateway();
   return (
     <div className="flex h-dvh flex-col gap-3 p-3" data-pos>
       <header className="glass no-print flex flex-wrap items-center gap-3 rounded-2xl px-4 py-2.5">
@@ -67,7 +69,10 @@ function PosFrame({ state, children }: { state?: RegisterState; children: React.
         </div>
         {me.data ? <Badge tone="neutral" icon={false}>صندوق‌دار: {me.data.full_name || me.data.username}</Badge> : null}
         <div className="flex-1" />
-        <StatusChip ok={online} label={online ? "متصل به سرور" : "قطع ارتباط با سرور"} />
+        <StatusChip ok={online && !gateway.offline} label={gateway.offline ? "آفلاین — فروش روی همین صندوق" : online ? "متصل به سرور" : "قطع ارتباط با سرور"} />
+        {!gateway.offline && gateway.queue > 0 ? (
+          <Badge tone="info">{toFaDigits(gateway.queue)} فروش آفلاین در حال ارسال</Badge>
+        ) : null}
         {state ? (
           <StatusChip
             ok
@@ -83,6 +88,16 @@ function PosFrame({ state, children }: { state?: RegisterState; children: React.
           </Link>
         </Button>
       </header>
+      {gateway.offline ? (
+        <div role="status" className="no-print flex flex-wrap items-center gap-2 rounded-2xl bg-warning/15 px-4 py-2.5 text-sm text-ink ring-1 ring-warning/40 ring-inset">
+          <WifiOff className="size-5 text-warning" aria-hidden />
+          <span className="font-bold">حالت آفلاین</span>
+          <span className="text-ink-soft">
+            سرور در دسترس نیست. فروش نقد و کارت (با کارت‌خوان جدا و شماره پیگیری) روی همین صندوق ثبت و پس از وصل‌شدن ارسال می‌شود؛ نسیه، برگشت، فاکتور معلق و تأیید سرپرست تا اتصال در دسترس نیست.
+          </span>
+          <Badge tone="warning" icon={false}>{toFaDigits(gateway.queue)} فروش در صف ارسال</Badge>
+        </div>
+      ) : null}
       {children}
     </div>
   );
@@ -404,7 +419,7 @@ function Workspace({ state }: { state: RegisterState }) {
       setLastInvoice(inv);
       reset();
       for (const w of inv.warnings) toast.warning(w);
-      toast.success(`فاکتور ${toFaDigits(inv.number ?? 0)} ثبت شد`);
+      toast.success(`${invoiceLabel(inv)} ثبت شد${inv.offline ? " (آفلاین)" : ""}`);
       if (autoPrint) printInvoice(inv, false);
       else if (viaAgent && device.data?.drawer && inv.payments.some((p) => p.method === "cash")) {
         // No paper, but the cash drawer still has to open for a cash sale.
@@ -803,7 +818,7 @@ function LastSale({ invoice, currency, onReprint }: { invoice: Invoice; currency
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
       <CheckCircle2 className="size-14 text-success" />
-      <div className="text-lg font-bold text-ink">فاکتور {toFaDigits(invoice.number ?? 0)} ثبت شد — {formatMoney(invoice.grand_total, currency)}</div>
+      <div className="text-lg font-bold text-ink">{invoiceLabel(invoice)} ثبت شد — {formatMoney(invoice.grand_total, currency)}</div>
       {change ? (
         <div className="rounded-2xl bg-success/10 px-6 py-3 text-success">
           <div className="text-sm">باقی‌مانده برای مشتری</div>
