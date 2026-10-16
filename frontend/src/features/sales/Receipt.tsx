@@ -32,7 +32,7 @@ export function Receipt({
       </div>
       <div className="my-1 flex justify-between border-y border-dashed border-black py-1">
         {invoice.number == null && invoice.device_number ? (
-          <span dir="ltr">شماره صندوق: {invoice.device_number}</span>
+          <span>شماره صندوق: <span className="latin-digits">{invoice.device_number}</span></span>
         ) : (
           <span>شماره: {toFaDigits(invoice.number ?? 0)}</span>
         )}

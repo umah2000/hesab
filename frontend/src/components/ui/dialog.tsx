@@ -13,7 +13,7 @@ export function DialogContent({
   children,
   className,
 }: {
-  title: string;
+  title: React.ReactNode;
   description?: string;
   children: React.ReactNode;
   className?: string;

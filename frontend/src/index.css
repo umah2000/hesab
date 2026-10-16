@@ -159,3 +159,10 @@ body {
     display: none !important;
   }
 }
+
+/* Codes typed into search (register numbers, barcodes): Latin digits, not the body's Persian ones. */
+@utility latin-digits {
+  font-feature-settings: normal;
+  unicode-bidi: isolate;
+  direction: ltr;
+}

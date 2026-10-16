@@ -39,6 +39,17 @@ function useClock() {
   return now;
 }
 
+/** An offline sale keeps the register's number (a Latin code staff type into search). */
+function InvoiceName({ inv }: { inv: Invoice }) {
+  if (inv.number == null && inv.device_number)
+    return (
+      <>
+        فیش صندوق <span className="latin-digits">{inv.device_number}</span>
+      </>
+    );
+  return <>{invoiceLabel(inv)}</>;
+}
+
 function StatusChip({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium", ok ? "bg-success/10 text-success" : "bg-danger/10 text-danger")}>
@@ -419,7 +430,7 @@ function Workspace({ state }: { state: RegisterState }) {
       setLastInvoice(inv);
       reset();
       for (const w of inv.warnings) toast.warning(w);
-      toast.success(`${invoiceLabel(inv)} ثبت شد${inv.offline ? " (آفلاین)" : ""}`);
+      toast.success(<><InvoiceName inv={inv} /> ثبت شد{inv.offline ? " (آفلاین)" : ""}</>);
       if (autoPrint) printInvoice(inv, false);
       else if (viaAgent && device.data?.drawer && inv.payments.some((p) => p.method === "cash")) {
         // No paper, but the cash drawer still has to open for a cash sale.
@@ -818,7 +829,7 @@ function LastSale({ invoice, currency, onReprint }: { invoice: Invoice; currency
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
       <CheckCircle2 className="size-14 text-success" />
-      <div className="text-lg font-bold text-ink">{invoiceLabel(invoice)} ثبت شد — {formatMoney(invoice.grand_total, currency)}</div>
+      <div className="text-lg font-bold text-ink"><InvoiceName inv={invoice} /> ثبت شد — {formatMoney(invoice.grand_total, currency)}</div>
       {change ? (
         <div className="rounded-2xl bg-success/10 px-6 py-3 text-success">
           <div className="text-sm">باقی‌مانده برای مشتری</div>

@@ -105,7 +105,7 @@ export function OfflineSalesPage() {
               <tbody>
                 {list.data.items.map((o) => (
                   <Tr key={o.id}>
-                    <Td className="tabular" dir="ltr">{o.op_type === "sale" ? o.device_number ?? "—" : "حذف ردیف"}</Td>
+                    <Td>{o.op_type === "sale" ? <span className="latin-digits tabular">{o.device_number ?? "—"}</span> : "حذف ردیف (آفلاین)"}</Td>
                     <Td className="text-ink-soft">{formatDateTime(o.sold_at ?? o.local_time)}</Td>
                     <Td className="text-ink-soft">{o.register_name ?? o.device_name}{o.cashier_name ? ` · ${o.cashier_name}` : ""}</Td>
                     <Td className="tabular font-semibold">{o.grand_total ? formatMoney(o.grand_total, currency) : "—"}</Td>
@@ -158,7 +158,7 @@ function ResolveDialog({ op, onClose }: { op: SyncOperation; onClose: () => void
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        title={`فروش آفلاین ${op.device_number ?? ""}`}
+        title={op.device_number ? <>فروش آفلاین <span className="latin-digits">{op.device_number}</span></> : "عملیات آفلاین"}
         description={op.grand_total ? `${formatMoney(op.grand_total, currency)} · ${formatDateTime(op.sold_at ?? op.local_time)}` : undefined}
       >
         <div className="flex flex-col gap-3">
@@ -180,7 +180,7 @@ function ResolveDialog({ op, onClose }: { op: SyncOperation; onClose: () => void
             <p className="text-sm text-ink-soft">کنار گذاشتن یعنی این فروش در دفاتر نمی‌آید؛ فقط وقتی که مطمئنید تکراری یا نادرست است.</p>
           )}
           <Field label="توضیح (در ممیزی ثبت می‌شود)">
-            <Input value={note} onChange={(e) => setNote(e.target.value)} />
+            <Input aria-label="توضیح تصمیم" value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
         </div>
         <DialogFooter>
