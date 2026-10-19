@@ -1,0 +1,37 @@
+name: mobile
+
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/mobile.yml"]
+  pull_request:
+    paths: ["mobile/**", ".github/workflows/mobile.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.7"
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: dart format --output=none --set-exit-if-changed lib test
+      # Screen images depend on font rasterisation; CI checks they render without
+      # layout errors and leaves the committed images as they are.
+      - run: flutter test --exclude-tags server,screens
+      - run: flutter test --tags screens --update-goldens
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextcam-visitor-debug-apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
