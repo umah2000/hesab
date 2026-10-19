@@ -109,6 +109,19 @@ Index: `voucher_line(account_id, voucher_id)` شامل debit/credit؛ `voucher(f
 
 صف محلی صندوق (SQLite روی همان رایانه، `register.db`): `meta` (snapshot، ETag، تنظیم چاپگر، دنباله‌ی شماره)، `sessions` (هش نشست ← کاربر)، `ops` (عملیات، نمای فاکتور، کسر موجودی محلی، وضعیت پاسخ سرور).
 
+## ۷. ویزیتور و توزیع (فاز ۹) — migration `0013`، ADR-0018
+| جدول | ستون‌های کلیدی | نکته |
+|---|---|---|
+| `mobile_session` | user_id، device_name، last_seen_at، expires_at (۳۰ روز)، revoked_at، revoke_reason | نشست گوشی؛ با غیرفعال‌شدن کاربر یا تغییر رمز باطل می‌شود |
+| `mobile_token` | session_id، kind (access/refresh)، token_hash (یکتا)، expires_at، used_at | فقط هش؛ توکن تمدید یک‌بارمصرف |
+| `visitor` | user_id (یکتا)، branch_id، code (یکتا)، is_active، note | |
+| `visitor_customer` | visitor_id، customer_id، visit_weekday (۰=شنبه … ۶=جمعه، تهی = بدون روز ثابت) | یکتا در (ویزیتور، مشتری) |
+| `sales_order` | id (از گوشی)، branch_id، warehouse_id، fiscal_year_id، visitor_id، customer_id، number (یکتا در شعبه و سال)، status (submitted/approved/rejected/invoiced/delivered/cancelled)، ordered_at، received_at، مبالغ، client_total، decided_by/at، decision_note، invoice_id، delivered_at/by | قیمت از سرور؛ موجودی و سند فقط از فاکتور |
+| `sales_order_line` | order_id، line_no، item_id، unit_id، qty، base_qty، unit_price، gross، promotion_id، promotion_discount، vat_exempt، vat_rate، tax، revenue، line_total | |
+| `visit` | id (از گوشی)، visitor_id، customer_id، visited_at، received_at، outcome (order/no_order/closed/absent)، note، order_id | |
+
+پایگاه داده‌ی گوشی (SQLite): `meta` (داده‌ی آفلاین و ETag)، `outbox` (سفارش و بازدید با وضعیت pending/sent/failed)، `orders` (آخرین وضعیت از سرور).
+
 ## روابط اصلی
 ```mermaid
 erDiagram

@@ -89,3 +89,14 @@
 | ۸ | GET · GET | `/sync/operations?status=open\|conflict\|…&device_id` · `/sync/operations/{id}` | `sync.resolve` | محدوده‌ی شعبه |
 | ۸ | POST | `/sync/operations/{id}/resolve` `{action: apply\|discard, note}` (If-Match) | `sync.resolve` | ممیزی؛ ردشده فقط discard |
 | ۸ | POST | `/devices/agent/poll` با `offline_queue` | توکن دستگاه | تا صف صفر نشود بستن شیفت آن صندوق ممکن نیست |
+| ۹ | POST | `/auth/mobile/login` · `/auth/mobile/refresh` | عمومی، محدودیت نرخ | توکن دسترسی ۱۵ دقیقه + توکن تمدید یک‌بارمصرف (ADR-0018)؛ فقط `distribution.visitor` |
+| ۹ | POST | `/auth/mobile/logout` | Bearer اپ | |
+| ۹ | GET | `/distribution/mobile/bootstrap` (If-None-Match) | `distribution.visitor` (Bearer اپ) | مشتریان تخصیص‌یافته، کالا، واحد، قیمت فهرست، موجودی |
+| ۹ | POST | `/distribution/mobile/quote` | `distribution.visitor` | قیمت قطعی سرور و اعتبار پس از سفارش |
+| ۹ | POST · GET | `/distribution/mobile/orders` (id از گوشی؛ ارسال دوباره ← همان سفارش، 200) | `distribution.visitor` | سفارش‌های ۶۰ روز اخیر با وضعیت |
+| ۹ | POST | `/distribution/mobile/orders/{id}/cancel` · `/distribution/mobile/visits` | `distribution.visitor` | لغو فقط پیش از بررسی؛ بازدید با id گوشی |
+| ۹ | GET/POST · GET/PUT | `/distribution/visitors` · `/{id}` · `GET /distribution/candidates` | `distribution.manage` | ویزیتور از کاربر دارای نقش ویزیتور |
+| ۹ | GET · PUT | `/distribution/visitors/{id}/customers` | `distribution.manage` | جایگزینی کامل فهرست مشتریان و روز بازدید |
+| ۹ | GET | `/distribution/orders?status=open\|…&visitor_id&date_from&date_to` · `/{id}` | `distribution.manage` | محدوده‌ی شعبه |
+| ۹ | POST | `/distribution/orders/{id}/approve\|reject\|invoice\|deliver` (If-Match) | `distribution.manage` | کنترل سقف اعتبار در تأیید و فاکتور؛ فاکتور نسیه با `cash_register_id`؛ ممیزی |
+| ۹ | GET | `/distribution/visits` · `/reports/visitor-performance` | `distribution.manage` | |
