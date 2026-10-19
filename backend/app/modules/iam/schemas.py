@@ -114,3 +114,23 @@ class RoleUpdateIn(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=100)
     description: str | None = Field(default=None, max_length=500)
     permissions: list[str] | None = None
+
+
+class MobileLoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+    device_name: str | None = Field(default=None, max_length=100)
+
+
+class MobileRefreshIn(BaseModel):
+    refresh_token: str = Field(min_length=10, max_length=200)
+
+
+class MobileTokensOut(BaseModel):
+    """Bearer tokens for the visitor app (kept in Android Keystore, ADR-0004)."""
+
+    access_token: str
+    access_expires_at: datetime
+    refresh_token: str
+    refresh_expires_at: datetime
+    user: MeOut

@@ -267,6 +267,9 @@ def revoke_user_sessions(
     if except_session is not None:
         stmt = stmt.where(UserSession.id != except_session)
     s.execute(stmt)
+    from app.modules.iam.services.mobile import revoke_user
+
+    revoke_user(s, user_id, "user_changed")
 
 
 def change_password(actor: Actor, current_password: str, new_password: str) -> None:

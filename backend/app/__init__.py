@@ -35,6 +35,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     from app.modules.accounting.api import bp as accounting_bp
     from app.modules.audit.api import bp as audit_bp
     from app.modules.devices.api import bp as devices_bp
+    from app.modules.distribution.api import bp as distribution_bp
     from app.modules.iam.api import auth_bp, roles_bp, users_bp
     from app.modules.inventory.api import bp as inventory_bp
     from app.modules.organization.api import bp as org_bp
@@ -65,6 +66,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(reports_bp, url_prefix=f"{api}/reports")
     app.register_blueprint(payments_bp, url_prefix=f"{api}/payments")
     app.register_blueprint(sync_bp, url_prefix=f"{api}/sync")
+    app.register_blueprint(distribution_bp, url_prefix=f"{api}/distribution")
     register_cli(app)
     if settings.static_dir:
         _serve_frontend(app, Path(settings.static_dir))

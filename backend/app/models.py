@@ -13,7 +13,22 @@ from app.modules.accounting.models import (
 )
 from app.modules.audit.models import AuditEvent
 from app.modules.devices.models import Device, DeviceJob
-from app.modules.iam.models import AppUser, Permission, Role, UserScope, UserSession
+from app.modules.distribution.models import (
+    SalesOrder,
+    SalesOrderLine,
+    Visit,
+    Visitor,
+    VisitorCustomer,
+)
+from app.modules.iam.models import (
+    AppUser,
+    MobileSession,
+    MobileToken,
+    Permission,
+    Role,
+    UserScope,
+    UserSession,
+)
 from app.modules.inventory.models import (
     Item,
     ItemBarcode,
@@ -117,4 +132,11 @@ __all__ = [
     "Role",
     "UserScope",
     "UserSession",
+    "MobileSession",
+    "MobileToken",
+    "SalesOrder",
+    "SalesOrderLine",
+    "Visit",
+    "Visitor",
+    "VisitorCustomer",
 ]

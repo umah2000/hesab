@@ -102,3 +102,35 @@ class UserSession(EntityMixin, Base):
     user_agent: Mapped[str | None] = mapped_column(Unicode(300))
 
     user: Mapped[AppUser] = relationship(lazy="joined")
+
+
+class MobileSession(EntityMixin, Base):
+    """A phone signed in with the visitor app (ADR-0004, ADR-0018).
+
+    Bearer tokens instead of cookies: a short access token and a refresh token that is
+    replaced on every use. Presenting a refresh token that was already used revokes the
+    whole session (it was copied).
+    """
+
+    __tablename__ = "mobile_session"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"), index=True)
+    device_name: Mapped[str | None] = mapped_column(Unicode(100))
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # The refresh chain cannot outlive this, however often it is renewed.
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoke_reason: Mapped[str | None] = mapped_column(String(32))
+
+
+class MobileToken(EntityMixin, Base):
+    """Access and refresh tokens of a mobile session, stored only as SHA-256 hashes."""
+
+    __tablename__ = "mobile_token"
+
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("mobile_session.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(8))  # access | refresh
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # A refresh token is used once; a second use means it was stolen.
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

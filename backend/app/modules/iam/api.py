@@ -26,6 +26,9 @@ from app.modules.iam.schemas import (
     ChangePasswordIn,
     LoginIn,
     MeOut,
+    MobileLoginIn,
+    MobileRefreshIn,
+    MobileTokensOut,
     PermissionOut,
     ResetPasswordIn,
     RoleCreateIn,
@@ -36,7 +39,7 @@ from app.modules.iam.schemas import (
     UserOut,
     UserUpdateIn,
 )
-from app.modules.iam.services import auth, roles, users
+from app.modules.iam.services import auth, mobile, roles, users
 
 auth_bp = Blueprint("auth", __name__)
 users_bp = Blueprint("users", __name__)
@@ -133,6 +136,59 @@ def me() -> ResponseReturnValue:
         return to_json(_me(user, sess.expires_at if sess else None))
     finally:
         s.close()
+
+
+# --- visitor app (bearer tokens, ADR-0004 / ADR-0018) ------------------------------------
+
+
+def _tokens(pair: mobile.TokenPair) -> Response:
+    s = new_session()
+    try:
+        user = s.get(AppUser, pair.user_id)
+        assert user is not None
+        return to_json(
+            MobileTokensOut(
+                access_token=pair.access_token,
+                access_expires_at=pair.access_expires_at,
+                refresh_token=pair.refresh_token,
+                refresh_expires_at=pair.refresh_expires_at,
+                user=_me(user, pair.refresh_expires_at),
+            )
+        )
+    finally:
+        s.close()
+
+
+@auth_bp.post("/mobile/login")
+@limiter.limit(lambda: _settings().login_rate_limit)
+@doc(
+    "ورود اپلیکیشن ویزیتور؛ توکن دسترسی ۱۵ دقیقه و توکن تمدید یک‌بارمصرف",
+    body=MobileLoginIn,
+    response=MobileTokensOut,
+)
+def mobile_login() -> ResponseReturnValue:
+    data = parse_body(MobileLoginIn)
+    return _tokens(
+        mobile.login(
+            data.username, data.password, device_name=data.device_name, ip=request.remote_addr
+        )
+    )
+
+
+@auth_bp.post("/mobile/refresh")
+@limiter.limit("30 per minute")
+@doc("تمدید توکن؛ توکن تمدید هر بار عوض می‌شود", body=MobileRefreshIn, response=MobileTokensOut)
+def mobile_refresh() -> ResponseReturnValue:
+    data = parse_body(MobileRefreshIn)
+    return _tokens(mobile.refresh(data.refresh_token))
+
+
+@auth_bp.post("/mobile/logout")
+@login_required
+@doc("خروج اپلیکیشن ویزیتور (Bearer)")
+def mobile_logout() -> ResponseReturnValue:
+    mobile.logout(current_actor())
+    return to_json({"status": "ok"})
 
 
 @auth_bp.post("/change-password")

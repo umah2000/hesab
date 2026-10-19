@@ -58,12 +58,26 @@ def _authenticate() -> Actor:
 
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
+        bearer = request.headers.get("Authorization", "")
+        if bearer.startswith("Bearer ncm_a_"):
+            return _authenticate_mobile(bearer[7:].strip())
         raise NotAuthenticatedError("ابتدا وارد شوید")
     actor, csrf_hash = auth_service.resolve_session(token)
     if request.method not in _SAFE_METHODS:
         sent = request.headers.get(CSRF_HEADER, "")
         if not sent or not tokens_equal(hash_token(sent), csrf_hash):
             raise PermissionDeniedError("توکن CSRF نامعتبر است", code="csrf_failed")
+    g.actor = actor
+    return actor
+
+
+def _authenticate_mobile(token: str) -> Actor:
+    """Visitor app access token (ADR-0018): bearer, so no CSRF; only on the app's own API."""
+    from app.modules.iam.services import mobile
+
+    if not request.path.startswith(mobile.PATHS):
+        raise PermissionDeniedError("این توکن فقط برای اپلیکیشن ویزیتور است", code="mobile_only")
+    actor = mobile.resolve_access(token)
     g.actor = actor
     return actor
 

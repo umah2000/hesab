@@ -23,7 +23,7 @@ from app.modules.reports.schemas import (
     StatementQ,
     StockMovementQ,
 )
-from app.modules.reports.services import finance, inventory, sales
+from app.modules.reports.services import distribution, finance, inventory, sales
 
 
 @dataclass(frozen=True)
@@ -51,6 +51,16 @@ REPORTS: dict[str, Report] = {
             SalesQ,
             sales.sales_report,
             ("date_from", "date_to", "branch_id", "group_by"),
+        ),
+        Report(
+            "visitor-performance",
+            "عملکرد ویزیتورها",
+            "بازدید، نرخ موفقیت، سفارش، فاکتورشده و تحویل‌شده به تفکیک ویزیتور",
+            "ویزیتور و توزیع",
+            ("distribution.manage",),
+            RangeQ,
+            distribution.visitor_performance,
+            ("date_from", "date_to", "branch_id"),
         ),
         Report(
             "cash-shortages",

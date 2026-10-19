@@ -64,6 +64,7 @@ BRANCH_COUNTERS = (
     "purchase",
     "purchase_return",
     "purchase_order",
+    "sales_order",
 )
 
 

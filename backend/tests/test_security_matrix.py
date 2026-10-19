@@ -51,6 +51,9 @@ def test_every_api_route_requires_session_except_public(app: Flask, seed: Seed) 
         "/api/v1/auth/login",
         # Device Agents authenticate with a one-time pairing code (rate-limited).
         "/api/v1/devices/agent/pair",
+        # The visitor app signs in with a password or a refresh token (rate-limited).
+        "/api/v1/auth/mobile/login",
+        "/api/v1/auth/mobile/refresh",
     }
     c = app.test_client()
     for rule in app.url_map.iter_rules():
