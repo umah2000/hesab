@@ -59,6 +59,7 @@
 | ۴ | POST/GET | `/payments/terminal-transactions` · `/{id}` · `/{id}/inquire` | `sales.payment.card` | فعلاً فقط Mock در dev/test |
 | ۴ | GET · POST | `/payments/terminal-transactions` (نامشخص‌ها) · `/{id}/resolve` | `payments.reconcile` | تطبیق دستی با گزارش بانک |
 | ۴ | GET · POST | `/system/backups` · `/system/backups/run` · `/system/backups/offsite-copied` | `settings.manage` / `audit.view` | CLI: `flask backup`، `flask backup-restore-test` |
+| ۱۰ | GET · POST | `/system/license` | GET: `settings.manage` / `reports.dashboard` / `audit.view`؛ POST: `settings.manage` | مجوز و کد درخواست فعال‌سازی (ADR-0021). CLI: `flask backup-keygen` برای کلید پشتیبان رمزنگاری‌شده (ADR-0020) |
 | ۵ | GET/POST · GET/PUT | `/parties` · `/parties/{id}` | `parties.view` / `parties.manage` | فیلتر نقش و مانده؛ اطلاعات حساس بدون manage پوشیده |
 | ۵ | GET | `/parties/{id}/statement?date_from&date_to` | `parties.view` | گردش و مانده از اسناد قطعی |
 | ۵ | GET/POST · POST | `/parties/{id}/notes` · `/parties/notes/{id}/done` · `GET /parties/follow-ups` | `parties.view` | یادداشت و پیگیری |

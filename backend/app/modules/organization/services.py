@@ -24,6 +24,7 @@ from app.modules.organization.schemas import (
     OrganizationOut,
     OrganizationUpdateIn,
 )
+from app.modules.system import license
 
 
 def _check_version(row_version: bytes, expected: str) -> None:
@@ -135,6 +136,7 @@ def create_branch(s: Session, actor: Actor, data: BranchCreateIn) -> BranchOut:
     code = data.code.upper()
     if s.scalar(select(Branch.id).where(Branch.code == code)):
         raise ConflictError("کد شعبه تکراری است", code="branch_code_taken")
+    license.check_limit(s, "branches")
     b = Branch(
         code=code,
         name=data.name,
@@ -168,6 +170,8 @@ def update_branch(
     b = _branch_for(s, actor, branch_id)
     _check_version(b.row_version, version)
     changes = data.model_dump(exclude_none=True)
+    if changes.get("is_active") and not b.is_active:
+        license.check_limit(s, "branches")
     for k, v in changes.items():
         setattr(b, k, v)
     b.updated_by = actor.user_id
@@ -211,6 +215,7 @@ def list_registers(s: Session, actor: Actor, branch_id: uuid.UUID) -> list[CashR
 def create_register(s: Session, actor: Actor, data: CashRegisterCreateIn) -> CashRegisterOut:
     refcache.invalidate_after_commit(s)
     branch = _branch_for(s, actor, data.branch_id)
+    license.check_limit(s, "registers")
     code = data.code.upper()
     exists = s.scalar(
         select(CashRegister.id).where(
@@ -250,6 +255,8 @@ def update_register(
         raise NotFoundError("صندوق یافت نشد")
     _check_version(r.row_version, version)
     changes = data.model_dump(exclude_none=True)
+    if changes.get("is_active") and not r.is_active:
+        license.check_limit(s, "registers")
     for k, v in changes.items():
         setattr(r, k, v)
     r.updated_by = actor.user_id

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.core.db import utcnow
+from app.core.db import load_by_ids, utcnow
 from app.modules.accounting.models import Voucher, VoucherLine
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
@@ -134,9 +134,7 @@ def sales_report(s: Session, actor: Actor, p: SalesQ) -> ReportTable:
     ids = {r[0] for r in raw if r[0] is not None}
     names: dict[Any, str] = {}
     if p.group_by == "item" and ids:
-        names = {
-            i.id: f"{i.code} — {i.name}" for i in s.scalars(select(Item).where(Item.id.in_(ids)))
-        }
+        names = {k: f"{i.code} — {i.name}" for k, i in load_by_ids(s, Item, ids).items()}
     elif p.group_by == "group" and ids:
         names = dict(
             s.execute(select(ItemGroup.id, ItemGroup.name).where(ItemGroup.id.in_(ids))).all()

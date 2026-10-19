@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from flask import Flask, current_app
 from sqlalchemy import DateTime, FetchedValue, MetaData, create_engine, func
@@ -112,3 +112,22 @@ def unit_of_work() -> Iterator[Session]:
         raise
     finally:
         session.close()
+
+
+# SQL Server accepts at most 2100 parameters per statement; an IN list over thousands of
+# ids (a 5000-line opening stock, a year's sales by item) must be split.
+IN_CHUNK = 1000
+M = TypeVar("M")
+
+
+def load_by_ids(s: Any, model: type[M], ids: Collection[uuid.UUID]) -> dict[uuid.UUID, M]:
+    """``{id: row}`` for these ids, in chunks below the parameter limit."""
+    from sqlalchemy import select
+
+    out: dict[uuid.UUID, M] = {}
+    pending = list(set(ids))
+    col = model.id  # type: ignore[attr-defined]
+    for i in range(0, len(pending), IN_CHUNK):
+        for row in list(s.scalars(select(model).where(col.in_(pending[i : i + IN_CHUNK])))):
+            out[row.id] = row
+    return out

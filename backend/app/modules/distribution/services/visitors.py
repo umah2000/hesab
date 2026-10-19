@@ -27,6 +27,7 @@ from app.modules.iam.models import AppUser, MobileSession
 from app.modules.organization.models import Branch
 from app.modules.parties.models import Party
 from app.modules.sales.services.invoices import receivable_balance
+from app.modules.system import license
 
 ZERO = Decimal(0)
 
@@ -98,6 +99,7 @@ def _check_branch(s: Session, actor: Actor, branch_id: uuid.UUID) -> None:
 
 
 def create(s: Session, actor: Actor, data: VisitorIn) -> VisitorOut:
+    license.require_feature(s, "distribution")
     _check_branch(s, actor, data.branch_id)
     user = s.get(AppUser, data.user_id)
     if user is None or not user.is_active:

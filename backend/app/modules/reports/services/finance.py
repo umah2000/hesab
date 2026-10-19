@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from app.core.db import load_by_ids
 from app.core.errors import DomainError
 from app.modules.accounting.models import Account, DetailAccount, FiscalYear, Voucher, VoucherLine
 from app.modules.accounting.services.fiscal import get_year
@@ -68,12 +69,7 @@ def aging(s: Session, actor: Actor, p: AgingQ) -> ReportTable:
     by_party: dict[uuid.UUID, list[tuple[date, Decimal]]] = defaultdict(list)
     for pid, d, dr, cr in lines:
         by_party[pid].append((d, Decimal(dr) - Decimal(cr)))
-    names = {
-        d.id: (d.code, d.name)
-        for d in s.scalars(
-            select(DetailAccount).where(DetailAccount.id.in_(set(by_party) or {uuid.UUID(int=0)}))
-        )
-    }
+    names = {k: (d.code, d.name) for k, d in load_by_ids(s, DetailAccount, by_party).items()}
     rows = []
     totals: defaultdict[str, Decimal] = defaultdict(lambda: ZERO)
     for pid, entries in by_party.items():

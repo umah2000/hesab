@@ -15,7 +15,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.core import refcache
-from app.core.db import utcnow, version_to_str
+from app.core.db import load_by_ids, utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.core.http import Page
 from app.core.money import MONEY_PLACES, ZERO
@@ -195,10 +195,7 @@ def _factor(s: Session, item: Item, unit_id: uuid.UUID) -> Decimal:
 
 
 def _build_lines(s: Session, doc: StockDocument, data: StockDocIn) -> None:
-    items = {
-        i.id: i
-        for i in s.scalars(select(Item).where(Item.id.in_({ln.item_id for ln in data.lines})))
-    }
+    items = load_by_ids(s, Item, {ln.item_id for ln in data.lines})
     if doc.lines:
         doc.lines.clear()
         s.flush()
@@ -272,14 +269,7 @@ def _check_header(s: Session, actor: Actor, data: StockDocIn) -> Warehouse:
 
 
 def doc_out(s: Session, d: StockDocument) -> StockDocOut:
-    items = (
-        {
-            i.id: i
-            for i in s.scalars(select(Item).where(Item.id.in_({ln.item_id for ln in d.lines})))
-        }
-        if d.lines
-        else {}
-    )
+    items = load_by_ids(s, Item, {ln.item_id for ln in d.lines})
     units = {u.id: u.name for u in s.scalars(select(Unit))}
     voucher_number = (
         s.scalar(select(Voucher.number).where(Voucher.id == d.voucher_id)) if d.voucher_id else None

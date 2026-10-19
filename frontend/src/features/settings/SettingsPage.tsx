@@ -10,6 +10,7 @@ import { Field, Input, Select } from "@/components/ui/form-controls";
 import { useCan } from "@/features/auth/auth";
 import { ApiError, api, newIdempotencyKey } from "@/lib/api";
 import { formatDateTime, toEnDigits, toFaDigits } from "@/lib/format";
+import { LicenseCard } from "./LicenseCard";
 import type { Branch, CashRegister, Organization } from "./types";
 
 const onError = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "خطا");
@@ -211,6 +212,7 @@ export function SettingsPage() {
       <div className="flex flex-col gap-4">
         <OrganizationCard />
         <BackupCard />
+        <LicenseCard />
         <BranchesCard />
       </div>
     </>

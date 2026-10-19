@@ -29,6 +29,7 @@ import { api, type Page } from "@/lib/api";
 import { formatDate, formatDateTime, formatTime, toFaDigits } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ManagementDashboard } from "@/features/reports/ManagementDashboard";
+import { useLicense } from "@/features/settings/LicenseCard";
 
 const ROADMAP = [
   { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "done" as const },
@@ -109,6 +110,10 @@ export function DashboardPage() {
     staleTime: 300_000,
   });
 
+  const license = useLicense(can(["settings.manage", "reports.dashboard", "audit.view"]));
+  // "unlicensed" alone is not shouted on every dashboard visit; Settings shows it.
+  const licenseWarnings = license.data && license.data.state !== "unlicensed" ? license.data.warnings : [];
+
   const dbUp = !ready.isError && ready.data?.database === "up";
 
   return (
@@ -132,6 +137,25 @@ export function DashboardPage() {
             </div>
             <Link to="/settings" className="text-sm text-brand-600 hover:underline dark:text-brand-300">
               وضعیت پشتیبان‌گیری
+            </Link>
+          </div>
+        </Card>
+      ) : null}
+
+      {licenseWarnings.length ? (
+        <Card className="border-warning/40 p-4" role="alert">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
+            <div className="flex-1 text-sm">
+              <p className="font-bold text-ink">مجوز نرم‌افزار</p>
+              <ul className="mt-1 list-inside list-disc text-ink-soft">
+                {licenseWarnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </div>
+            <Link to="/settings" className="text-sm text-brand-600 hover:underline dark:text-brand-300">
+              وضعیت مجوز
             </Link>
           </div>
         </Card>

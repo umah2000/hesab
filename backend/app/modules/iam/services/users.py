@@ -23,6 +23,7 @@ from app.modules.iam.services.auth import (
     validate_password,
 )
 from app.modules.organization.models import Branch
+from app.modules.system import license
 
 
 def to_out(u: AppUser) -> UserOut:
@@ -119,6 +120,7 @@ def get_user(s: Session, user_id: uuid.UUID) -> UserOut:
 def create_user(s: Session, actor: Actor, data: UserCreateIn) -> UserOut:
     if s.scalar(select(AppUser.id).where(AppUser.username == data.username)):
         raise ConflictError("این نام کاربری قبلاً ثبت شده است", code="username_taken")
+    license.check_limit(s, "users")
     validate_password(data.password, data.username)
     user = AppUser(
         username=data.username,
@@ -169,6 +171,8 @@ def update_user(
     if data.is_active is not None:
         if not data.is_active and user.id == actor.user_id:
             raise DomainError("نمی‌توانید حساب خودتان را غیرفعال کنید", code="self_deactivate")
+        if data.is_active and not user.is_active:
+            license.check_limit(s, "users")
         user.is_active = data.is_active
         if not data.is_active:
             revoke_user_sessions(s, user.id)

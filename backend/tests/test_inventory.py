@@ -677,3 +677,32 @@ def test_import_20k_items(keeper: Api, inv: Inv) -> None:
         f"\nimport 20k items: preview={t1 - t0:.1f}s commit={t2 - t1:.1f}s "
         f"file={len(content) / 1024:.0f}KB"
     )
+
+
+def test_large_documents_and_reports_stay_below_the_parameter_limit(
+    app: Flask, inv: Inv, keeper: Api
+) -> None:
+    """Found by the phase 10 volume test: IN lists over >2100 ids broke SQL Server."""
+    from app.core.db import load_by_ids
+    from app.modules.inventory.models import Item
+
+    n = 2500
+    with app.app_context(), unit_of_work() as s:
+        rows = [
+            Item(code=f"BULK{i:05d}", name=f"کالای انبوه {i}", base_unit_id=uuid.UUID(inv.pcs))
+            for i in range(n)
+        ]
+        s.add_all(rows)
+        s.flush()
+        ids = [r.id for r in rows]
+        assert len(load_by_ids(s, Item, ids)) == n
+    lines = [{"item_id": str(i), "qty": "5", "unit_cost": "1000"} for i in ids]
+    doc = stock_doc(keeper, "opening", inv.wh_a, lines)
+    assert doc["status"] == "final" and len(doc["lines"]) == n
+    got = keeper.get(f"/api/v1/inventory/stock-documents/{doc['id']}").get_json()
+    assert len(got["lines"]) == n
+    moved = keeper.get(
+        f"/api/v1/reports/stock-movement?date_from={D1.isoformat()}&date_to={D1.isoformat()}"
+        "&page_size=200"
+    )
+    assert moved.status_code == 200 and moved.get_json()["total_rows"] >= n

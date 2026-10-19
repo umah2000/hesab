@@ -69,6 +69,7 @@ _TABLES = [
     "promotion",
     "cash_shift",
     "backup_log",
+    "license",
     "stock_ledger",
     "stock_balance",
     "stock_document_line",

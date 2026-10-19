@@ -12,10 +12,11 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.db import new_session, unit_of_work
 from app.core.errors import DomainError
+from app.core.http import parse_body, to_json
 from app.core.openapi import doc
 from app.modules.audit import service as audit
 from app.modules.iam.guard import current_actor, require, require_any
-from app.modules.system import backup
+from app.modules.system import backup, license
 
 bp = Blueprint("system", __name__)
 
@@ -97,6 +98,29 @@ def offsite_copied() -> ResponseReturnValue:
         at = backup.mark_offsite(s)
         audit.record(s, "system.backup_copied_offsite", user_id=actor.user_id)
     return jsonify({"last_offsite_copy_at": at.isoformat()})
+
+
+# --- license (ADR-0021) ---------------------------------------------------------
+
+
+@bp.get("/license")
+@require_any("settings.manage", "reports.dashboard", "audit.view")
+@doc("وضعیت مجوز نرم‌افزار، سقف‌ها و کد درخواست فعال‌سازی", response=license.LicenseStatus)
+def license_status() -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(license.status(s))
+    finally:
+        s.close()
+
+
+@bp.post("/license")
+@require("settings.manage")
+@doc("نصب یا جایگزینی مجوز", body=license.LicenseIn, response=license.LicenseStatus)
+def license_install() -> ResponseReturnValue:
+    data = parse_body(license.LicenseIn)
+    with unit_of_work() as s:
+        return to_json(license.install(s, current_actor(), data.text))
 
 
 def _jsonable(d: dict[str, Any]) -> dict[str, Any]:
