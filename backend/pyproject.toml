@@ -16,6 +16,8 @@ dependencies = [
     "jdatetime>=5.0",
     "openpyxl>=3.1",
     "waitress>=3.0",
+    # Backup encryption (AES-256-GCM) and license signatures (Ed25519).
+    "cryptography>=44",
     # Shared with the register agent; install first: pip install -e ../packages/nextcam-core
     "nextcam-core>=0.8",
 ]

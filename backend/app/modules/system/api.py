@@ -50,7 +50,16 @@ def _engine() -> Engine:
 def backup_status() -> ResponseReturnValue:
     s = new_session()
     try:
-        return jsonify(_jsonable(backup.status(s) | {"history": backup.history(s)}))
+        settings = current_app.config["SETTINGS"]
+        return jsonify(
+            _jsonable(
+                backup.status(s)
+                | {
+                    "history": backup.history(s),
+                    "encrypted_copies": bool(settings.backup_copy_dir),
+                }
+            )
+        )
     finally:
         s.close()
 
@@ -70,7 +79,12 @@ def backup_now() -> ResponseReturnValue:
     with unit_of_work() as s:
         audit.record(s, "system.backup", user_id=actor.user_id, data={"path": result.path})
     return jsonify(
-        {"path": result.path, "size_bytes": result.size_bytes, "verified": result.verified}
+        {
+            "path": result.path,
+            "size_bytes": result.size_bytes,
+            "verified": result.verified,
+            "copy_path": result.copy.path if result.copy else None,
+        }
     ), 201
 
 

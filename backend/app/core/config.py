@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     # default backup folder. Keep this many recent files when the folder is local.
     backup_dir: str | None = None
     backup_keep: int = 14
+    # Where this program reads that folder, if not under the same path (SQL Server on
+    # another machine: a share; empty = backup_dir).
+    backup_read_dir: str | None = None
+    # Phase 10: every backup is also encrypted (AES-256-GCM, this key) and copied to a
+    # second destination: USB disk, NAS share or a cloud-synced folder. Never plaintext.
+    backup_key: SecretStr | None = None
+    backup_copy_dir: str | None = None
+    backup_copy_keep: int = 30
 
     # Sessions (ADR-0004). Secure cookies require HTTPS; disable only on a trusted LAN.
     cookie_secure: bool = True
@@ -55,6 +63,25 @@ class Settings(BaseSettings):
     def _no_mock_in_production(cls, v: bool, info: ValidationInfo) -> bool:
         if v and info.data.get("env") == "production":
             raise ValueError("mock payment terminal cannot be enabled in production")
+        return v
+
+    @field_validator("backup_copy_dir")
+    @classmethod
+    def _copies_are_encrypted(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if v and info.data.get("backup_key") is None:
+            raise ValueError("backup_copy_dir needs backup_key: copies leave the server encrypted")
+        return v
+
+    @field_validator("backup_key")
+    @classmethod
+    def _valid_backup_key(cls, v: SecretStr | None) -> SecretStr | None:
+        if v is not None:
+            from app.modules.system.backup_crypto import BackupCryptoError, parse_key
+
+            try:
+                parse_key(v.get_secret_value())
+            except BackupCryptoError as e:
+                raise ValueError("backup_key must be 32 bytes in URL-safe base64") from e
         return v
 
     @field_validator("secret_key")

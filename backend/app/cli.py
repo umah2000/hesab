@@ -127,6 +127,23 @@ def register_cli(app: Flask) -> None:
 
         result = backup.run_backup(app.extensions["db_engine"], app.config["SETTINGS"])
         click.echo(f"backup ok: {result.path} ({result.size_bytes or '?'} bytes, verified)")
+        if result.copy:
+            click.echo(
+                f"encrypted copy ok: {result.copy.path} ({result.copy.size_bytes} bytes, "
+                f"sha256 {result.copy.sha256[:16]}…, decrypted and compared)"
+            )
+
+    @app.cli.command("backup-keygen")
+    def backup_keygen() -> None:
+        """Print a new random backup key (once). Store it in NEXTCAM_BACKUP_KEY AND offline."""
+        from app.modules.system.backup_crypto import generate_key
+
+        click.echo(generate_key())
+        click.echo(
+            "این کلید را در NEXTCAM_BACKUP_KEY و یک جای امن بیرون از سرور نگه دارید؛ "
+            "بدون آن نسخه‌های رمزنگاری‌شده قابل بازیابی نیستند.",
+            err=True,
+        )
 
     @app.cli.command("backup-restore-test")
     @click.option("--file", "path", default=None, help="فایل پشتیبان؛ پیش‌فرض آخرین نسخه موفق")

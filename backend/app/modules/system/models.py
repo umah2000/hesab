@@ -13,7 +13,7 @@ from app.core.db import Base, EntityMixin
 class BackupLog(EntityMixin, Base):
     __tablename__ = "backup_log"
     __table_args__ = (
-        CheckConstraint("kind IN ('backup','restore_test')", name="kind"),
+        CheckConstraint("kind IN ('backup','restore_test','copy')", name="kind"),
         CheckConstraint("status IN ('ok','failed')", name="status"),
         Index("ix_backup_log_kind_started", "kind", "started_at"),
     )

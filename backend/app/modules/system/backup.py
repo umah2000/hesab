@@ -1,9 +1,11 @@
 """Database backup, verification and restore test (phase 4, risk R2 / Q13).
 
-The shop keeps backups on the server itself and an operator copies them away by hand,
-so the application (1) writes a checksummed backup on a schedule, (2) proves it can
-be restored, and (3) nags the manager when the last copy taken off the machine is too
-old. All SQL takes names and paths as parameters or through QUOTENAME.
+The application (1) writes a checksummed backup on a schedule, (2) proves it can be
+restored, and (3) nags the manager when the last copy taken off the machine is too old.
+Phase 10: with ``backup_copy_dir`` and ``backup_key`` every backup is also encrypted
+(backup_crypto, AES-256-GCM), copied to that second destination, decrypted again to
+check it, and recorded as the offsite copy; the restore test then uses that copy.
+All SQL takes names and paths as parameters or through QUOTENAME.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.db import utcnow
 from app.modules.organization.models import Organization
+from app.modules.system import backup_crypto
 from app.modules.system.models import BackupLog
 
 PREFIX = "nextcam_"
@@ -59,11 +62,28 @@ def _join(folder: str, name: str) -> str:
     return f"{folder}{sep}{name}"
 
 
+def _name(path: str) -> str:
+    return path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def _readable(settings: Settings, folder: str, name: str) -> Path:
+    """The backup folder as this program sees it (same path, or backup_read_dir)."""
+    return Path(settings.backup_read_dir or folder) / name
+
+
+@dataclass(frozen=True)
+class CopyResult:
+    path: str
+    size_bytes: int
+    sha256: str
+
+
 @dataclass(frozen=True)
 class BackupResult:
     path: str
     size_bytes: int | None
     verified: bool
+    copy: CopyResult | None = None
 
 
 def _log(
@@ -122,7 +142,61 @@ def run_backup(engine: Engine, settings: Settings) -> BackupResult:
         _log(engine, "backup", "failed", started, path=path, message=_short(e))
         raise
     _log(engine, "backup", "ok", started, path=path, size=size, verified=True)
-    return BackupResult(path, size, True)
+    copy = None
+    if settings.backup_copy_dir:
+        # A failed copy fails the command (Task Scheduler shows it) but the backup stands.
+        copy = copy_encrypted(engine, settings, _readable(settings, folder, _name(path)))
+    return BackupResult(path, size, True, copy)
+
+
+def _key(settings: Settings) -> bytes:
+    if settings.backup_key is None:
+        raise RuntimeError("کلید رمزنگاری پشتیبان (NEXTCAM_BACKUP_KEY) تنظیم نشده است")
+    return backup_crypto.parse_key(settings.backup_key.get_secret_value())
+
+
+def copy_encrypted(engine: Engine, settings: Settings, source: Path) -> CopyResult:
+    """Encrypt ``source`` into the copy folder, decrypt it back to compare, record it."""
+    started = utcnow()
+    assert settings.backup_copy_dir
+    dest = Path(settings.backup_copy_dir) / (source.name + backup_crypto.SUFFIX)
+    try:
+        key = _key(settings)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        digest = backup_crypto.encrypt_file(source, dest, key)
+        # Read back from the destination: proves the copy, the key and the medium.
+        if backup_crypto.decrypt_file(dest, None, key) != digest:
+            raise RuntimeError("نسخه رمزنگاری‌شده با فایل پشتیبان یکسان نیست")
+        size = dest.stat().st_size
+        _prune_copies(Path(settings.backup_copy_dir), settings.backup_copy_keep)
+    except Exception as e:
+        _log(engine, "copy", "failed", started, path=str(dest), message=_short(e))
+        raise
+    with Session(engine) as s, s.begin():
+        mark_offsite(s)
+    _log(
+        engine,
+        "copy",
+        "ok",
+        started,
+        path=str(dest),
+        size=size,
+        verified=True,
+        message=f"sha256={digest}",
+    )
+    return CopyResult(str(dest), size, digest)
+
+
+def _prune_copies(folder: Path, keep: int) -> None:
+    if keep < 1:
+        return
+    files = sorted(
+        folder.glob(f"{PREFIX}*.bak{backup_crypto.SUFFIX}"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for old in files[keep:]:
+        old.unlink(missing_ok=True)
 
 
 def _prune(folder: str, keep: int) -> None:
@@ -136,19 +210,36 @@ def _prune(folder: str, keep: int) -> None:
 
 
 def restore_test(engine: Engine, settings: Settings, path: str | None = None) -> dict[str, Any]:
-    """Restore the newest (or given) backup under a scratch name, check it, drop it."""
+    """Restore the newest (or given) backup under a scratch name, check it, drop it.
+
+    With encrypted copies configured the newest copy is tested (decrypted next to the
+    backups, restored, then deleted): that is the file a disaster recovery would use.
+    """
     started = utcnow()
     scratch = None
+    plain: Path | None = None
+    tested: str | None = path
     try:
         if path is None:
+            kinds = ("copy", "backup") if settings.backup_copy_dir else ("backup",)
             with Session(engine) as s:
-                path = s.scalar(
-                    select(BackupLog.file_path)
-                    .where(BackupLog.kind == "backup", BackupLog.status == "ok")
-                    .order_by(BackupLog.started_at.desc())
-                )
+                for kind in kinds:
+                    path = s.scalar(
+                        select(BackupLog.file_path)
+                        .where(BackupLog.kind == kind, BackupLog.status == "ok")
+                        .order_by(BackupLog.started_at.desc())
+                    )
+                    if path:
+                        break
             if path is None:
                 raise RuntimeError("هنوز نسخه پشتیبانی گرفته نشده است")
+        tested = path
+        if path.endswith(backup_crypto.SUFFIX):
+            folder = _folder(engine, settings)
+            name = f"{PREFIX}restoretest_{started.strftime('%Y%m%d_%H%M%S')}.bak"
+            plain = _readable(settings, folder, name)
+            backup_crypto.decrypt_file(path, plain, _key(settings))
+            path = _join(folder, name)
         db = _exec(engine, "SELECT DB_NAME()")[0][0]
         scratch = f"{db}_restore_test"
         files = _exec(engine, "RESTORE FILELISTONLY FROM DISK = ?", path)
@@ -181,16 +272,18 @@ def restore_test(engine: Engine, settings: Settings, path: str | None = None) ->
         if counts[0] != 1:
             raise RuntimeError("نسخه بازیابی‌شده اطلاعات سازمان را ندارد")
         result = {
-            "path": path,
+            "path": tested,
             "organizations": counts[0],
             "vouchers": counts[1],
             "items": counts[2],
             "schema": counts[3],
         }
     except Exception as e:
-        _log(engine, "restore_test", "failed", started, path=path, message=_short(e))
+        _log(engine, "restore_test", "failed", started, path=tested, message=_short(e))
         raise
     finally:
+        if plain is not None:
+            plain.unlink(missing_ok=True)
         if scratch:
             _exec(
                 engine,
@@ -206,7 +299,7 @@ def restore_test(engine: Engine, settings: Settings, path: str | None = None) ->
         "restore_test",
         "ok",
         started,
-        path=path,
+        path=tested,
         verified=True,
         message=f"vouchers={result['vouchers']} items={result['items']} schema={result['schema']}",
     )
@@ -237,10 +330,12 @@ def status(s: Session) -> dict[str, Any]:
             q = q.where(BackupLog.status == "ok")
         return s.scalar(q.order_by(BackupLog.started_at.desc()))
 
-    backup, restore, last_any = (
+    backup, restore, last_any, copy, copy_any = (
         last("backup", True),
         last("restore_test", True),
         last("backup", False),
+        last("copy", True),
+        last("copy", False),
     )
     offsite = _aware(org.last_offsite_backup_at) if org else None
     days = org.backup_warning_days if org else 3
@@ -249,6 +344,8 @@ def status(s: Session) -> dict[str, Any]:
         warnings.append("در ۲۴ ساعت گذشته نسخه پشتیبان موفق گرفته نشده است")
     if last_any is not None and last_any.status == "failed":
         warnings.append("آخرین تلاش پشتیبان‌گیری ناموفق بود")
+    if copy_any is not None and copy_any.status == "failed":
+        warnings.append("آخرین کپی رمزنگاری‌شده به مقصد دوم ناموفق بود")
     if offsite is None or offsite < now - timedelta(days=days):
         warnings.append(f"بیش از {days} روز است که نسخه پشتیبان به بیرون از این سیستم کپی نشده است")
     if restore is None or (_aware(restore.started_at) or now) < now - timedelta(days=30):
@@ -270,6 +367,7 @@ def status(s: Session) -> dict[str, Any]:
         "last_backup": row(backup),
         "last_attempt": row(last_any),
         "last_restore_test": row(restore),
+        "last_copy": row(copy),
         "last_offsite_copy_at": offsite,
         "warning_days": days,
         "warnings": warnings,

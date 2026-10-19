@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, DatabaseBackup, HardDriveUpload, Monitor, Plus, Save, Store } from "lucide-react";
+import { Building2, DatabaseBackup, HardDriveUpload, Monitor, Plus, Save, ShieldCheck, Store } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { PageTitle } from "@/components/layout/AppShell";
@@ -232,10 +232,12 @@ type BackupRow = { at: string; status: "ok" | "failed"; file_path: string | null
 type BackupStatus = {
   last_backup: BackupRow | null;
   last_restore_test: BackupRow | null;
+  last_copy: BackupRow | null;
+  encrypted_copies: boolean;
   last_offsite_copy_at: string | null;
   warning_days: number;
   warnings: string[];
-  history: (BackupRow & { kind: "backup" | "restore_test"; seconds: number | null })[];
+  history: (BackupRow & { kind: "backup" | "restore_test" | "copy"; seconds: number | null })[];
 };
 
 function BackupCard() {
@@ -266,7 +268,11 @@ function BackupCard() {
       <CardHeader
         icon={<DatabaseBackup className="size-5" />}
         title="پشتیبان‌گیری"
-        description="نسخه پشتیبان روزانه روی همین سیستم گرفته می‌شود؛ کپی آن به دیسک بیرونی با اپراتور است."
+        description={
+          d?.encrypted_copies
+            ? "نسخه پشتیبان روزانه گرفته، رمزنگاری و به مقصد دوم کپی می‌شود؛ آزمون بازیابی روی همان کپی انجام می‌شود."
+            : "نسخه پشتیبان روزانه روی همین سیستم گرفته می‌شود؛ کپی آن به دیسک بیرونی با اپراتور است."
+        }
         actions={
           <div className="flex gap-2">
             {can("settings.manage") ? (
@@ -274,9 +280,11 @@ function BackupCard() {
                 پشتیبان‌گیری الان
               </Button>
             ) : null}
-            <Button size="sm" loading={copied.isPending} onClick={() => copied.mutate()}>
-              <HardDriveUpload /> کپی به بیرون را انجام دادم
-            </Button>
+            {d?.encrypted_copies ? null : (
+              <Button size="sm" loading={copied.isPending} onClick={() => copied.mutate()}>
+                <HardDriveUpload /> کپی به بیرون را انجام دادم
+              </Button>
+            )}
           </div>
         }
       />
@@ -297,8 +305,18 @@ function BackupCard() {
             <div className="grid gap-2 md:grid-cols-3">
               <div>آخرین پشتیبان موفق: <b>{d.last_backup ? formatDateTime(d.last_backup.at) : "ندارد"}</b> {d.last_backup ? size(d.last_backup.size_bytes) : ""}</div>
               <div>آخرین آزمون بازیابی: <b>{d.last_restore_test ? formatDateTime(d.last_restore_test.at) : "ندارد"}</b></div>
-              <div>آخرین کپی به بیرون: <b>{d.last_offsite_copy_at ? formatDateTime(d.last_offsite_copy_at) : "ثبت نشده"}</b></div>
+              <div>
+                {d.encrypted_copies ? "آخرین کپی رمزنگاری‌شده" : "آخرین کپی به بیرون"}:{" "}
+                <b>{d.last_offsite_copy_at ? formatDateTime(d.last_offsite_copy_at) : "ثبت نشده"}</b>
+              </div>
             </div>
+            {d.last_copy?.file_path ? (
+              <div className="flex items-center gap-2 text-xs text-ink-faint">
+                <ShieldCheck className="size-4 text-success" aria-hidden />
+                <span>مقصد دوم (رمزنگاری‌شده، بررسی‌شده):</span>
+                <span dir="ltr">{d.last_copy.file_path}</span>
+              </div>
+            ) : null}
             {d.last_backup?.file_path ? <div className="text-xs text-ink-faint" dir="ltr">{d.last_backup.file_path}</div> : null}
             {d.history.length ? (
               <details>
@@ -307,7 +325,7 @@ function BackupCard() {
                   {d.history.map((h, i) => (
                     <li key={i} className="flex gap-3 text-xs">
                       <span className="w-36">{formatDateTime(h.at)}</span>
-                      <span className="w-24">{h.kind === "backup" ? "پشتیبان" : "آزمون بازیابی"}</span>
+                      <span className="w-28">{h.kind === "backup" ? "پشتیبان" : h.kind === "copy" ? "کپی رمزنگاری‌شده" : "آزمون بازیابی"}</span>
                       {h.status === "ok" ? <Badge tone="success">موفق</Badge> : <Badge tone="danger">ناموفق</Badge>}
                       <span className="truncate text-ink-faint">{h.message ?? size(h.size_bytes)}</span>
                     </li>
