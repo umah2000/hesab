@@ -52,7 +52,7 @@ NEXTCAM_PORT=8080
 NEXTCAM_BACKUP_DIR=D:\nextcam-backup
 NEXTCAM_BACKUP_KEEP=14
 NEXTCAM_LOG_LEVEL=WARNING
-# تا راه‌اندازی HTTPS (بخش ۶):
+# فقط تا راه‌اندازی HTTPS (بخش ۶ و https.md):
 NEXTCAM_COOKIE_SECURE=false
 ```
 > `NEXTCAM_ENABLE_MOCK_PAYMENT_TERMINAL` در production مجاز نیست و برنامه با آن بالا نمی‌آید.
@@ -84,7 +84,8 @@ New-NetFirewallRule -DisplayName "NEXTCAM 8080" -Direction Inbound -Protocol TCP
 پورت 1433 را باز **نکنید**.
 
 ## ۶. HTTPS
-پایلوت روی HTTP در شبکه داخلی جدا (بدون Wi-Fi مهمان) اجرا می‌شود؛ این یک **ریسک پذیرفته‌شده موقت** است، چون رمز و کوکی نشست روی شبکه رمزنگاری نمی‌شوند. پیش از بهره‌برداری کامل (فاز ۱۰) یک reverse proxy با گواهی داخلی جلوی برنامه قرار می‌گیرد و `NEXTCAM_COOKIE_SECURE=true` می‌شود.
+بهره‌برداری عادی فقط با HTTPS است: Caddy با گواهی داخلی جلوی برنامه و `NEXTCAM_COOKIE_SECURE=true`. راهنمای کامل: [https.md](https.md).
+در دوره‌ی پایلوت، HTTP در شبکه‌ی داخلی جدا (بدون Wi-Fi مهمان) ریسک پذیرفته‌شده‌ی موقت بود.
 
 ## ۷. صندوق‌ها
 - Chrome یا Edge به‌روز. آدرس `http://<سرور>:8080/pos` را به‌صورت میان‌بر تمام‌صفحه (F11) قرار دهید.

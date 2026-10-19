@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flask import Flask, Response, abort, send_from_directory
+from flask import Flask, Response, abort, request, send_from_directory
 from flask.typing import ResponseReturnValue
 
 from app.core.config import Settings, get_settings
@@ -73,12 +73,41 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.after_request
     def _security_headers(resp: Response) -> Response:
-        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
-        resp.headers.setdefault("X-Frame-Options", "DENY")
-        resp.headers.setdefault("Referrer-Policy", "same-origin")
+        h = resp.headers
+        h.setdefault("X-Content-Type-Options", "nosniff")
+        h.setdefault("X-Frame-Options", "DENY")
+        h.setdefault("Referrer-Policy", "same-origin")
+        h.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        h.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        h.setdefault("Permissions-Policy", PERMISSIONS_POLICY)
+        if resp.mimetype == "text/html":
+            # The built SPA has no inline script; inline style attributes come from React.
+            h.setdefault("Content-Security-Policy", CSP)
+        if request.path.startswith("/api/"):
+            # Balances, prices, personal data: never kept by a browser or proxy cache.
+            h.setdefault("Cache-Control", "no-store")
+        if settings.cookie_secure:
+            h.setdefault("Strict-Transport-Security", "max-age=31536000")
         return resp
 
     return app
+
+
+CSP = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
+PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=()"
 
 
 def _serve_frontend(app: Flask, root: Path) -> None:

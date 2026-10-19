@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     port: int = 8080
     threads: int = 16
     static_dir: str | None = None
+    # HTTPS (phase 10): TLS ends at a reverse proxy on the same machine (deploy/https).
+    # Set to the proxy's address (usually 127.0.0.1) so client IPs and the https scheme
+    # come from its X-Forwarded-* headers; such headers from anyone else are dropped.
+    trusted_proxy: str | None = None
 
     # Backups (phase 4, risk R2). A folder on the SQL Server machine; empty = SQL Server's
     # default backup folder. Keep this many recent files when the folder is local.

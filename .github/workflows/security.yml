@@ -1,0 +1,42 @@
+name: security
+
+# Dependency and static checks (docs/security/assessment.md). Weekly as well, because a
+# new advisory can appear without any change in this repository.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install bandit pip-audit
+      # High-severity findings fail the build; medium/low are reviewed in the assessment.
+      - run: bandit -q -r backend/app device-agent/nextcam_agent packages/nextcam-core/nextcam_core -lll
+      - name: Audit backend dependencies
+        run: |
+          python -m venv /tmp/be && /tmp/be/bin/pip install -q -e packages/nextcam-core -e backend
+          pip-audit -s pypi --path /tmp/be/lib/python3.13/site-packages
+      - name: Audit device agent dependencies
+        run: |
+          python -m venv /tmp/ag && /tmp/ag/bin/pip install -q -e packages/nextcam-core -e device-agent
+          pip-audit -s pypi --path /tmp/ag/lib/python3.13/site-packages
+
+  node:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm audit --audit-level=high
