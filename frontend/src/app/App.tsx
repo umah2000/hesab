@@ -25,6 +25,14 @@ import { LabelsPage } from "@/features/inventory/LabelsPage";
 import { StockDocEditorPage, StockDocsPage } from "@/features/inventory/StockDocsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { DevicesPage } from "@/features/devices/DevicesPage";
+import {
+  DistributionLayout,
+  OrderPage,
+  OrdersPage as DistributionOrdersPage,
+  VisitorPage,
+  VisitorsPage,
+  VisitsPage,
+} from "@/features/distribution/DistributionPages";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import {
   FollowUpsPage,
@@ -150,6 +158,18 @@ const router = createBrowserRouter([
           { path: "promotions", element: <PromotionsPage /> },
           { path: "card-transactions", element: <CardTransactionsPage /> },
           { path: "offline", element: <OfflineSalesPage /> },
+        ],
+      },
+      {
+        path: "distribution",
+        element: <DistributionLayout />,
+        children: [
+          { index: true, element: <Navigate to="orders" replace /> },
+          { path: "orders", element: <DistributionOrdersPage /> },
+          { path: "orders/:id", element: <OrderPage /> },
+          { path: "visitors", element: <VisitorsPage /> },
+          { path: "visitors/:id", element: <VisitorPage /> },
+          { path: "visits", element: <VisitsPage /> },
         ],
       },
       {

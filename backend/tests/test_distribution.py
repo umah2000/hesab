@@ -268,7 +268,10 @@ def test_back_office_rules(app: Flask, field: dict[str, Any]) -> None:
         {"user_id": str(cashier_id), "branch_id": field["branch"], "code": "v02"},
     )
     assert no_role.json["error"]["code"] == "not_a_visitor"
+    cands = boss.get("/api/v1/distribution/candidates").get_json()
+    assert [(c["username"], c["visitor_id"] is not None) for c in cands] == [("visitor1", True)]
     v = field["visitor"]
+    assert boss.get(f"/api/v1/distribution/visitors/{v['id']}").json["customer_count"] == 1
     dup = boss.post(
         "/api/v1/distribution/visitors",
         {"user_id": v["user_id"], "branch_id": field["branch"], "code": "v03"},

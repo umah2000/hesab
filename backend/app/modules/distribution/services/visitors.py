@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, true
 from sqlalchemy.orm import Session
 
 from app.core.db import version_to_str
@@ -17,6 +17,7 @@ from app.modules.distribution.models import Visitor, VisitorCustomer
 from app.modules.distribution.schemas import (
     AssignedCustomerOut,
     AssignmentsIn,
+    CandidateOut,
     VisitorIn,
     VisitorOut,
     VisitorUpdateIn,
@@ -71,6 +72,23 @@ def list_visitors(s: Session, actor: Actor) -> list[VisitorOut]:
 
 def get(s: Session, actor: Actor, visitor_id: uuid.UUID) -> VisitorOut:
     return visitor_out(s, _get(s, actor, visitor_id))
+
+
+def candidates(s: Session) -> list[CandidateOut]:
+    existing = dict(s.execute(select(Visitor.user_id, Visitor.id)).all())
+    users = list(
+        s.scalars(select(AppUser).where(AppUser.is_active == true()).order_by(AppUser.full_name))
+    )
+    return [
+        CandidateOut(
+            user_id=u.id,
+            username=u.username,
+            full_name=u.full_name or u.username,
+            visitor_id=existing.get(u.id),
+        )
+        for u in users
+        if "distribution.visitor" in u.permission_codes
+    ]
 
 
 def _check_branch(s: Session, actor: Actor, branch_id: uuid.UUID) -> None:

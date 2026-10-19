@@ -73,7 +73,13 @@ export const NAV_MAIN: NavItem[] = [
     permission: "treasury.manage",
     keywords: "صندوق بانک دریافت پرداخت چک مغایرت treasury",
   },
-  { to: "/distribution", label: "ویزیتور و توزیع", icon: Truck, comingInPhase: 9 },
+  {
+    to: "/distribution",
+    label: "ویزیتور و توزیع",
+    icon: Truck,
+    permission: "distribution.manage",
+    keywords: "ویزیتور سفارش توزیع مسیر بازدید visitor order",
+  },
   {
     to: "/reports",
     label: "گزارش‌ها",

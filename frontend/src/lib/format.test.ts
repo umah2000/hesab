@@ -14,7 +14,7 @@ describe("formatMoney", () => {
     expect(formatMoney("999999999999999.0000", "IRR")).toBe("۹۹۹٬۹۹۹٬۹۹۹٬۹۹۹٬۹۹۹ ریال");
   });
   it("handles negatives and zero", () => {
-    expect(formatMoney("-50000.0000", "IRT")).toBe("−۵٬۰۰۰ تومان");
+    expect(formatMoney("-50000.0000", "IRT")).toBe("\u2066−۵٬۰۰۰\u2069 تومان");
     expect(formatMoney("0.0000", "IRT")).toBe("۰ تومان");
   });
 });

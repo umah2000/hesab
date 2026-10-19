@@ -115,6 +115,12 @@ def credit_of(
     return acc.credit_limit, receivable_balance(s, customer_id) + pending
 
 
+def _rials(d: Decimal) -> str:
+    """A message amount the way people read it: ۱۲٬۵۰۰٬۰۰۰ ریال."""
+    grouped = f"{int(d.to_integral_value()):,}".replace(",", "٬")
+    return grouped.translate(str.maketrans("0123456789-", "۰۱۲۳۴۵۶۷۸۹−")) + " ریال"
+
+
 def _check_credit(s: Session, order: SalesOrder) -> None:
     acc = s.get(DetailAccount, order.customer_id, with_for_update=True)
     if acc is None:
@@ -124,8 +130,8 @@ def _check_credit(s: Session, order: SalesOrder) -> None:
         raise DomainError(f"برای «{acc.name}» فروش نسیه تعریف نشده است", code="no_credit")
     if used + order.grand_total > limit:
         raise DomainError(
-            f"سقف اعتبار «{acc.name}» کافی نیست (بدهی و سفارش‌های تأییدشده {used:f}، "
-            f"این سفارش {order.grand_total:f}، سقف {limit:f} ریال)",
+            f"سقف اعتبار «{acc.name}» کافی نیست: بدهی و سفارش‌های تأییدشده {_rials(used)}، "
+            f"این سفارش {_rials(order.grand_total)}، سقف {_rials(limit)}",
             code="credit_limit_exceeded",
         )
 

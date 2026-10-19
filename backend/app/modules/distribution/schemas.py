@@ -55,6 +55,15 @@ class VisitorOut(BaseModel):
     row_version: str
 
 
+class CandidateOut(BaseModel):
+    """An active user with the visitor role (who may become a visitor)."""
+
+    user_id: uuid.UUID
+    username: str
+    full_name: str
+    visitor_id: uuid.UUID | None
+
+
 class AssignmentIn(_In):
     customer_id: uuid.UUID
     # 0 = Saturday … 6 = Friday; None = no fixed day.

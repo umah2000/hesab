@@ -58,7 +58,9 @@ export function formatMoney(rials: string, currency: DisplayCurrency = "IRT"): s
   }
   const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, "٬");
   const unit = currency === "IRT" ? "تومان" : "ریال";
-  return `${negative ? "−" : ""}${toFaDigits(grouped + fraction)} ${unit}`;
+  const number = toFaDigits(grouped + fraction);
+  // Left-to-right isolate: inside RTL text the minus stays in front of the digits.
+  return `${negative ? `\u2066−${number}\u2069` : number} ${unit}`;
 }
 
 export function formatNumber(n: number): string {

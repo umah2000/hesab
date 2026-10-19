@@ -25,6 +25,7 @@ from app.modules.distribution.schemas import (
     AssignedCustomerOut,
     AssignmentsIn,
     BootstrapOut,
+    CandidateOut,
     DecisionIn,
     InvoiceOrderIn,
     OrderIn,
@@ -157,6 +158,17 @@ def list_visitors() -> ResponseReturnValue:
         s.close()
 
 
+@bp.get("/candidates")
+@require(MANAGE)
+@doc("کاربران فعال با نقش ویزیتور (برای تعریف ویزیتور)", response=[CandidateOut])
+def visitor_candidates() -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(list(visitors.candidates(s)))
+    finally:
+        s.close()
+
+
 @bp.post("/visitors")
 @require(MANAGE)
 @doc("تعریف ویزیتور برای کاربری با نقش ویزیتور", body=VisitorIn, response=VisitorOut)
@@ -164,6 +176,17 @@ def create_visitor() -> ResponseReturnValue:
     data = parse_body(VisitorIn)
     with unit_of_work() as s:
         return to_json(visitors.create(s, current_actor(), data), 201)
+
+
+@bp.get("/visitors/<visitor_id>")
+@require(MANAGE)
+@doc("جزئیات ویزیتور", response=VisitorOut)
+def get_visitor(visitor_id: str) -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(visitors.get(s, current_actor(), parse_uuid(visitor_id)))
+    finally:
+        s.close()
 
 
 @bp.put("/visitors/<visitor_id>")
