@@ -16,6 +16,7 @@ jobs:
         # are only exercised on the Windows runner.
         os: [ubuntu-24.04, windows-2022]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: device-agent

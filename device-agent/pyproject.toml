@@ -8,7 +8,7 @@ dependencies = ["pillow>=11", "nextcam-core>=0.8"]
 [project.optional-dependencies]
 windows = ["pywin32>=306; sys_platform == 'win32'"]
 serial = ["pyserial>=3.5"]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+dev = ["pytest>=8", "pytest-timeout>=2.3", "ruff>=0.6", "mypy>=1.11"]
 
 [project.scripts]
 nextcam-agent = "nextcam_agent.cli:main"
@@ -42,3 +42,9 @@ mypy_path = "../packages/nextcam-core"
 [[tool.mypy.overrides]]
 module = ["serial", "win32print", "win32serviceutil", "win32service", "win32event", "servicemanager"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# A test that blocks (a socket or server thread on one OS) fails with every thread's
+# stack instead of hanging the CI job.
+timeout = 120
+timeout_method = "thread"
