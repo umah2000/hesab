@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import case, func, or_, select, true
 from sqlalchemy.orm import Session
 
-from app.core.db import load_by_ids
+from app.core.db import load_columns_by_ids
 from app.core.errors import NotFoundError
 from app.modules.iam.guard import Actor
 from app.modules.inventory.models import (
@@ -42,11 +42,13 @@ def _warehouses(
     return ids or {uuid.UUID(int=0)}
 
 
-def _items(s: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[Item, str]]:
+def _items(s: Session, ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[Any, str]]:
+    """(code/name row, base unit name) per item; plain columns, no relationships."""
     if not ids:
         return {}
     units = dict(s.execute(select(Unit.id, Unit.name)).all())
-    return {k: (i, units.get(i.base_unit_id, "")) for k, i in load_by_ids(s, Item, ids).items()}
+    rows = load_columns_by_ids(s, Item.id, [Item.code, Item.name, Item.base_unit_id], ids)
+    return {k: (r, units.get(r.base_unit_id, "")) for k, r in rows.items()}
 
 
 def stock_movement(s: Session, actor: Actor, p: StockMovementQ) -> ReportTable:

@@ -131,3 +131,19 @@ def load_by_ids(s: Any, model: type[M], ids: Collection[uuid.UUID]) -> dict[uuid
         for row in list(s.scalars(select(model).where(col.in_(pending[i : i + IN_CHUNK])))):
             out[row.id] = row
     return out
+
+
+def load_columns_by_ids(
+    s: Any, id_col: Any, cols: list[Any], ids: Collection[uuid.UUID]
+) -> dict[uuid.UUID, Any]:
+    """``{id: Row(*cols)}`` for these ids, chunked. Plain columns, so no relationship is
+    loaded (whole ORM rows pulled every barcode and unit of 12k items in a report)."""
+    from sqlalchemy import select
+
+    out: dict[uuid.UUID, Any] = {}
+    pending = list(set(ids))
+    for i in range(0, len(pending), IN_CHUNK):
+        q = select(id_col, *cols).where(id_col.in_(pending[i : i + IN_CHUNK]))
+        for row in list(s.execute(q)):
+            out[row[0]] = row
+    return out

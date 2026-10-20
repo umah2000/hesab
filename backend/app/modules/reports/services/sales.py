@@ -8,10 +8,10 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import case, func, select
+from sqlalchemy import ColumnClause, Date, case, func, literal, literal_column, select
 from sqlalchemy.orm import Session
 
-from app.core.db import load_by_ids, utcnow
+from app.core.db import load_columns_by_ids, utcnow
 from app.modules.accounting.models import Voucher, VoucherLine
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
@@ -47,16 +47,22 @@ from app.modules.sales.models import (
     TerminalTransaction,
 )
 
-SIGN = case((SalesInvoice.kind == "return", -1), else_=1)
+# Constants are written into the SQL, not bound: as typed parameters inside these per-line
+# CASE expressions they made SQL Server ~20x slower on 350k lines (phase 10 volume test).
+# They are fixed code constants, never user input.
+SALE: ColumnClause[str] = literal_column("'sale'")
+RETURN: ColumnClause[str] = literal_column("'return'")
+FINAL: ColumnClause[str] = literal_column("'final'")
+SIGN = case((SalesInvoice.kind == RETURN, literal_column("-1")), else_=literal_column("1"))
 MEASURES = (
-    func.count(func.distinct(case((SalesInvoice.kind == "sale", SalesInvoice.id)))),
-    func.count(func.distinct(case((SalesInvoice.kind == "return", SalesInvoice.id)))),
+    func.count(func.distinct(case((SalesInvoice.kind == SALE, SalesInvoice.id)))),
+    func.count(func.distinct(case((SalesInvoice.kind == RETURN, SalesInvoice.id)))),
     func.sum(SIGN * SalesInvoiceLine.base_qty),
     func.sum(SIGN * (SalesInvoiceLine.promotion_discount + SalesInvoiceLine.manual_discount)),
     func.sum(SIGN * SalesInvoiceLine.revenue),
     func.sum(SIGN * SalesInvoiceLine.tax),
     func.sum(SIGN * SalesInvoiceLine.line_total),
-    func.sum(SIGN * func.coalesce(SalesInvoiceLine.cost_total, 0)),
+    func.sum(SIGN * func.coalesce(SalesInvoiceLine.cost_total, literal_column("0"))),
 )
 
 
@@ -66,9 +72,9 @@ def _lines(actor: Actor, branch_id: uuid.UUID | None, start: date, end: date):  
         .select_from(SalesInvoiceLine)
         .join(SalesInvoice, SalesInvoice.id == SalesInvoiceLine.invoice_id)
         .where(
-            SalesInvoice.status == "final",
-            SalesInvoice.document_date >= start,
-            SalesInvoice.document_date <= end,
+            SalesInvoice.status == FINAL,
+            SalesInvoice.document_date >= literal(start, Date, literal_execute=True),
+            SalesInvoice.document_date <= literal(end, Date, literal_execute=True),
         )
     )
     scope = branches(actor, branch_id)
@@ -134,7 +140,10 @@ def sales_report(s: Session, actor: Actor, p: SalesQ) -> ReportTable:
     ids = {r[0] for r in raw if r[0] is not None}
     names: dict[Any, str] = {}
     if p.group_by == "item" and ids:
-        names = {k: f"{i.code} — {i.name}" for k, i in load_by_ids(s, Item, ids).items()}
+        names = {
+            k: f"{r.code} — {r.name}"
+            for k, r in load_columns_by_ids(s, Item.id, [Item.code, Item.name], ids).items()
+        }
     elif p.group_by == "group" and ids:
         names = dict(
             s.execute(select(ItemGroup.id, ItemGroup.name).where(ItemGroup.id.in_(ids))).all()
