@@ -316,10 +316,10 @@ function BackupCard() {
               <div className="flex items-center gap-2 text-xs text-ink-faint">
                 <ShieldCheck className="size-4 text-success" aria-hidden />
                 <span>مقصد دوم (رمزنگاری‌شده، بررسی‌شده):</span>
-                <span dir="ltr">{d.last_copy.file_path}</span>
+                <span dir="ltr" className="font-mono">{d.last_copy.file_path}</span>
               </div>
             ) : null}
-            {d.last_backup?.file_path ? <div className="text-xs text-ink-faint" dir="ltr">{d.last_backup.file_path}</div> : null}
+            {d.last_backup?.file_path ? <div className="font-mono text-xs text-ink-faint" dir="ltr">{d.last_backup.file_path}</div> : null}
             {d.history.length ? (
               <details>
                 <summary className="cursor-pointer text-ink-soft">تاریخچه</summary>
@@ -329,7 +329,13 @@ function BackupCard() {
                       <span className="w-36">{formatDateTime(h.at)}</span>
                       <span className="w-28">{h.kind === "backup" ? "پشتیبان" : h.kind === "copy" ? "کپی رمزنگاری‌شده" : "آزمون بازیابی"}</span>
                       {h.status === "ok" ? <Badge tone="success">موفق</Badge> : <Badge tone="danger">ناموفق</Badge>}
-                      <span className="truncate text-ink-faint">{h.message ?? size(h.size_bytes)}</span>
+                      {h.kind === "copy" && h.message?.startsWith("sha256=") ? (
+                        <span className="truncate font-mono text-ink-faint" dir="ltr" title={h.message}>
+                          {h.message.slice(0, 23)}…
+                        </span>
+                      ) : (
+                        <span className="truncate text-ink-faint">{h.message ?? size(h.size_bytes)}</span>
+                      )}
                     </li>
                   ))}
                 </ul>

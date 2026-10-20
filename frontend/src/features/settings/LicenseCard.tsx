@@ -133,8 +133,8 @@ export function LicenseCard() {
             </div>
             {version.data ? (
               <p className="text-xs text-ink-soft">
-                نسخه‌ی برنامه: <b dir="ltr">{version.data.version}</b> ({formatDate(version.data.released)}) · ساختار دیتابیس:{" "}
-                <span dir="ltr">{version.data.schema ?? "—"}</span>{" "}
+                نسخه‌ی برنامه: <b dir="ltr" className="font-mono">{version.data.version}</b> ({formatDate(version.data.released)}) · ساختار دیتابیس:{" "}
+                <span dir="ltr" className="font-mono">{version.data.schema ?? "—"}</span>{" "}
                 {version.data.schema_ok ? (
                   <Badge tone="success">به‌روز</Badge>
                 ) : (
