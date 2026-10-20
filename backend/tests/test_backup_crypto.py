@@ -32,7 +32,10 @@ def test_round_trip(size: int) -> None:
     data = os.urandom(size)
     blob = enc(data, KEY)
     assert dec(blob, KEY) == data
-    assert data not in blob or size == 0  # never stored in the clear
+    # Never stored in the clear. Only meaningful for longer data: a 1-byte value turns up
+    # by chance in ~60 random ciphertext bytes about 20% of the time (seen on CI).
+    if size >= 16:
+        assert data not in blob
 
 
 def test_digest_is_of_the_plaintext(tmp_path: Path) -> None:
