@@ -7,7 +7,7 @@
 - تک‌مستأجر (یک نصب = یک سازمان = یک دیتابیس)، چندشعبه با `branch_id`.
 - مشتری اول سوپرمارکت. مؤدیان و حقوق و دستمزد در نسخه ۲.
 - Backend: Flask (Application Factory، Blueprint برای هر ماژول در `backend/app/modules/<name>/`)، SQLAlchemy 2، Alembic، Pydantic v2.
-- دیتابیس: SQL Server (ODBC Driver 18). SQLite فقط برای صف محلی Agent/کلاینت.
+- دیتابیس: SQL Server، حداقل نسخه 2019 (ODBC Driver 18). از امکانات انحصاری 2022 استفاده نکن. SQLite فقط برای صف محلی Agent/کلاینت.
 
 ## قواعد غیرقابل‌مذاکره
 1. مبلغ `Decimal`/`DECIMAL(19,4)` ریال؛ مقدار `DECIMAL(19,3)`. **هرگز float.** مبلغ در JSON به‌صورت رشته.
@@ -23,6 +23,16 @@
 11. تعارض آفلاین مالی/موجودی هرگز Last-Write-Wins.
 12. اسرار فقط در Environment (`NEXTCAM_*`)؛ هیچ رمز یا connection string واقعی در گیت.
 13. پیام خطای عمومی بدون جزئیات داخلی.
+14. متن فارسی در دیتابیس فقط `Unicode`/`NVARCHAR` (نه `String`/`VARCHAR`).
+15. شرط بولی در SQLAlchemy برای SQL Server با `== true()`؛ `.is_(True)` روی SQL Server خطا می‌دهد.
+16. UI: شیشه فقط برای قاب‌ها؛ داده روی `surface`. وضعیت با متن + آیکون. بدون CDN. ماژول پیاده‌نشده در منو غیرفعال با «فاز N»؛ عدد ساختگی در داشبورد ممنوع (docs/design/README.md).
+
+17. حسابداری: سند فقط پیش‌نویس ← قطعی ← برگشت (ADR-0011). سند خودکار فقط با `post_event` و داخل همان unit of work سند مبدأ. triggerهای دیتابیس را دور نزن.
+18. جداولی که trigger دارند باید `implicit_returning: False` داشته باشند (SQL Server با OUTPUT بدون INTO خطا می‌دهد).
+19. SQL Server بدون MARS: نتیجه query را قبل از اجرای query بعدی کامل بخوان (`list(s.scalars(...))`)؛ وگرنه «Connection is busy».
+20. انبار: موجودی و میانگین بها فقط در `inventory.services.stock.post_movement` با قفل `stock_balance` تغییر می‌کند (ADR-0012).
+21. فروش: قیمت، تخفیف و مالیات فقط در `sales.services.pricing` و همیشه در سرور حساب می‌شوند. فاکتور قطعی تغییرناپذیر است و اصلاح فقط با برگشت ممکن است (ADR-0013).
+22. دیتابیس با RCSI است. قفل صریح (`UPDLOCK`/`with_for_update`) فقط با seek روی کلید بگیر، چون scan زیر HOLDLOCK بین صندوق‌ها deadlock می‌سازد. cache درون‌پردازه‌ای (`refcache`، نشست) فقط داده‌ی مرجع را نگه می‌دارد و با `invalidate_after_commit` پاک می‌شود.
 
 ## روال کار
 - شاخه از `main`، PR، CI سبز. Conventional Commits.
@@ -32,7 +42,13 @@
 - **هیچ تستی را موفق اعلام نکن مگر واقعاً اجرا شده باشد.** Mock جایگزین تست سخت‌افزار واقعی نیست.
 - پایان هر فاز: گزارش تغییرات، تست‌های اجراشده و نتیجه، محدودیت‌ها؛ به‌روزرسانی جدول وضعیت ROADMAP.
 
-## دستورات (از `backend/`)
+## دستورات Frontend (از `frontend/`)
+```bash
+npm ci && npx tsc --noEmit -p . && npx vitest run && npx vite build
+npx vite            # dev روی 5173، /api به 127.0.0.1:5000 پروکسی می‌شود
+```
+
+## دستورات Backend (از `backend/`)
 ```bash
 uv venv .venv && uv pip install -p .venv -e ".[dev]"    # یا: python -m venv .venv && pip install -e ".[dev]"
 .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy app
@@ -40,4 +56,4 @@ TEST_DATABASE_URL='mssql+pyodbc://...' .venv/bin/pytest -q
 .venv/bin/alembic upgrade head          # نیازمند NEXTCAM_DATABASE_URL
 ```
 SQL Server محلی برای تست در کانتینر ابری:
-`docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=... -p 1433:1433 mcr.microsoft.com/mssql/server:2022-latest`
+`docker run -d --name mssql -e ACCEPT_EULA=Y -e MSSQL_SA_PASSWORD=... -p 1433:1433 mcr.microsoft.com/mssql/server:2019-latest`

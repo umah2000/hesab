@@ -64,3 +64,24 @@ def test_mock_terminal_forbidden_in_production() -> None:
             secret_key="x",
             enable_mock_payment_terminal=True,
         )
+
+
+def test_serves_built_frontend_with_spa_fallback(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from app import create_app
+    from tests.conftest import UNREACHABLE_URL, _settings
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<!doctype html><title>NEXTCAM</title>", encoding="utf-8")
+    (tmp_path / "assets" / "app-1a2b.js").write_text("console.log(1)", encoding="utf-8")
+    (tmp_path.parent / "secret.txt").write_text("nope", encoding="utf-8")
+    c = create_app(_settings(UNREACHABLE_URL, static_dir=str(tmp_path))).test_client()
+
+    page = c.get("/pos")
+    assert page.status_code == 200 and b"NEXTCAM" in page.data
+    assert page.headers["Cache-Control"] == "no-cache"
+    assert page.headers["X-Frame-Options"] == "DENY"
+    asset = c.get("/assets/app-1a2b.js")
+    assert asset.status_code == 200 and "immutable" in asset.headers["Cache-Control"]
+    assert b"nope" not in c.get("/../secret.txt").data
+    missing_api = c.get("/api/v1/nothing-here")
+    assert missing_api.status_code == 404 and missing_api.get_json()["error"]["code"]

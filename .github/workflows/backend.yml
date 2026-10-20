@@ -3,16 +3,16 @@ name: backend
 on:
   push:
     branches: [main]
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "packages/**", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "packages/**", ".github/workflows/backend.yml"]
 
 jobs:
   test:
     runs-on: ubuntu-24.04
     services:
       mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
+        image: mcr.microsoft.com/mssql/server:2019-latest
         env:
           ACCEPT_EULA: "Y"
           MSSQL_PID: Developer
@@ -28,14 +28,16 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Install ODBC Driver 18
         run: |
-          if ! odbcinst -q -d | grep -q "ODBC Driver 18"; then
-            curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          # The runner image may lack odbcinst yet already have the Microsoft keyring:
+          # --batch --yes, or gpg asks to overwrite it on a missing TTY and fails.
+          if ! (command -v odbcinst >/dev/null && odbcinst -q -d | grep -q "ODBC Driver 18"); then
+            curl -sSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
             echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
             sudo apt-get update
             sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
@@ -43,7 +45,7 @@ jobs:
       - name: Create test database
         run: |
           docker exec ${{ job.services.mssql.id }} /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$SA_PASSWORD" -Q "CREATE DATABASE nextcam_test"
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ../packages/nextcam-core -e ".[dev]"
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy app

@@ -1,0 +1,40 @@
+# NEXTCAM behind HTTPS (docs/install/https.md).
+# Caddy terminates TLS and forwards to the app on the same machine.
+# The app must run with NEXTCAM_TRUSTED_PROXY=127.0.0.1, NEXTCAM_HOST=127.0.0.1 and
+# NEXTCAM_COOKIE_SECURE=true, so nobody reaches it around the proxy.
+#
+# Replace SERVER_NAME / SERVER_IP with the names the registers use (e.g. nextcam.local
+# and 192.168.1.10). Caddy redirects http:// to https:// on its own.
+
+{
+	# Admin API off: nothing on the network can reconfigure the proxy.
+	admin off
+}
+
+# Shop LAN: certificate from Caddy's own local CA. Its root certificate
+# (caddy-data\pki\authorities\local\root.crt) is installed once on every register PC.
+https://SERVER_NAME, https://SERVER_IP {
+	tls internal
+	encode gzip
+	request_body {
+		max_size 3MB
+	}
+	reverse_proxy 127.0.0.1:8080
+}
+
+# Visitor app over the internet (Q21): a public domain pointing at this server with
+# ports 80/443 forwarded. Caddy gets a public certificate (Let's Encrypt) by itself.
+# Remove the leading "#" to enable.
+#visit.example.com {
+#	encode gzip
+#	request_body {
+#		max_size 3MB
+#	}
+#	@app path /api/v1/auth/mobile/* /api/v1/distribution/mobile/*
+#	handle @app {
+#		reverse_proxy 127.0.0.1:8080
+#	}
+#	handle {
+#		respond 404
+#	}
+#}

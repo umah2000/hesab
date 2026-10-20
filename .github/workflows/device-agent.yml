@@ -1,0 +1,32 @@
+name: device-agent
+
+on:
+  push:
+    branches: [main]
+    paths: ["device-agent/**", "packages/**", ".github/workflows/device-agent.yml"]
+  pull_request:
+    paths: ["device-agent/**", "packages/**", ".github/workflows/device-agent.yml"]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # The registers run Windows: token encryption (DPAPI) and the service wrapper
+        # are only exercised on the Windows runner.
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: device-agent
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e ../packages/nextcam-core -e ".[dev,windows,serial]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy nextcam_agent --exclude service.py
+      - run: pytest -q

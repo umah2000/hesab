@@ -7,7 +7,7 @@
 - 🏛️ [معماری](docs/architecture/overview.md) · [تصمیم‌ها](docs/architecture/decisions/)
 - ❓ [سؤال‌های باز](docs/open-questions.md)
 
-**وضعیت فعلی:** فاز ۰ (تحلیل، طراحی، اسکلت Backend). هنوز هیچ ماژول تجاری پیاده‌سازی نشده است.
+**وضعیت فعلی:** فازهای ۱ تا ۴ پیاده‌سازی شده‌اند: کاربران و مجوزها، حسابداری، کالا و انبار، صندوق فروش، شیفت، برگشت و پشتیبان‌گیری. فاز ۴ منتظر پایلوت است. نصب در فروشگاه: [راهنمای نصب در شبکه داخلی](docs/install/lan-install.md). [تصاویر و سیستم طراحی](docs/design/README.md)
 
 ## اجرای Backend روی ویندوز با SQL Server محلی
 
@@ -37,9 +37,22 @@ python -m venv .venv
 pip install -e ".[dev]"
 copy .env.example .env      # سپس NEXTCAM_DATABASE_URL و NEXTCAM_SECRET_KEY را در .env تنظیم کنید
 alembic upgrade head
-flask --app app run
+flask --app app setup --org-name "نام فروشگاه"     # یک‌بار: سازمان، شعبه اصلی، نقش‌ها و کاربر admin (رمز را می‌پرسد)
+flask --app app seed-defaults                      # پس از به‌روزرسانی: کدینگ، سال مالی، واحدها و انبارهای پیش‌فرض (تکرارپذیر)
+flask --app app run          # توسعه؛ در فروشگاه: python -m app.serve (راهنمای نصب)
 ```
 بررسی: `http://127.0.0.1:5000/api/v1/system/ready` باید `{"database": "up", "status": "ok"}` برگرداند.
+
+> اگر روی `http` (بدون HTTPS) در شبکه داخلی اجرا می‌کنید، در `.env` بنویسید `NEXTCAM_COOKIE_SECURE=false`؛ وگرنه مرورگر کوکی نشست را نگه نمی‌دارد. HTTPS در فاز نصب (۴) راه‌اندازی می‌شود.
+
+### ۳-ب. رابط کاربری (پنجره دوم PowerShell)
+پیش‌نیاز: Node.js 22 یا جدیدتر.
+```powershell
+cd frontend
+npm ci
+npx vite
+```
+سپس `http://localhost:5173` را باز کنید و با `admin` و رمزی که در `setup` تعیین کردید وارد شوید.
 
 ### ۴. تست‌ها
 ```powershell
@@ -51,7 +64,8 @@ pytest -q
 ## ساختار مخزن
 ```
 backend/   Flask API (Modular Monolith)، Alembic، تست‌ها
+frontend/  React + TypeScript + Vite + Tailwind (RTL، شیشه‌ای)
 docs/      پرامپت، نقشه راه، معماری، ADRها، مدل داده، API، مجوزها، همگام‌سازی، سخت‌افزار، تست
-.github/   CI: lint + type + تست روی SQL Server 2022
+.github/   CI: Backend (lint + type + تست روی SQL Server 2019) و Frontend (type + تست + build)
 ```
-`frontend/`، `device-agent/` و `mobile/` در فازهای ۱، ۶ و ۹ اضافه می‌شوند.
+`device-agent/` و `mobile/` در فازهای ۶ و ۹ اضافه می‌شوند.

@@ -1,6 +1,6 @@
 [project]
 name = "nextcam-backend"
-version = "0.1.0"
+version = "1.0.0"
 description = "NEXTCAM ERP backend (Flask modular monolith)"
 requires-python = ">=3.12"
 dependencies = [
@@ -11,6 +11,15 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "structlog>=24.4",
+    "argon2-cffi>=23.1",
+    "flask-limiter>=3.8",
+    "jdatetime>=5.0",
+    "openpyxl>=3.1",
+    "waitress>=3.0",
+    # Backup encryption (AES-256-GCM) and license signatures (Ed25519).
+    "cryptography>=44",
+    # Shared with the register agent; install first: pip install -e ../packages/nextcam-core
+    "nextcam-core>=0.8",
 ]
 
 [project.optional-dependencies]
@@ -30,8 +39,10 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not perf'"
 markers = [
     "db: requires a reachable SQL Server (TEST_DATABASE_URL)",
+    "perf: load/performance measurement, run explicitly with -m perf",
 ]
 
 [tool.ruff]
@@ -40,12 +51,18 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "SIM"]
-ignore = ["S101"]
+ignore = ["S101", "UP047"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S105", "S106"]
+"tests/**" = ["S105", "S106", "S608"]
+# Raw T-SQL trigger bodies read better unwrapped.
+"migrations/versions/**" = ["E501"]
+# Test-environment tooling: fixed test passwords, http:// URLs, non-crypto randomness.
+"scripts/**" = ["S105", "S310", "S311", "E501"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+# The shared core is installed editable; let mypy read its sources directly.
+mypy_path = "../packages/nextcam-core"

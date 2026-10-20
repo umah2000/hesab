@@ -1,0 +1,5 @@
+tags:
+  # Renders every screen at phone size (writes test/goldens with --update-goldens).
+  screens:
+  # Needs a running server: NEXTCAM_TEST_SERVER, NEXTCAM_TEST_USER, NEXTCAM_TEST_PASSWORD.
+  server:
