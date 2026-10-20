@@ -65,8 +65,8 @@ def _dpapi(data: bytes, protect: bool) -> bytes:
     class Blob(ctypes.Structure):
         _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
 
-    crypt32 = ctypes.windll.crypt32  # type: ignore[attr-defined]
-    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    crypt32 = ctypes.windll.crypt32  # type: ignore[attr-defined,unused-ignore]
+    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined,unused-ignore]
     buf = ctypes.create_string_buffer(data, len(data))
     src, dst = Blob(len(data), buf), Blob()
     local_machine = 0x4  # CRYPTPROTECT_LOCAL_MACHINE: the service account can read it
