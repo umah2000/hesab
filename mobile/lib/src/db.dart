@@ -95,13 +95,14 @@ class LocalDb {
     String id,
     String userId,
     String kind,
-    Map<String, dynamic> payload,
-  ) => db.insert('outbox', {
+    Map<String, dynamic> payload, {
+    DateTime? at, // tests pass a fixed time
+  }) => db.insert('outbox', {
     'id': id,
     'user_id': userId,
     'kind': kind,
     'payload': jsonEncode(payload),
-    'created_at': DateTime.now().toUtc().toIso8601String(),
+    'created_at': (at ?? DateTime.now()).toUtc().toIso8601String(),
   });
 
   Future<List<OutboxEntry>> outbox({String? userId, String? status}) async {

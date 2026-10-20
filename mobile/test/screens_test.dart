@@ -224,19 +224,19 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
           {'item_id': 'milk', 'qty': '24'},
           {'item_id': 'water', 'qty': '10'},
         ],
-      });
+      }, at: now);
       await db.addOutbox('p2', 'u1', 'visit', {
         'id': 'p2',
         'customer_id': 'c1',
         'outcome': 'closed',
-      });
+      }, at: now);
       await db.addOutbox('p3', 'u1', 'order', {
         'id': 'p3',
         'customer_id': 'c3',
         'lines': [
           {'item_id': 'rice', 'qty': '5'},
         ],
-      });
+      }, at: now);
       await db.markFailed('p3', 'این مشتری به شما تخصیص داده نشده است');
     }
     await state.reload();
