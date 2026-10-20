@@ -381,7 +381,7 @@ def _parse_opening(
     by_code = {
         c.lower(): (i, t) for c, i, t in s.execute(select(Item.code, Item.id, Item.item_type))
     }
-    by_barcode = dict(s.execute(select(ItemBarcode.barcode, ItemBarcode.item_id)).tuples().all())
+    by_barcode = dict(s.execute(select(ItemBarcode.barcode, ItemBarcode.item_id)).all())
     rows: list[_OpeningRow] = []
     errors: list[RowError] = []
     seen: dict[uuid.UUID, int] = {}

@@ -451,6 +451,7 @@ def sell_day(job: tuple[str, int, int]) -> dict[str, Any]:
                         },
                     )
                     sold[ln["item_id"]] -= 1
+                    ln["returned_qty"] = "1"  # never pick the same line again
                     stats["returns"] += 1
         except Exception as e:  # noqa: BLE001 - count, keep the register selling
             stats["errors"] += 1

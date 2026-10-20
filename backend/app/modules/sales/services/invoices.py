@@ -829,9 +829,9 @@ def _names(s: Session, invoices: list[SalesInvoice]) -> _Names:
     custs = {i.customer_id for i in invoices if i.customer_id}
     return _Names(
         registers=dict(
-            s.execute(select(CashRegister.id, CashRegister.name).where(CashRegister.id.in_(regs)))
-            .tuples()
-            .all()
+            s.execute(
+                select(CashRegister.id, CashRegister.name).where(CashRegister.id.in_(regs))
+            ).all()
         )
         if regs
         else {},
@@ -839,16 +839,14 @@ def _names(s: Session, invoices: list[SalesInvoice]) -> _Names:
             uid: full or username
             for uid, full, username in s.execute(
                 select(AppUser.id, AppUser.full_name, AppUser.username).where(AppUser.id.in_(users))
-            ).tuples()
+            )
         }
         if users
         else {},
         customers=dict(
             s.execute(
                 select(DetailAccount.id, DetailAccount.name).where(DetailAccount.id.in_(custs))
-            )
-            .tuples()
-            .all()
+            ).all()
         )
         if custs
         else {},
@@ -925,7 +923,7 @@ def list_invoices(s: Session, actor: Actor, q: InvoiceQuery) -> Page[InvoiceSumm
             .order_by(SalesInvoice.created_at.desc())
             .offset((q.page - 1) * q.page_size)
             .limit(q.page_size)
-        ).tuples()
+        )
     )
     names = _names(s, [inv for inv, _ in rows])
     return Page(
