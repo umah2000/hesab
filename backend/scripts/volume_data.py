@@ -32,6 +32,7 @@ import uuid
 from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
 from typing import Any
 
 # Set before the app reads its settings: generous login rate and session lifetime, since
@@ -364,7 +365,10 @@ def sell_day(job: tuple[str, int, int]) -> dict[str, Any]:
     c = Client(app)
     _now[0] = at(day, 7 * 60 + 50)
     c.login(f"vol_r{reg_no}", _W["password"])
-    shift = c.post("/sales/shifts/open", {"cash_register_id": reg, "opening_cash": "5000000"})
+    # A shift left open by an interrupted run is closed tonight with this day's sales.
+    shift = c.ok("GET", f"/sales/registers/{reg}/state")["shift"] or c.post(
+        "/sales/shifts/open", {"cash_register_id": reg, "opening_cash": "5000000"}
+    )
     sold: Counter[str] = Counter()
     credit: Counter[str] = Counter()
     made: list[dict[str, Any]] = []
@@ -546,6 +550,20 @@ def collect(admin: Client, w: dict[str, Any], day: date, credit: Counter[str]) -
 # --- main --------------------------------------------------------------------------------
 
 
+def _reset_passwords(app: Any, password: str) -> None:
+    from sqlalchemy import select
+
+    from app.core.db import unit_of_work
+    from app.core.security import hash_password
+    from app.modules.iam.models import AppUser
+
+    with app.app_context(), unit_of_work() as s:
+        for u in s.scalars(select(AppUser).where(AppUser.username.like("vol[_]%"))):
+            u.password_hash = hash_password(password)
+            u.failed_attempts = 0
+            u.locked_until = None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -561,31 +579,71 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--seed", type=int, default=1405)
     ap.add_argument("--state", default="volume_state.json", help="world ids, for timing")
+    ap.add_argument(
+        "--resume", action="store_true", help="continue a run that stopped (container restart)"
+    )
     a = ap.parse_args()
     if os.environ.get("NEXTCAM_ENV") == "production":
         raise SystemExit("refusing to run with NEXTCAM_ENV=production")
-    # Users of this run share one random password that exists only in memory.
+    # Users of this run share one random password that exists only in memory (a resumed
+    # run sets a new one).
     password = "Vol-" + secrets.token_urlsafe(12) + "9"
+    progress = Path(a.state + ".progress.json")
 
     app = make_app()
     t0 = time.monotonic()
-    w = setup(app, a, password)
-    opening_stock(app, a, password, w)
-    with open(a.state, "w", encoding="utf-8") as f:
-        json.dump(
-            {k: v for k, v in w.items() if k != "items"}
-            | {"barcodes": [i["barcode"] for i in w["items"][:500]]},
-            f,
+    if a.resume:
+        saved = json.loads(progress.read_text("utf-8"))
+        w, done = saved["world"], saved["done_days"]
+        week_sold: Counter[str] = Counter(saved["week_sold"])
+        week_credit: Counter[str] = Counter(saved["week_credit"])
+        totals: Counter[str] = Counter(saved["totals"])
+        a.days, a.per_day, a.registers, a.seed = (
+            saved["days"],
+            saved["per_day"],
+            saved["registers"],
+            saved["seed"],
         )
+        _reset_passwords(app, password)
+        print(f"resuming after day {done} of {a.days}", flush=True)
+    else:
+        w = setup(app, a, password)
+        opening_stock(app, a, password, w)
+        done = 0
+        week_sold, week_credit, totals = Counter(), Counter(), Counter()
+        with open(a.state, "w", encoding="utf-8") as f:
+            json.dump(
+                {k: v for k, v in w.items() if k != "items"}
+                | {"barcodes": [i["barcode"] for i in w["items"][:500]]},
+                f,
+            )
 
+    def save(done_days: int) -> None:
+        tmp = progress.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps(
+                {
+                    "world": w,
+                    "done_days": done_days,
+                    "week_sold": week_sold,
+                    "week_credit": week_credit,
+                    "totals": totals,
+                    "days": a.days,
+                    "per_day": a.per_day,
+                    "registers": a.registers,
+                    "seed": a.seed,
+                }
+            ),
+            "utf-8",
+        )
+        os.replace(tmp, progress)
+
+    save(done)
     admin = Client(app)
     start = date.fromisoformat(w["start"])
-    week_sold: Counter[str] = Counter()
-    week_credit: Counter[str] = Counter()
-    totals = Counter()
     ctx = mp.get_context("spawn")
     with ctx.Pool(a.workers, initializer=_init_worker, initargs=(w, password, a.seed)) as pool:
-        for d in range(a.days):
+        for d in range(done, a.days):
             day = start + timedelta(days=d)
             rnd = random.Random(f"{a.seed}-{day}")
             # Fridays are busier, a quiet day now and then.
@@ -614,6 +672,7 @@ def main() -> None:
                 _now[0] = at(day, 23 * 60 + 15)
                 admin.login("vol_admin", password)
                 totals["receipts"] += collect(admin, w, day, week_credit)
+            save(d + 1)
             dt = time.monotonic() - t
             print(
                 f"{day} sales={sum(r['stats']['invoices'] for r in results)} "

@@ -815,21 +815,61 @@ def create_return(s: Session, actor: Actor, invoice_id: uuid.UUID, data: ReturnI
 # --- queries ----------------------------------------------------------------
 
 
-def _summary(s: Session, inv: SalesInvoice) -> InvoiceSummaryOut:
-    reg = s.get(CashRegister, inv.cash_register_id)
-    user = s.get(AppUser, inv.created_by) if inv.created_by else None
-    customer = s.get(DetailAccount, inv.customer_id) if inv.customer_id else None
+@dataclass
+class _Names:
+    registers: dict[uuid.UUID, str]
+    users: dict[uuid.UUID, str]
+    customers: dict[uuid.UUID, str]
+
+
+def _names(s: Session, invoices: list[SalesInvoice]) -> _Names:
+    """Display names for a page of invoices in three queries (not three per row)."""
+    regs = {i.cash_register_id for i in invoices}
+    users = {i.created_by for i in invoices if i.created_by}
+    custs = {i.customer_id for i in invoices if i.customer_id}
+    return _Names(
+        registers=dict(
+            s.execute(select(CashRegister.id, CashRegister.name).where(CashRegister.id.in_(regs)))
+            .tuples()
+            .all()
+        )
+        if regs
+        else {},
+        users={
+            uid: full or username
+            for uid, full, username in s.execute(
+                select(AppUser.id, AppUser.full_name, AppUser.username).where(AppUser.id.in_(users))
+            ).tuples()
+        }
+        if users
+        else {},
+        customers=dict(
+            s.execute(
+                select(DetailAccount.id, DetailAccount.name).where(DetailAccount.id.in_(custs))
+            )
+            .tuples()
+            .all()
+        )
+        if custs
+        else {},
+    )
+
+
+def _summary(
+    s: Session, inv: SalesInvoice, line_count: int | None = None, names: _Names | None = None
+) -> InvoiceSummaryOut:
+    n = names or _names(s, [inv])
     return InvoiceSummaryOut(
         id=inv.id,
         kind=inv.kind,  # type: ignore[arg-type]
         status=inv.status,  # type: ignore[arg-type]
         number=inv.number,
         document_date=inv.document_date,
-        register_name=reg.name if reg else "",
-        cashier_name=(user.full_name or user.username) if user else "",
-        customer_name=customer.name if customer else None,
+        register_name=n.registers.get(inv.cash_register_id, ""),
+        cashier_name=n.users.get(inv.created_by, "") if inv.created_by else "",
+        customer_name=n.customers.get(inv.customer_id) if inv.customer_id else None,
         grand_total=inv.grand_total,
-        line_count=len(inv.lines),
+        line_count=len(inv.lines) if line_count is None else line_count,
         note=inv.note,
         created_at=inv.created_at,
     )
@@ -871,15 +911,25 @@ def list_invoices(s: Session, actor: Actor, q: InvoiceQuery) -> Page[InvoiceSumm
     if not (actor.has("sales.report.view") or actor.has("sales.return.create")):
         stmt = stmt.where(SalesInvoice.created_by == actor.user_id)
     total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    # Count lines in the same query: loading every invoice's lines made a page of 30 cost
+    # 30 extra round trips (found by the phase 10 volume test).
+    n_lines = (
+        select(func.count())
+        .where(SalesInvoiceLine.invoice_id == SalesInvoice.id)
+        .correlate(SalesInvoice)
+        .scalar_subquery()
+    )
     rows = list(
-        s.scalars(
-            stmt.order_by(SalesInvoice.created_at.desc())
+        s.execute(
+            stmt.add_columns(n_lines)
+            .order_by(SalesInvoice.created_at.desc())
             .offset((q.page - 1) * q.page_size)
             .limit(q.page_size)
-        )
+        ).tuples()
     )
+    names = _names(s, [inv for inv, _ in rows])
     return Page(
-        items=[_summary(s, inv) for inv in rows],
+        items=[_summary(s, inv, n, names) for inv, n in rows],
         total=int(total),
         page=q.page,
         page_size=q.page_size,

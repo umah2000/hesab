@@ -23,6 +23,22 @@ from app.modules.organization.models import Branch
 from app.modules.organization.services import ensure_organization
 
 
+def seed_all() -> bool:
+    """Permissions, chart, posting rules, fiscal year, units, warehouses (idempotent)."""
+    with unit_of_work() as s:
+        sync_catalog(s)
+        seeded = seed_defaults(s)
+        ensure_year(s, current_jalali_year())
+        seed_catalog(s)
+        ensure_default_warehouses(s)
+        ensure_counters(
+            s,
+            list(s.scalars(select(FiscalYear.id).where(FiscalYear.status == "open"))),
+            list(s.scalars(select(Branch.id))),
+        )
+    return seeded
+
+
 def register_cli(app: Flask) -> None:
     @app.cli.command("sync-permissions")
     def sync_permissions() -> None:
@@ -31,30 +47,16 @@ def register_cli(app: Flask) -> None:
             sync_catalog(s)
         click.echo("permissions synced")
 
-    def _seed_all() -> bool:
-        with unit_of_work() as s:
-            sync_catalog(s)
-            seeded = seed_defaults(s)
-            ensure_year(s, current_jalali_year())
-            seed_catalog(s)
-            ensure_default_warehouses(s)
-            ensure_counters(
-                s,
-                list(s.scalars(select(FiscalYear.id).where(FiscalYear.status == "open"))),
-                list(s.scalars(select(Branch.id))),
-            )
-        return seeded
-
     @app.cli.command("seed-defaults")
     def seed_defaults_cmd() -> None:
         """Chart, posting rules, fiscal year, units, price list, warehouses (idempotent)."""
-        _seed_all()
+        seed_all()
         click.echo("defaults ensured")
 
     @app.cli.command("seed-accounting")
     def seed_accounting() -> None:
         """Alias of seed-defaults (kept for phase 2 instructions)."""
-        _seed_all()
+        seed_all()
         click.echo("defaults ensured")
 
     @app.cli.command("setup")
@@ -132,6 +134,45 @@ def register_cli(app: Flask) -> None:
                 f"encrypted copy ok: {result.copy.path} ({result.copy.size_bytes} bytes, "
                 f"sha256 {result.copy.sha256[:16]}…, decrypted and compared)"
             )
+
+    @app.cli.command("upgrade")
+    @click.option("--skip-backup", is_flag=True, help="فقط وقتی پشتیبان تازه جداگانه گرفته شده")
+    @click.option("--force", is_flag=True, help="حتی اگر نشست یا صندوق فعال دیده شود")
+    def upgrade_cmd(skip_backup: bool, force: bool) -> None:
+        """Safe upgrade: activity check, backup, migrations in one transaction, checks."""
+        from app.modules.system import upgrade
+
+        try:
+            report = upgrade.run(app, skip_backup=skip_backup, force=force, echo=click.echo)
+        except upgrade.UpgradeError as e:
+            click.echo(f"upgrade stopped: {e}", err=True)
+            raise SystemExit(1) from e
+        for c in report.checks:
+            click.echo(f"  [{'ok' if c.ok else 'FAIL'}] {c.name}: {c.detail}")
+        if not report.ok:
+            click.echo("upgrade finished but integrity checks FAILED; see above", err=True)
+            raise SystemExit(2)
+        click.echo(f"upgrade ok: {report.from_revision} → {report.to_revision}")
+
+    @app.cli.command("check-integrity")
+    def check_integrity_cmd() -> None:
+        """Schema at head, one organization, balanced vouchers, stock = ledger."""
+        from app.modules.system import upgrade
+
+        checks = upgrade.integrity_checks(app.extensions["db_engine"])
+        for c in checks:
+            click.echo(f"[{'ok' if c.ok else 'FAIL'}] {c.name}: {c.detail}")
+        if not all(c.ok for c in checks):
+            raise SystemExit(2)
+
+    @app.cli.command("version")
+    def version_cmd() -> None:
+        """Release version and database revision."""
+        from app.modules.system import upgrade
+        from app.version import RELEASED, VERSION
+
+        current, head = upgrade.revisions(app.extensions["db_engine"])
+        click.echo(f"NEXTCAM {VERSION} ({RELEASED.isoformat()}); database {current}, head {head}")
 
     @app.cli.command("backup-keygen")
     def backup_keygen() -> None:

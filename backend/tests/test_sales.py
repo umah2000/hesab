@@ -966,3 +966,23 @@ def test_business_day_books_and_stock_agree(app: Flask, pos: Pos) -> None:
     assert acc["5101"] + acc["3201"] + acc.get("5103", Decimal(0)) + acc["5102"] == -(
         sales_total - Decimal(1475000)
     )
+
+
+def test_stock_screens_show_sales_documents(app: Flask, pos: Pos) -> None:
+    """Found by the phase 10 volume test: kardex and the stock document list failed once
+    a sale had created its stock document (output schema allowed manual types only)."""
+    c = login(app, "cashier")
+    open_shift(c, pos.r1)
+    sale = sell(
+        c, pos.r1, [{"item_id": pos.milk, "qty": "2"}], [{"method": "cash", "amount": "220000"}]
+    )
+    assert sale.status_code == 201, sale.get_json()
+    make_user(app, "stockview", ["MGR", "WHK"])
+    m = login(app, "stockview")
+    k = m.get(f"/api/v1/inventory/kardex?item_id={pos.milk}&warehouse_id={pos.wh}")
+    assert k.status_code == 200, k.get_json()
+    assert "sale" in {r["doc_type"] for r in k.get_json()["items"]}
+    docs = m.get("/api/v1/inventory/stock-documents?page_size=50")
+    assert docs.status_code == 200, docs.get_json()
+    sale_doc = next(d for d in docs.get_json()["items"] if d["doc_type"] == "sale")
+    assert m.get(f"/api/v1/inventory/stock-documents/{sale_doc['id']}").status_code == 200

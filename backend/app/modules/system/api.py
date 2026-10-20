@@ -19,6 +19,7 @@ from app.modules.iam.guard import current_actor, require, require_any
 from app.modules.system import backup, license
 
 bp = Blueprint("system", __name__)
+VERSION_VIEW = ("settings.manage", "audit.view", "reports.dashboard")
 
 
 @bp.get("/health")
@@ -35,6 +36,25 @@ def ready() -> ResponseReturnValue:
         current_app.logger.warning("database not reachable")
         return jsonify({"status": "unavailable", "database": "down"}), 503
     return jsonify({"status": "ok", "database": "up"})
+
+
+@bp.get("/version")
+@require_any(*VERSION_VIEW)
+@doc("نسخه‌ی برنامه و دیتابیس")
+def version() -> ResponseReturnValue:
+    from app.modules.system.upgrade import revisions
+    from app.version import RELEASED, VERSION
+
+    current, head = revisions(_engine())
+    return jsonify(
+        {
+            "version": VERSION,
+            "released": RELEASED.isoformat(),
+            "schema": current,
+            "schema_head": head,
+            "schema_ok": current == head,
+        }
+    )
 
 
 # --- backups ----------------------------------------------------------------

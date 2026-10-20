@@ -24,7 +24,18 @@ Cost = Annotated[
         lambda d: format(d.quantize(COST_PLACES), "f"), return_type=str, when_used="json"
     ),
 ]
+# Documents a user writes by hand; sales and purchasing create the others themselves.
 DocType = Literal["opening", "adjustment", "transfer", "count"]
+AnyDocType = Literal[
+    "opening",
+    "adjustment",
+    "transfer",
+    "count",
+    "sale",
+    "sale_return",
+    "purchase",
+    "purchase_return",
+]
 
 
 class _In(BaseModel):
@@ -230,7 +241,7 @@ class StockDocOut(BaseModel):
     branch_id: uuid.UUID
     warehouse_id: uuid.UUID
     dest_warehouse_id: uuid.UUID | None
-    doc_type: DocType
+    doc_type: AnyDocType
     number: int | None
     document_date: date
     status: Literal["draft", "final"]
@@ -246,7 +257,7 @@ class StockDocOut(BaseModel):
 
 class StockDocSummary(BaseModel):
     id: uuid.UUID
-    doc_type: DocType
+    doc_type: AnyDocType
     number: int | None
     document_date: date
     status: Literal["draft", "final"]
@@ -271,7 +282,7 @@ class BalanceRow(BaseModel):
 
 class KardexRow(BaseModel):
     document_id: uuid.UUID
-    doc_type: DocType
+    doc_type: AnyDocType
     number: int | None
     document_date: date
     qty_in: Qty

@@ -18,6 +18,7 @@ import os
 import secrets
 import statistics
 import time
+import uuid
 from datetime import date, timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -70,6 +71,10 @@ def main() -> None:
         if admin is None:
             raise SystemExit("no vol_admin: run scripts/volume_data.py first")
         admin.password_hash = hash_password(password)
+        cashier = s.scalar(select(AppUser).where(AppUser.username == "vol_r1"))
+        if cashier is not None:
+            cashier.password_hash = hash_password(password)
+            cashier.failed_attempts, cashier.locked_until = 0, None
         counts = {}
         for t in TABLES:
             counts[t] = s.scalar(text(f"SELECT COUNT_BIG(*) FROM {t}"))  # noqa: S608 - fixed names
@@ -96,6 +101,13 @@ def main() -> None:
     csrf = c.get_cookie("nextcam_csrf")
     assert csrf is not None
     hdr = {"X-CSRF-Token": csrf.value}
+    # Register screens are measured as the register's own user, like on the register.
+    pos = app.test_client()
+    r = pos.post("/api/v1/auth/login", json={"username": "vol_r1", "password": password})
+    assert r.status_code == 200, r.get_json()
+    pos_csrf = pos.get_cookie("nextcam_csrf")
+    assert pos_csrf is not None
+    pos_hdr = {"X-CSRF-Token": pos_csrf.value}
 
     end = date.fromisoformat(w["start"]) + timedelta(days=10_000)
     with app.app_context():
@@ -141,7 +153,7 @@ def main() -> None:
             f"/inventory/kardex?item_id={some_item}&warehouse_id={w['warehouse']}",
         ),
         ("فاکتورها: صفحه اول", "/sales/invoices"),
-        ("فاکتورها: جست‌وجوی شماره", "/sales/invoices?q=50000"),
+        ("فاکتورها: جست‌وجوی شماره", "/sales/invoices?number=50"),
         ("داشبورد: امروز", "/reports/dashboard"),
         ("داشبورد: ۳۰ روز", f"/reports/dashboard?date_from={month}&date_to={e}"),
         ("داشبورد: کل دوره", f"/reports/dashboard?date_from={whole}&date_to={e}"),
@@ -191,16 +203,17 @@ def main() -> None:
                 with app.app_context():
                     s = new_session()
                     try:
-                        out = snap.snapshot(s, SimpleNamespace(cash_register_id=reg, id=None))  # type: ignore[arg-type]
+                        out = snap.snapshot(s, SimpleNamespace(cash_register_id=reg, id=uuid.uuid4()))  # type: ignore[arg-type]
                         size = len(out.model_dump_json())
                     finally:
                         s.close()
             elif isinstance(req, tuple):
-                r = c.open("/api/v1" + req[1], method=req[0], json=req[2], headers=hdr)
+                cl, h = (pos, pos_hdr) if label.startswith("صندوق") else (c, hdr)
+                r = cl.open("/api/v1" + req[1], method=req[0], json=req[2], headers=h)
                 assert r.status_code < 300, (label, r.get_json())
                 size = len(r.data)
             else:
-                r = c.get("/api/v1" + req)
+                r = (pos if label.startswith("صندوق") else c).get("/api/v1" + req)
                 assert r.status_code < 300, (label, r.status_code, r.get_data(as_text=True)[:300])
                 size = len(r.data)
             times.append((time.perf_counter() - t) * 1000)
