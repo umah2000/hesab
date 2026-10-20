@@ -47,6 +47,13 @@ export function LicenseCard() {
   const qc = useQueryClient();
   const status = useLicense(can(["settings.manage", "reports.dashboard", "audit.view"]));
   const [text, setText] = React.useState("");
+  const version = useQuery({
+    queryKey: ["system", "version"],
+    queryFn: () =>
+      api.get<{ version: string; released: string; schema: string | null; schema_ok: boolean }>("/system/version"),
+    enabled: can(["settings.manage", "reports.dashboard", "audit.view"]),
+    staleTime: 600_000,
+  });
   const install = useMutation({
     mutationFn: () => api.post<LicenseStatus>("/system/license", { text }),
     onSuccess: (d) => {
@@ -124,6 +131,17 @@ export function LicenseCard() {
                 </Badge>
               ))}
             </div>
+            {version.data ? (
+              <p className="text-xs text-ink-soft">
+                نسخه‌ی برنامه: <b dir="ltr">{version.data.version}</b> ({formatDate(version.data.released)}) · ساختار دیتابیس:{" "}
+                <span dir="ltr">{version.data.schema ?? "—"}</span>{" "}
+                {version.data.schema_ok ? (
+                  <Badge tone="success">به‌روز</Badge>
+                ) : (
+                  <Badge tone="danger">ناهماهنگ؛ flask upgrade لازم است</Badge>
+                )}
+              </p>
+            ) : null}
             {can("settings.manage") ? (
               <div className="flex flex-col gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-3">
                 <p className="font-medium text-ink">فعال‌سازی یا تمدید</p>

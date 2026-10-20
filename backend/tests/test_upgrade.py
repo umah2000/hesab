@@ -136,3 +136,19 @@ def test_integrity_check_finds_stock_drift(app: Flask, inv: Inv, keeper: Api) ->
     assert not bad["stock = ledger"].ok and bad["stock = ledger"].detail.startswith("1 ")
     out = app.test_cli_runner().invoke(args=["check-integrity"])
     assert out.exit_code == 2 and "[FAIL] stock = ledger" in out.output
+
+
+def test_first_install_on_an_empty_database(db_url: str, migrated_db: str | None) -> None:
+    from app import create_app
+    from tests.conftest import _settings, _wipe
+
+    _wipe(db_url)
+    app = create_app(_settings(db_url))
+    engine = app.extensions["db_engine"]
+    command.downgrade(upgrade.alembic_config(engine), "base")
+    assert upgrade.revisions(engine)[0] is None
+    report = upgrade.run(app, skip_backup=True, echo=lambda _: None)
+    assert report.migrated and report.to_revision == upgrade.revisions(engine)[1]
+    assert report.ok, report.checks
+    org = next(c for c in report.checks if c.name == "organization")
+    assert "flask setup" in org.detail

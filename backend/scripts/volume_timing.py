@@ -203,7 +203,9 @@ def main() -> None:
                 with app.app_context():
                     s = new_session()
                     try:
-                        out = snap.snapshot(s, SimpleNamespace(cash_register_id=reg, id=uuid.uuid4()))  # type: ignore[arg-type]
+                        out = snap.snapshot(
+                            s, SimpleNamespace(cash_register_id=reg, id=uuid.uuid4())
+                        )  # type: ignore[arg-type]
                         size = len(out.model_dump_json())
                     finally:
                         s.close()

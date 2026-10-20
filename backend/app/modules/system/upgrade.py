@@ -99,12 +99,15 @@ def recent_activity(s: Session, minutes: int = ACTIVE_MINUTES) -> dict[str, int]
     }
 
 
-def integrity_checks(engine: Engine) -> list[Check]:
+def integrity_checks(engine: Engine, *, fresh: bool = False) -> list[Check]:
     current, head = revisions(engine)
     checks = [Check("schema", current == head, f"{current} (head {head})")]
     with Session(engine) as s:
         orgs = int(s.scalar(text("SELECT COUNT(*) FROM organization")) or 0)
-        checks.append(Check("organization", orgs == 1, f"{orgs} row(s)"))
+        if fresh and orgs == 0:
+            checks.append(Check("organization", True, "not set up yet: run flask setup"))
+        else:
+            checks.append(Check("organization", orgs == 1, f"{orgs} row(s)"))
         unbalanced = int(
             s.scalar(
                 text(
@@ -213,7 +216,7 @@ def run(
     with app.app_context():
         seed_all()
     report.to_revision = revisions(engine)[0]
-    report.checks = integrity_checks(engine)
+    report.checks = integrity_checks(engine, fresh=current is None)
     with Session(engine) as s, s.begin():
         has_org = s.scalar(text("SELECT COUNT(*) FROM organization"))
         if has_org:
