@@ -17,6 +17,7 @@ The integrity checks also run on their own: ``flask check-integrity``.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -76,6 +77,7 @@ def alembic_config(engine: Engine) -> Config:
 
 def revisions(engine: Engine) -> tuple[str | None, str | None]:
     """(current revision of the database, head of this release)."""
+    logging.getLogger("alembic").setLevel(logging.WARNING)
     head = ScriptDirectory.from_config(alembic_config(engine)).get_current_head()
     with engine.connect() as conn:
         current = MigrationContext.configure(conn).get_current_revision()
