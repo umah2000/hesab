@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from PIL import Image, ImageChops
 
-from nextcam_agent import escpos, transports
+from nextcam_agent import escpos, render, transports
 from nextcam_agent.client import Unauthorized
 from nextcam_agent.config import AgentConfig
 from nextcam_agent.localapi import make_server
@@ -82,6 +82,32 @@ def test_job_bytes_drawer_cut_order() -> None:
 # --- rendering ---------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True, params=["raqm", "fallback"])
+def shaping(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Every test runs with Pillow's RAQM layout and with the fallback the Windows
+    registers use (their Pillow wheel has no FriBiDi): both paths on every platform."""
+    if request.param == "raqm" and not render.RAQM:
+        pytest.skip("Pillow without RAQM on this platform")
+    monkeypatch.setattr(render, "RAQM", request.param == "raqm")
+    return str(request.param)
+
+
+def test_fallback_lays_out_like_raqm() -> None:
+    """The shaped fallback gives the same receipt geometry as HarfBuzz shaping."""
+    if not render.RAQM:
+        pytest.skip("needs RAQM to compare against")
+    with_raqm = receipt_image(PAYLOAD, 80)
+    render.RAQM = False
+    try:
+        fallback = receipt_image(PAYLOAD, 80)
+    finally:
+        render.RAQM = True
+    assert fallback.size == with_raqm.size
+    a = ImageChops.invert(with_raqm.convert("L")).getbbox()
+    b = ImageChops.invert(fallback.convert("L")).getbbox()
+    assert a and b and all(abs(x - y) <= 4 for x, y in zip(a, b, strict=True))
+
+
 @pytest.mark.parametrize("width,dots", [(80, 576), (58, 384)])
 def test_receipt_image_width_and_rtl(width: int, dots: int) -> None:
     img = receipt_image(PAYLOAD, width)
@@ -90,6 +116,13 @@ def test_receipt_image_width_and_rtl(width: int, dots: int) -> None:
     assert ink is not None
     # Right-to-left: labels start at the right margin, amounts sit at the left margin.
     assert ink[2] >= dots - 12 and ink[0] <= 12
+
+
+def test_fallback_keeps_digit_only_lines_right_to_left() -> None:
+    # A date-and-time line has no Persian letter to set the direction: still RTL, so the
+    # date (first in the text) stays on the right as with RAQM.
+    assert render._visual("۱۴۰۵/۰۷/۲۳  ۱۰:۱۵") == "۱۰:۱۵  ۱۴۰۵/۰۷/۲۳"
+    assert render._visual("جمع") != "جمع"  # shaped into presentation forms
 
 
 def test_long_names_wrap_instead_of_overflowing() -> None:
@@ -115,7 +148,8 @@ def test_tcp_transport_delivers_exact_bytes() -> None:
             while chunk := conn.recv(65536):
                 got.extend(chunk)
 
-    t = threading.Thread(target=accept)
+    srv.settimeout(10)  # never block the run if sending fails before connecting
+    t = threading.Thread(target=accept, daemon=True)
     t.start()
     data = escpos.receipt_bytes(receipt_image(PAYLOAD, 80), cut_paper=True, drawer_pin=2)
     transports.TcpTransport(f"127.0.0.1:{port}").send(data)

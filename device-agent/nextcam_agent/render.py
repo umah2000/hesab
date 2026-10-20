@@ -1,8 +1,11 @@
 """Lay a receipt payload out as a monochrome image (right-to-left, Persian shaping).
 
 The payload is built and formatted by the server (``app.modules.devices.services.receipt``);
-this module only places text. Pillow's RAQM layout (HarfBuzz + FriBiDi, bundled in the
-Pillow wheels) shapes Persian letters and orders mixed RTL/LTR runs.
+this module only places text. Pillow's RAQM layout (HarfBuzz + FriBiDi) shapes Persian
+letters and orders mixed RTL/LTR runs where it is available (the Linux and macOS wheels).
+The Windows wheels have no FriBiDi, so RAQM is missing exactly on the registers: there the
+text is shaped (arabic-reshaper) and put in display order (python-bidi) before Pillow's
+basic layout draws it. Both paths are tested on every platform (tests force the fallback).
 """
 
 from __future__ import annotations
@@ -10,19 +13,31 @@ from __future__ import annotations
 from importlib import resources
 from typing import Any
 
-from PIL import Image, ImageDraw, ImageFont
+import arabic_reshaper
+from bidi import get_display
+from PIL import Image, ImageDraw, ImageFont, features
 
 from nextcam_agent.escpos import PAPER_DOTS
 
 MARGIN = 8
 GAP = 6
+# Read at call time so tests can force the fallback path.
+RAQM = features.check("raqm")
+
+
+def _visual(text: str) -> str:
+    """Shaped presentation forms in left-to-right display order (no RAQM)."""
+    # base_dir R: a line of only digits (date and time) must still read right to left.
+    shaped: str = get_display(arabic_reshaper.reshape(text), base_dir="R")
+    return shaped
 
 
 def _font(bold: bool, size: int) -> ImageFont.FreeTypeFont:
     name = "Vazirmatn-Bold.ttf" if bold else "Vazirmatn-Regular.ttf"
     path = resources.files("nextcam_agent") / "fonts" / name
     with resources.as_file(path) as p:
-        return ImageFont.truetype(str(p), size, layout_engine=ImageFont.Layout.RAQM)
+        engine = ImageFont.Layout.RAQM if RAQM else ImageFont.Layout.BASIC
+        return ImageFont.truetype(str(p), size, layout_engine=engine)
 
 
 class Canvas:
@@ -40,10 +55,19 @@ class Canvas:
         self.y = MARGIN
 
     def _size(self, text: str, font: ImageFont.FreeTypeFont) -> tuple[float, int]:
-        box = self.d.textbbox((0, 0), text, font=font, direction="rtl", language="fa")
-        return self.d.textlength(text, font=font, direction="rtl", language="fa"), int(
-            box[3] - min(box[1], 0)
-        )
+        if RAQM:
+            box = self.d.textbbox((0, 0), text, font=font, direction="rtl", language="fa")
+            width = self.d.textlength(text, font=font, direction="rtl", language="fa")
+        else:
+            box = self.d.textbbox((0, 0), _visual(text), font=font)
+            width = self.d.textlength(_visual(text), font=font)
+        return width, int(box[3] - min(box[1], 0))
+
+    def _draw(self, xy: tuple[float, float], text: str, font: ImageFont.FreeTypeFont) -> None:
+        if RAQM:
+            self.d.text(xy, text, font=font, fill=0, direction="rtl", language="fa")
+        else:
+            self.d.text(xy, _visual(text), font=font, fill=0)
 
     def _wrap(self, text: str, font: ImageFont.FreeTypeFont, width: float) -> list[str]:
         words, lines, cur = text.split(), [], ""
@@ -60,7 +84,7 @@ class Canvas:
         for line in self._wrap(text, font, self.w - 2 * MARGIN):
             tw, th = self._size(line, font)
             x = {"right": self.w - MARGIN - tw, "center": (self.w - tw) / 2}.get(align, MARGIN)
-            self.d.text((x, self.y), line, font=font, fill=0, direction="rtl", language="fa")
+            self._draw((x, self.y), line, font)
             self.y += th + GAP
 
     def pair(self, right: str, left: str, font: ImageFont.FreeTypeFont) -> None:
@@ -70,16 +94,9 @@ class Canvas:
         y0 = self.y
         for line in rights:
             tw, th = self._size(line, font)
-            self.d.text(
-                (self.w - MARGIN - tw, self.y),
-                line,
-                font=font,
-                fill=0,
-                direction="rtl",
-                language="fa",
-            )
+            self._draw((self.w - MARGIN - tw, self.y), line, font)
             self.y += th + GAP
-        self.d.text((MARGIN, y0), left, font=font, fill=0, direction="rtl", language="fa")
+        self._draw((MARGIN, y0), left, font)
         self.y = max(self.y, y0 + lh + GAP)
 
     def rule(self) -> None:
