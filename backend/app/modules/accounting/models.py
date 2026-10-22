@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Unicode,
     UniqueConstraint,
+    false,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -72,14 +73,20 @@ class DetailAccount(EntityMixin, ActorMixin, VersionedMixin, Base):
         CheckConstraint(
             "kind IN ('person','bank','cash','cost_center','project','other')", name="kind"
         ),
+        CheckConstraint(
+            "credit_unlimited = 0 OR (credit_limit IS NULL AND kind = 'person')",
+            name="credit_unlimited",
+        ),
     )
 
     code: Mapped[str] = mapped_column(String(16), unique=True)
     name: Mapped[str] = mapped_column(Unicode(150))
     kind: Mapped[str] = mapped_column(String(12))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Customers only: NULL = no credit sales allowed (phase 4).
+    # Customers only. Credit sales: none (limit NULL), up to credit_limit, or with no
+    # limit at all when credit_unlimited (an explicit owner decision, never a default).
     credit_limit: Mapped[Decimal | None] = mapped_column(Numeric(19, 4))
+    credit_unlimited: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class FiscalYear(EntityMixin, ActorMixin, VersionedMixin, Base):

@@ -237,7 +237,7 @@ export function PaymentDialog({
               </div>
               <ul className="surface max-h-56 overflow-y-auto rounded-xl">
                 {customers.data?.map((c) => {
-                  const enough = c.available !== null && compareRials(c.available, due) >= 0;
+                  const enough = c.credit_unlimited || (c.available !== null && compareRials(c.available, due) >= 0);
                   return (
                     <li key={c.id}>
                       <button
@@ -249,7 +249,9 @@ export function PaymentDialog({
                         )}
                       >
                         <span className="flex-1 font-medium">{c.name}</span>
-                        {c.credit_limit === null ? (
+                        {c.credit_unlimited ? (
+                          <Badge tone="success">اعتبار نامحدود</Badge>
+                        ) : c.credit_limit === null ? (
                           <Badge tone="neutral">بدون اعتبار</Badge>
                         ) : (
                           <span className={cn("tabular text-xs", enough ? "text-success" : "text-danger")}>

@@ -26,7 +26,7 @@ import { useCurrency } from "@/features/accounting/api";
 import { JalaliDateInput, MoneyInput } from "@/features/accounting/inputs";
 import { useCan } from "@/features/auth/auth";
 import { ApiError, api, newIdempotencyKey, type Page, upload } from "@/lib/api";
-import { type DisplayCurrency, formatDateTime, formatMoney, toFaDigits } from "@/lib/format";
+import { type DisplayCurrency, formatCredit, formatDateTime, formatMoney, toFaDigits } from "@/lib/format";
 import { isoToJalaliFa, todayIso } from "@/lib/jalali";
 import { inputToRials, rialsToInput } from "@/lib/money";
 import { cn } from "@/lib/utils";
@@ -194,7 +194,7 @@ export function PartiesListPage() {
                     <Td><RoleBadges p={p} /></Td>
                     <Td className="text-ink-soft">{p.group_name ?? "—"}</Td>
                     <Td className="tabular" dir="ltr">{p.mobile ? toFaDigits(p.mobile) : "—"}</Td>
-                    <Td className="tabular">{p.credit_limit ? formatMoney(p.credit_limit, currency) : "—"}</Td>
+                    <Td className="tabular">{p.is_customer ? formatCredit(p, currency) : "—"}</Td>
                     <Td><BalanceText rials={p.balance} currency={currency} className="font-semibold" /></Td>
                   </Tr>
                 ))}
@@ -237,8 +237,11 @@ type FormState = {
   city: string;
   address: string;
   payment_terms_days: string;
+  credit_mode: CreditMode;
   credit_limit: string;
 };
+
+type CreditMode = "none" | "limit" | "unlimited";
 
 function initialForm(p: Party | undefined, currency: DisplayCurrency): FormState {
   return {
@@ -259,6 +262,7 @@ function initialForm(p: Party | undefined, currency: DisplayCurrency): FormState
     city: p?.city ?? "",
     address: p?.address ?? "",
     payment_terms_days: p?.payment_terms_days != null ? String(p.payment_terms_days) : "",
+    credit_mode: p?.credit_unlimited ? "unlimited" : p?.credit_limit ? "limit" : "none",
     credit_limit: p?.credit_limit ? rialsToInput(p.credit_limit, currency) : "",
   };
 }
@@ -280,7 +284,7 @@ function PartyDialog({ party, onClose, onSaved }: { party?: Party; onClose: () =
     mutationFn: () => {
       const opt = (v: string) => (v.trim() === "" ? null : v.trim());
       let credit: string | null = null;
-      if (f.is_customer && f.credit_limit.trim() !== "") {
+      if (f.is_customer && f.credit_mode === "limit") {
         credit = inputToRials(f.credit_limit, currency);
         if (credit === null) throw new Error("سقف اعتبار نامعتبر است");
       }
@@ -301,6 +305,7 @@ function PartyDialog({ party, onClose, onSaved }: { party?: Party; onClose: () =
         address: opt(f.address),
         payment_terms_days: f.is_supplier && f.payment_terms_days.trim() ? Number(f.payment_terms_days) : null,
         credit_limit: credit,
+        credit_unlimited: f.is_customer && f.credit_mode === "unlimited",
       };
       if (party) return api.put<Party>(`/parties/${party.id}`, { ...body, is_active: f.is_active }, party.row_version);
       return api.post<Party>("/parties", { ...body, code: f.code.trim() }, { idempotencyKey: keyRef.current });
@@ -410,7 +415,16 @@ function PartyDialog({ party, onClose, onSaved }: { party?: Party; onClose: () =
             </Field>
           ) : null}
           {f.is_customer ? (
-            <Field label={`سقف اعتبار (${currency === "IRT" ? "تومان" : "ریال"})`} hint="خالی یعنی فروش اعتباری مجاز نیست">
+            <Field label="فروش نسیه" hint={f.credit_mode === "unlimited" ? "بدون سقف؛ مانده‌ی بدهی هر قدر شود فروش نسیه رد نمی‌شود" : undefined}>
+              <Select value={f.credit_mode} onChange={(e) => set("credit_mode", e.target.value as CreditMode)}>
+                <option value="none">ندارد</option>
+                <option value="limit">با سقف اعتبار</option>
+                <option value="unlimited">نامحدود (بدون سقف)</option>
+              </Select>
+            </Field>
+          ) : null}
+          {f.is_customer && f.credit_mode === "limit" ? (
+            <Field label={`سقف اعتبار (${currency === "IRT" ? "تومان" : "ریال"})`}>
               <MoneyInput value={f.credit_limit} onChange={(v) => set("credit_limit", v)} />
             </Field>
           ) : null}
@@ -453,7 +467,7 @@ export function PartyDetailPage() {
     ["نشانی", p.address],
     ["گروه", p.group_name],
     ["مهلت پرداخت", p.payment_terms_days != null ? `${toFaDigits(p.payment_terms_days)} روز` : null],
-    ["سقف اعتبار", p.is_customer ? (p.credit_limit ? formatMoney(p.credit_limit, currency) : "فروش اعتباری ندارد") : null],
+    ["سقف اعتبار", p.is_customer ? formatCredit(p, currency, "فروش اعتباری ندارد") : null],
   ];
 
   return (

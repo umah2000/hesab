@@ -493,6 +493,24 @@ def test_payment_rules_card_reference_and_credit_limit(app: Flask, pos: Pos) -> 
     no_customer = sell(sup, pos.r2, line, [{"method": "credit", "amount": "110000"}])
     assert no_customer.get_json()["error"]["code"] == "customer_required"
 
+    # Unlimited credit: no limit to exceed; a customer with neither still gets none.
+    with app.app_context(), unit_of_work() as s:
+        c1 = s.scalar(select(DetailAccount).where(DetailAccount.code == "C1"))
+        assert c1 is not None
+        c1.credit_limit, c1.credit_unlimited = None, True
+        s.add(DetailAccount(code="C0", name="بدون نسیه", kind="person", is_active=True))
+        s.flush()
+        none_id = str(s.scalar(select(DetailAccount.id).where(DetailAccount.code == "C0")))
+    big = [{"item_id": pos.milk, "qty": "5"}]
+    free = sell(sup, pos.r2, big, [{"method": "credit", "amount": "550000"}], customer_id=customer)
+    assert free.status_code == 201, free.get_json()
+    listed = {c["code"]: c for c in sup.get("/api/v1/sales/customers?q=C").get_json()}
+    assert listed["C1"]["credit_unlimited"] is True and listed["C1"]["available"] is None
+    refused = sell(
+        sup, pos.r2, line, [{"method": "credit", "amount": "110000"}], customer_id=none_id
+    )
+    assert refused.get_json()["error"]["code"] == "no_credit"
+
 
 def test_checkout_is_idempotent_and_final_invoice_is_immutable(app: Flask, pos: Pos) -> None:
     c = login(app, "cashier")

@@ -60,6 +60,7 @@ class DetailAccountOut(BaseModel):
     kind: DetailKind
     is_active: bool
     credit_limit: Money | None = None
+    credit_unlimited: bool = False
     row_version: str
 
 
@@ -67,8 +68,9 @@ class DetailAccountCreateIn(_In):
     code: str = Field(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9-]+$")
     name: str = Field(min_length=2, max_length=150)
     kind: DetailKind
-    # Customers only; empty = no credit sales.
+    # Customers only; empty = no credit sales, unless credit_unlimited.
     credit_limit: Money | None = None
+    credit_unlimited: bool = False
 
 
 class DetailAccountUpdateIn(_In):
@@ -76,6 +78,7 @@ class DetailAccountUpdateIn(_In):
     is_active: bool | None = None
     # Sending null explicitly removes the limit (no credit sales).
     credit_limit: Money | None = None
+    credit_unlimited: bool | None = None
 
 
 # --- fiscal -----------------------------------------------------------------

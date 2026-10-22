@@ -366,6 +366,7 @@ class CustomerOut(BaseModel):
     code: str
     name: str
     credit_limit: Money | None
+    credit_unlimited: bool = False
     balance: Money
     available: Money | None
 

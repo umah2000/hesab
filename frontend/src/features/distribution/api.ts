@@ -45,6 +45,7 @@ export type AssignedCustomer = {
   address: string | null;
   visit_weekday: number | null;
   credit_limit: string | null;
+  credit_unlimited: boolean;
   balance: string;
   available: string | null;
 };

@@ -556,7 +556,9 @@ export function VisitorPage() {
                         </Select>
                       </Td>
                       <Td className="tabular">{info ? formatMoney(info.balance, currency) : "—"}</Td>
-                      <Td className="tabular">{info?.available ? formatMoney(info.available, currency) : info ? "نسیه تعریف نشده" : "—"}</Td>
+                      <Td className="tabular">
+                        {info?.credit_unlimited ? "نامحدود" : info?.available ? formatMoney(info.available, currency) : info ? "نسیه تعریف نشده" : "—"}
+                      </Td>
                       <Td>
                         <Button size="sm" variant="ghost" aria-label={`حذف ${r.name}`} onClick={() => update(current.filter((_, j) => j !== i))}>
                           <Trash2 />

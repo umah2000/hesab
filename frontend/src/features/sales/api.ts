@@ -163,7 +163,15 @@ export type InvoiceSummary = {
   created_at: string;
 };
 
-export type Customer = { id: string; code: string; name: string; credit_limit: string | null; balance: string; available: string | null };
+export type Customer = {
+  id: string;
+  code: string;
+  name: string;
+  credit_limit: string | null;
+  credit_unlimited: boolean;
+  balance: string;
+  available: string | null;
+};
 
 export type TerminalTx = {
   id: string;

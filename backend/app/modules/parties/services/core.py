@@ -105,6 +105,7 @@ def party_out(s: Session, actor: Actor, p: Party, d: DetailAccount) -> PartyOut:
         name=d.name,
         group_name=group.name if group else None,
         credit_limit=d.credit_limit,
+        credit_unlimited=d.credit_unlimited,
         balance=balances(s, [p.id]).get(p.id, ZERO),
         is_active=d.is_active,
         masked=masked,
@@ -119,6 +120,7 @@ def apply_fields(p: Party, d: DetailAccount, data: PartyFields) -> None:
         setattr(p, f, getattr(data, f))
     d.name = data.name
     d.credit_limit = data.credit_limit if data.is_customer else None
+    d.credit_unlimited = data.credit_unlimited and data.is_customer
 
 
 def _check_group(s: Session, group_id: uuid.UUID | None) -> None:
@@ -169,6 +171,7 @@ def update(
     _check_group(s, data.group_id)
     before = {
         "credit_limit": str(d.credit_limit) if d.credit_limit is not None else None,
+        "credit_unlimited": d.credit_unlimited,
         "is_active": d.is_active,
     }
     apply_fields(p, d, data)
@@ -190,6 +193,7 @@ def update(
         data={
             "before": before,
             "credit_limit": str(d.credit_limit) if d.credit_limit is not None else None,
+            "credit_unlimited": d.credit_unlimited,
         },
     )
     s.refresh(p)
@@ -255,6 +259,7 @@ def list_parties(s: Session, actor: Actor, q: PartyQuery) -> Page[PartySummary]:
                 group_name=groups.get(p.group_id) if p.group_id else None,
                 mobile=mask(p.mobile) if masked else p.mobile,
                 credit_limit=d.credit_limit,
+                credit_unlimited=d.credit_unlimited,
                 balance=bals.get(p.id, ZERO),
                 is_active=d.is_active,
             )

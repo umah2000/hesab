@@ -82,8 +82,10 @@ class AssignedCustomerOut(BaseModel):
     address: str | None
     visit_weekday: int | None
     credit_limit: Money | None
+    # Credit sales with no limit (available is then None too).
+    credit_unlimited: bool = False
     balance: Money
-    # Credit still available (None = no credit sales for this customer).
+    # Credit still available (None = no credit sales, or unlimited).
     available: Money | None
 
 
@@ -139,6 +141,7 @@ class QuoteOut(BaseModel):
     grand_total: Money
     warnings: list[str]
     credit_limit: Money | None
+    credit_unlimited: bool = False
     balance: Money
     available_after: Money | None
 

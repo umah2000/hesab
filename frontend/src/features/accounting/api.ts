@@ -31,6 +31,8 @@ export type DetailAccount = {
   is_active: boolean;
   /** Customers: credit-sale limit in rials; null = no credit sales. */
   credit_limit?: string | null;
+  /** Customers: credit sales with no limit. */
+  credit_unlimited?: boolean;
   row_version: string;
 };
 

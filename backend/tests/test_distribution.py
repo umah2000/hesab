@@ -318,3 +318,31 @@ def test_assign_all_customers_keeps_visit_days(app: Flask, field: dict[str, Any]
         login(app, "cashier").post(f"/api/v1/distribution/visitors/{vid}/customers/all").status_code
         == 403
     )
+
+
+def test_unlimited_credit_approves_any_amount(
+    app: Flask,
+    field: dict[str, Any],
+    pos: Pos,  # noqa: F811
+) -> None:
+    boss: Api = field["boss"]
+    phone = Phone(app.test_client())
+    assert phone.login("visitor1").status_code == 200
+    lines = [{"item_id": pos.milk, "qty": "20"}]  # 2.2M rials, over C1's 1M limit
+    o = phone.post("/distribution/mobile/orders", order(field["c1"], lines)).json
+    over = boss.post(
+        f"/api/v1/distribution/orders/{o['id']}/approve", {}, headers={"If-Match": o["row_version"]}
+    )
+    assert over.json["error"]["code"] == "credit_limit_exceeded"
+    with app.app_context(), unit_of_work() as s:
+        c1 = s.get(DetailAccount, uuid.UUID(field["c1"]))
+        assert c1 is not None
+        c1.credit_limit, c1.credit_unlimited = None, True
+    q = phone.post("/distribution/mobile/quote", {"customer_id": field["c1"], "lines": lines}).json
+    assert q["credit_unlimited"] is True and q["available_after"] is None
+    mine = phone.get("/distribution/mobile/bootstrap").json["customers"]
+    assert [c["credit_unlimited"] for c in mine] == [True]
+    ok = boss.post(
+        f"/api/v1/distribution/orders/{o['id']}/approve", {}, headers={"If-Match": o["row_version"]}
+    )
+    assert ok.status_code == 200, ok.get_json()

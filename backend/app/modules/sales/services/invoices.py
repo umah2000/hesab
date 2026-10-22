@@ -258,15 +258,17 @@ def list_customers(s: Session, q: str | None) -> list[CustomerOut]:
     if q:
         stmt = stmt.where(DetailAccount.name.contains(q) | DetailAccount.code.contains(q))
     rows = list(s.scalars(stmt.order_by(DetailAccount.name).limit(30)))
+    balances = receivable_balances(s, [c.id for c in rows])
     out = []
     for c in rows:
-        bal = receivable_balance(s, c.id)
+        bal = balances[c.id]
         out.append(
             CustomerOut(
                 id=c.id,
                 code=c.code,
                 name=c.name,
                 credit_limit=c.credit_limit,
+                credit_unlimited=c.credit_unlimited,
                 balance=bal,
                 available=c.credit_limit - bal if c.credit_limit is not None else None,
             )
@@ -311,6 +313,20 @@ class _Tender:
     credit: Decimal = ZERO
 
 
+def _check_customer_credit(s: Session, customer: DetailAccount, amount: Decimal) -> None:
+    if customer.credit_unlimited:
+        return
+    if customer.credit_limit is None:
+        raise DomainError(f"برای «{customer.name}» فروش نسیه تعریف نشده است", code="no_credit")
+    balance = receivable_balance(s, customer.id)
+    if balance + amount > customer.credit_limit:
+        raise DomainError(
+            f"سقف اعتبار «{customer.name}» کافی نیست "
+            f"(مانده فعلی {balance:f}، سقف {customer.credit_limit:f} ریال)",
+            code="credit_limit_exceeded",
+        )
+
+
 def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
     reg, wh = register_and_warehouse(s, data.cash_register_id, actor.branch_ids)
     shift = require_open_shift(s, actor, reg.id)
@@ -346,15 +362,7 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
     if tender.credit:
         if customer is None:
             raise DomainError("برای فروش نسیه مشتری را انتخاب کنید", code="customer_required")
-        if customer.credit_limit is None:
-            raise DomainError(f"برای «{customer.name}» فروش نسیه تعریف نشده است", code="no_credit")
-        balance = receivable_balance(s, customer.id)
-        if balance + tender.credit > customer.credit_limit:
-            raise DomainError(
-                f"سقف اعتبار «{customer.name}» کافی نیست "
-                f"(مانده فعلی {balance:f}، سقف {customer.credit_limit:f} ریال)",
-                code="credit_limit_exceeded",
-            )
+        _check_customer_credit(s, customer, tender.credit)
     change: Decimal | None = None
     if data.cash_tendered is not None:
         if data.cash_tendered < tender.cash:

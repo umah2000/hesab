@@ -101,8 +101,8 @@ def _line_out(ln: pricing.PricedLine) -> OrderLineOut:
 
 def credit_of(
     s: Session, customer_id: uuid.UUID, *, exclude: uuid.UUID | None = None
-) -> tuple[Decimal | None, Decimal]:
-    """(credit limit, what is owed + approved orders not invoiced yet)."""
+) -> tuple[Decimal | None, Decimal, bool]:
+    """(credit limit, what is owed + approved orders not invoiced yet, unlimited)."""
     acc = s.get(DetailAccount, customer_id)
     if acc is None:
         raise NotFoundError("مشتری یافت نشد")
@@ -112,7 +112,7 @@ def credit_of(
     if exclude is not None:
         q = q.where(SalesOrder.id != exclude)
     pending = Decimal(s.scalar(q) or 0)
-    return acc.credit_limit, receivable_balance(s, customer_id) + pending
+    return acc.credit_limit, receivable_balance(s, customer_id) + pending, acc.credit_unlimited
 
 
 def _rials(d: Decimal) -> str:
@@ -125,7 +125,9 @@ def _check_credit(s: Session, order: SalesOrder) -> None:
     acc = s.get(DetailAccount, order.customer_id, with_for_update=True)
     if acc is None:
         raise NotFoundError("مشتری یافت نشد")
-    limit, used = credit_of(s, order.customer_id, exclude=order.id)
+    limit, used, unlimited = credit_of(s, order.customer_id, exclude=order.id)
+    if unlimited:
+        return
     if limit is None:
         raise DomainError(f"برای «{acc.name}» فروش نسیه تعریف نشده است", code="no_credit")
     if used + order.grand_total > limit:
@@ -141,7 +143,7 @@ def quote(s: Session, actor: Actor, data: QuoteIn) -> QuoteOut:
     if not visitors.is_assigned(s, v.id, data.customer_id):
         raise PermissionDeniedError("این مشتری به شما تخصیص داده نشده است", code="not_assigned")
     cart, _ = _price(s, v.branch_id, data)
-    limit, used = credit_of(s, data.customer_id)
+    limit, used, unlimited = credit_of(s, data.customer_id)
     return QuoteOut(
         lines=[_line_out(ln) for ln in cart.lines],
         subtotal=cart.subtotal,
@@ -150,6 +152,7 @@ def quote(s: Session, actor: Actor, data: QuoteIn) -> QuoteOut:
         grand_total=cart.grand_total,
         warnings=cart.warnings,
         credit_limit=limit,
+        credit_unlimited=unlimited,
         balance=used,
         available_after=limit - used - cart.grand_total if limit is not None else None,
     )
