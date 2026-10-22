@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CreditCard, Search, Wallet } from "lucide-react";
+import { CreditCard, Search, TriangleAlert, Wallet } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
@@ -48,6 +48,11 @@ export function PaymentDialog({
   const [splitCash, setSplitCash] = React.useState("");
   const [tx, setTx] = React.useState<TerminalTx | null>(null);
   const [scenario, setScenario] = React.useState("approve");
+  const choices = state.terminals ?? [];
+  const [terminalId, setTerminalId] = React.useState<string>(() => (choices.find((t) => t.is_default) ?? choices[0])?.id ?? "");
+  const chosen = choices.find((t) => t.id === terminalId);
+  // Simulated scenarios come from the chosen mock reader, or the built-in development mock.
+  const sim = chosen ? (chosen.simulated ? chosen.scenarios : null) : state.terminal?.simulated ? state.terminal.scenarios : null;
   const [customer, setCustomer] = React.useState<Customer | null>(null);
   const [q, setQ] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -77,7 +82,8 @@ export function PaymentDialog({
         cash_register_id: state.cash_register_id,
         cart_id: cartId,
         amount: cardAmount,
-        scenario: state.terminal?.simulated ? scenario : undefined,
+        terminal_id: chosen?.id,
+        scenario: sim ? scenario : undefined,
       }),
     onSuccess: setTx,
     onError: (e) => setError(e instanceof ApiError ? e.message : "خطای کارت‌خوان"),
@@ -184,7 +190,50 @@ export function PaymentDialog({
 
           {mode === "card" || mode === "split" ? (
             <div className="surface flex flex-col gap-3 rounded-2xl p-4">
-              {state.terminal ? (
+              {choices.length ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <CreditCard className="size-5 text-brand-500" />
+                  <Select
+                    className="min-w-72 flex-1"
+                    value={terminalId}
+                    disabled={!!tx && tx.status !== "Declined"}
+                    onChange={(e) => setTerminalId(e.target.value)}
+                    aria-label="کارت‌خوان"
+                  >
+                    {choices.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.is_default ? " (پیش‌فرض این صندوق)" : ""}{t.ready ? "" : " — آماده‌ی اتصال نیست"}
+                      </option>
+                    ))}
+                  </Select>
+                  {sim ? (
+                    <Select className="w-44" value={scenario} onChange={(e) => setScenario(e.target.value)} aria-label="سناریوی آزمایشی">
+                      {sim.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </Select>
+                  ) : null}
+                  {chosen?.ready ? (
+                    <Button type="button" size="sm" variant="secondary" loading={startTx.isPending} disabled={!!tx && tx.status !== "Declined"} onClick={() => startTx.mutate()}>
+                      ارسال مبلغ به دستگاه
+                    </Button>
+                  ) : null}
+                  {tx ? (
+                    <Badge tone={tx.status === "Approved" ? "success" : tx.status === "Declined" ? "danger" : "warning"}>{TX_LABEL[tx.status]}</Badge>
+                  ) : null}
+                  {tx && (tx.status === "Unknown" || tx.status === "Pending") ? (
+                    <Button type="button" size="sm" loading={inquire.isPending} onClick={() => inquire.mutate()}>
+                      استعلام
+                    </Button>
+                  ) : null}
+                  {chosen && !chosen.ready ? (
+                    <p role="status" className="flex w-full items-start gap-1.5 text-xs text-ink-soft">
+                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning" />
+                      {chosen.reason}
+                    </p>
+                  ) : null}
+                </div>
+              ) : state.terminal ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <CreditCard className="size-5 text-brand-500" />
                   <span className="text-sm font-semibold">{state.terminal.label}</span>

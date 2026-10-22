@@ -12,6 +12,7 @@ import { Table, Td, Th, Tr } from "@/components/ui/table";
 import type { Branch, CashRegister } from "@/features/settings/types";
 import { ApiError, api, newIdempotencyKey } from "@/lib/api";
 import { formatDateTime, toFaDigits } from "@/lib/format";
+import { CardTerminalsCard } from "./CardTerminals";
 import { type Device, type Job, JOB_LABEL, KIND_LABEL, TRANSPORT_LABEL, type Transport } from "./api";
 
 const onError = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "خطا");
@@ -171,6 +172,7 @@ export function DevicesPage() {
           }}
         />
       ) : null}
+      <CardTerminalsCard />
       {code?.pairing_code ? <PairingDialog device={code} onClose={() => setCode(null)} /> : null}
       {jobs ? <JobsDialog device={jobs} onClose={() => setJobs(null)} /> : null}
     </>

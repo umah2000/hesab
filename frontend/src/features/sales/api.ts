@@ -38,6 +38,18 @@ export type ShiftReport = {
 
 export type TerminalInfo = { adapter_id: string; label: string; verified: boolean; simulated: boolean; scenarios: string[] };
 
+/** A card reader the register may send to (ADR-0023); `reason` says why it cannot yet. */
+export type TerminalChoice = {
+  id: string;
+  name: string;
+  provider_label: string;
+  is_default: boolean;
+  ready: boolean;
+  reason: string | null;
+  simulated: boolean;
+  scenarios: string[];
+};
+
 export type RegisterState = {
   cash_register_id: string;
   register_name: string;
@@ -52,6 +64,7 @@ export type RegisterState = {
   receipt_footer: string | null;
   organization_name: string;
   terminal: TerminalInfo | null;
+  terminals: TerminalChoice[];
   permissions: string[];
 };
 

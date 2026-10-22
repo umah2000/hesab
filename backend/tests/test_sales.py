@@ -1004,3 +1004,87 @@ def test_stock_screens_show_sales_documents(app: Flask, pos: Pos) -> None:
     assert docs.status_code == 200, docs.get_json()
     sale_doc = next(d for d in docs.get_json()["items"] if d["doc_type"] == "sale")
     assert m.get(f"/api/v1/inventory/stock-documents/{sale_doc['id']}").status_code == 200
+
+
+def test_several_card_readers_chosen_at_payment(app: Flask, pos: Pos) -> None:
+    """ADR-0023: readers are defined per branch, a register has a default, the cashier
+    picks one; a provider without a driver is listed with the reason, never sent to."""
+    from app.modules.organization.models import CashRegister
+
+    with app.app_context(), unit_of_work() as s:
+        r1 = s.get(CashRegister, uuid.UUID(pos.r1))
+        rb = s.get(CashRegister, uuid.UUID(pos.r_b))
+        assert r1 is not None and rb is not None
+        branch, other = str(r1.branch_id), str(rb.branch_id)
+    boss = login(app, "boss")
+    sep = {
+        "name": "سامان صندوق ۱",
+        "provider": "sep",
+        "host": "192.168.1.105",
+        "branch_id": branch,
+        "cash_register_id": pos.r1,
+    }
+    a = boss.post("/api/v1/payments/terminals", sep)
+    assert a.status_code == 201, a.get_json()
+    assert a.json["driver_ready"] is False and "SSP1126" in a.json["driver_note"]
+    assert (
+        boss.post("/api/v1/payments/terminals", sep).json["error"]["code"] == "terminal_name_taken"
+    )
+    wrong = boss.post(
+        "/api/v1/payments/terminals", sep | {"name": "x1", "cash_register_id": pos.r_b}
+    )
+    assert wrong.json["error"]["code"] == "register_branch_mismatch"
+    bad_host = boss.post("/api/v1/payments/terminals", sep | {"name": "x2", "host": "a b;c"})
+    assert bad_host.status_code == 400
+    # A mock reader is for development only.
+    mock = sep | {"name": "آزمایشی", "provider": "mock", "cash_register_id": None}
+    assert (
+        boss.post("/api/v1/payments/terminals", mock).json["error"]["code"] == "mock_in_production"
+    )
+    app.config["SETTINGS"].enable_mock_payment_terminal = True
+    try:
+        m = boss.post("/api/v1/payments/terminals", mock).get_json()
+        far = boss.post(
+            "/api/v1/payments/terminals", mock | {"name": "شعبه ب", "branch_id": other}
+        ).get_json()
+
+        c = login(app, "cashier")
+        assert c.post("/api/v1/payments/terminals", sep | {"name": "x3"}).status_code == 403
+        open_shift(c, pos.r1)
+        state = c.get(f"/api/v1/sales/registers/{pos.r1}/state").get_json()
+        listed = [(t["name"], t["is_default"], t["ready"]) for t in state["terminals"]]
+        # This register's default first; the other branch's reader is not offered.
+        assert listed == [("سامان صندوق ۱", True, False), ("آزمایشی", False, True)]
+        assert "SSP1126" in state["terminals"][0]["reason"]
+
+        cart = str(uuid.uuid4())
+        start = {"cash_register_id": pos.r1, "cart_id": cart, "amount": "110000"}
+        no_driver = c.post(
+            "/api/v1/payments/terminal-transactions", start | {"terminal_id": a.json["id"]}
+        )
+        assert no_driver.json["error"]["code"] == "terminal_driver_unavailable"
+        elsewhere = c.post(
+            "/api/v1/payments/terminal-transactions", start | {"terminal_id": far["id"]}
+        )
+        assert elsewhere.status_code == 404
+        t = c.post(
+            "/api/v1/payments/terminal-transactions",
+            start | {"terminal_id": m["id"], "scenario": "timeout"},
+        ).get_json()
+        assert t["terminal_id"] == m["id"] and t["status"] == "Unknown"
+        inq = c.post(f"/api/v1/payments/terminal-transactions/{t['id']}/inquire").get_json()
+        assert inq["status"] == "Approved"
+
+        # Switched off: no longer offered, and an open attempt goes to reconciliation.
+        off = boss.put(
+            f"/api/v1/payments/terminals/{m['id']}", mock | {"is_active": False}, m["row_version"]
+        )
+        assert off.status_code == 200 and off.json["driver_ready"] is False
+        names = [
+            x["name"] for x in c.get(f"/api/v1/sales/registers/{pos.r1}/state").json["terminals"]
+        ]
+        assert names == ["سامان صندوق ۱"]
+        listed_all = boss.get("/api/v1/payments/terminals").get_json()
+        assert {x["name"] for x in listed_all} == {"سامان صندوق ۱", "آزمایشی", "شعبه ب"}
+    finally:
+        app.config["SETTINGS"].enable_mock_payment_terminal = False

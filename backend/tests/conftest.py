@@ -68,6 +68,7 @@ _TABLES = [
     "sales_invoice_line",
     "sales_invoice",
     "terminal_transaction",
+    "card_terminal",
     "sales_approval",
     "promotion",
     "cash_shift",

@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Protocol
 
 from flask import current_app
-from sqlalchemy import select
+from sqlalchemy import select, true
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -27,14 +27,18 @@ from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.modules.accounting.services.chart import check_version
 from app.modules.audit import service as audit
 from app.modules.iam.guard import Actor
-from app.modules.sales.models import TerminalTransaction
+from app.modules.organization.models import Branch, CashRegister
+from app.modules.sales.models import CardTerminal, TerminalTransaction
 from app.modules.sales.schemas import (
+    CardTerminalIn,
+    CardTerminalOut,
+    TerminalChoiceOut,
     TerminalInfoOut,
     TerminalResolveIn,
     TerminalStartIn,
     TerminalTxOut,
 )
-from app.modules.sales.services.pricing import register_and_warehouse
+from app.modules.sales.services.pricing import RegisterRef, register_and_warehouse
 
 UNRESOLVED = ("Created", "Pending", "Unknown", "ReconciliationRequired")
 
@@ -110,11 +114,171 @@ class MockAdapter:
         return AdapterResult("ReconciliationRequired", response_code=response_code)
 
 
-def adapter() -> PaymentTerminalAdapter | None:
+def _mock_allowed() -> bool:
     settings: Settings = current_app.config["SETTINGS"]
-    if settings.enable_mock_payment_terminal and settings.env != "production":
-        return MockAdapter()
-    return None
+    return settings.enable_mock_payment_terminal and settings.env != "production"
+
+
+def adapter() -> PaymentTerminalAdapter | None:
+    """The built-in development mock (no reader defined), or None."""
+    return MockAdapter() if _mock_allowed() else None
+
+
+# --- providers (ADR-0023) ------------------------------------------------------------
+#
+# A provider's driver is added only from the PSP's official protocol document and a test
+# terminal (rule 10: nothing about a device or protocol is made up). Until then the
+# provider can be defined, but nothing is sent to it: the cashier keys the amount on the
+# device and types the tracking number, as before.
+
+
+@dataclass(frozen=True)
+class Provider:
+    label: str
+    note: str | None  # why it cannot be used yet; None = ready
+
+
+PROVIDERS: dict[str, Provider] = {
+    "sep": Provider(
+        "پرداخت الکترونیک سامان (SEP)، پروتکل SSP1126",
+        "درایور هنوز ساخته نشده است: مستند فنی پروتکل SSP1126 (PC-POS) از پرداخت الکترونیک "
+        "سامان لازم است. تا آن زمان مبلغ را روی دستگاه وارد کنید و شماره پیگیری را بنویسید.",
+    ),
+    "mock": Provider("کارت‌خوان آزمایشی (Mock)", None),
+}
+
+
+def _driver(t: CardTerminal) -> tuple[PaymentTerminalAdapter | None, str | None]:
+    """(adapter, None) when the program can send to this reader, else (None, reason)."""
+    if not t.is_active:
+        return None, "این کارت‌خوان غیرفعال است"
+    if t.provider == "mock":
+        if _mock_allowed():
+            return MockAdapter(), None
+        return None, "کارت‌خوان آزمایشی فقط در محیط توسعه کار می‌کند"
+    return None, PROVIDERS[t.provider].note
+
+
+def card_terminal_out(s: Session, t: CardTerminal) -> CardTerminalOut:
+    branch = s.get(Branch, t.branch_id)
+    reg = s.get(CashRegister, t.cash_register_id) if t.cash_register_id else None
+    _, reason = _driver(t)
+    return CardTerminalOut(
+        id=t.id,
+        name=t.name,
+        provider=t.provider,  # type: ignore[arg-type]
+        provider_label=PROVIDERS[t.provider].label,
+        host=t.host,
+        port=t.port,
+        terminal_no=t.terminal_no,
+        branch_id=t.branch_id,
+        branch_name=branch.name if branch else "",
+        cash_register_id=t.cash_register_id,
+        register_name=reg.name if reg else None,
+        is_active=t.is_active,
+        note=t.note,
+        driver_ready=reason is None,
+        driver_note=PROVIDERS[t.provider].note if t.is_active else reason,
+        row_version=version_to_str(t.row_version),
+    )
+
+
+def list_card_terminals(s: Session) -> list[CardTerminalOut]:
+    rows = list(s.scalars(select(CardTerminal).order_by(CardTerminal.name)))
+    return [card_terminal_out(s, t) for t in rows]
+
+
+def _check_terminal(s: Session, data: CardTerminalIn, own_id: uuid.UUID | None) -> None:
+    if data.provider == "mock" and not _mock_allowed():
+        raise DomainError(
+            "کارت‌خوان آزمایشی در محیط عملیاتی تعریف نمی‌شود", code="mock_in_production"
+        )
+    if s.get(Branch, data.branch_id) is None:
+        raise NotFoundError("شعبه یافت نشد")
+    if data.cash_register_id is not None:
+        reg = s.get(CashRegister, data.cash_register_id)
+        if reg is None or reg.branch_id != data.branch_id:
+            raise DomainError(
+                "صندوق پیش‌فرض باید از همین شعبه باشد", code="register_branch_mismatch"
+            )
+    same = s.scalar(select(CardTerminal.id).where(CardTerminal.name == data.name))
+    if same is not None and same != own_id:
+        raise ConflictError("کارت‌خوانی با این نام هست", code="terminal_name_taken")
+
+
+def create_card_terminal(s: Session, actor: Actor, data: CardTerminalIn) -> CardTerminalOut:
+    _check_terminal(s, data, None)
+    t = CardTerminal(**data.model_dump(), created_by=actor.user_id, updated_by=actor.user_id)
+    s.add(t)
+    s.flush()
+    audit.record(
+        s,
+        "payments.terminal_defined",
+        user_id=actor.user_id,
+        branch_id=t.branch_id,
+        entity_type="card_terminal",
+        entity_id=t.id,
+        data={"name": t.name, "provider": t.provider, "host": t.host},
+    )
+    s.refresh(t)
+    return card_terminal_out(s, t)
+
+
+def update_card_terminal(
+    s: Session, actor: Actor, terminal_id: uuid.UUID, data: CardTerminalIn, version: str
+) -> CardTerminalOut:
+    t = s.get(CardTerminal, terminal_id)
+    if t is None:
+        raise NotFoundError("کارت‌خوان یافت نشد")
+    check_version(t.row_version, version, "این کارت‌خوان")
+    _check_terminal(s, data, t.id)
+    before = {"provider": t.provider, "host": t.host, "is_active": t.is_active}
+    for k, v in data.model_dump().items():
+        setattr(t, k, v)
+    t.updated_by, t.updated_at = actor.user_id, utcnow()
+    s.flush()
+    audit.record(
+        s,
+        "payments.terminal_changed",
+        user_id=actor.user_id,
+        branch_id=t.branch_id,
+        entity_type="card_terminal",
+        entity_id=t.id,
+        data={
+            "before": before,
+            "after": {"provider": t.provider, "host": t.host, "is_active": t.is_active},
+        },
+    )
+    s.refresh(t)
+    return card_terminal_out(s, t)
+
+
+def choices(s: Session, register: RegisterRef) -> list[TerminalChoiceOut]:
+    """Readers of the register's branch, its default first (the payment dialog's list)."""
+    rows = list(
+        s.scalars(
+            select(CardTerminal).where(
+                CardTerminal.branch_id == register.branch_id, CardTerminal.is_active == true()
+            )
+        )
+    )
+    rows.sort(key=lambda t: (t.cash_register_id != register.id, t.name))
+    out = []
+    for t in rows:
+        a, reason = _driver(t)
+        out.append(
+            TerminalChoiceOut(
+                id=t.id,
+                name=t.name,
+                provider_label=PROVIDERS[t.provider].label,
+                is_default=t.cash_register_id == register.id,
+                ready=a is not None,
+                reason=reason,
+                simulated=bool(a and a.simulated),
+                scenarios=list(a.scenarios) if a else [],
+            )
+        )
+    return out
 
 
 def info() -> TerminalInfoOut | None:
@@ -137,6 +301,7 @@ def tx_out(t: TerminalTransaction) -> TerminalTxOut:
         cash_register_id=t.cash_register_id,
         cart_id=t.cart_id,
         adapter_id=t.adapter_id,
+        terminal_id=t.terminal_id,
         amount=t.amount,
         status=t.status,  # type: ignore[arg-type]
         rrn=t.rrn,
@@ -178,13 +343,25 @@ def _audit(s: Session, actor: Actor, t: TerminalTransaction, action: str) -> Non
 
 
 def start(s: Session, actor: Actor, data: TerminalStartIn) -> TerminalTxOut:
-    a = adapter()
+    reg, _ = register_and_warehouse(s, data.cash_register_id, actor.branch_ids)
+    chosen: CardTerminal | None = None
+    a: PaymentTerminalAdapter | None
+    if data.terminal_id is not None:
+        chosen = s.get(CardTerminal, data.terminal_id)
+        if chosen is None or chosen.branch_id != reg.branch_id:
+            raise NotFoundError("این کارت‌خوان برای شعبه‌ی این صندوق تعریف نشده است")
+        a, reason = _driver(chosen)
+        if a is None:
+            raise DomainError(
+                reason or "کارت‌خوان در دسترس نیست", code="terminal_driver_unavailable"
+            )
+    else:
+        a = adapter()
     if a is None:
         raise DomainError(
             "کارت‌خوان متصل نیست؛ پرداخت را روی دستگاه انجام دهید و شماره پیگیری را وارد کنید",
             code="terminal_not_configured",
         )
-    reg, _ = register_and_warehouse(s, data.cash_register_id, actor.branch_ids)
     busy = s.scalar(
         select(TerminalTransaction).where(
             TerminalTransaction.cart_id == data.cart_id,
@@ -200,6 +377,7 @@ def start(s: Session, actor: Actor, data: TerminalStartIn) -> TerminalTxOut:
         cash_register_id=reg.id,
         cart_id=data.cart_id,
         adapter_id=a.adapter_id,
+        terminal_id=chosen.id if chosen else None,
         amount=data.amount,
         status="Created",
         is_simulated=a.simulated,
@@ -231,7 +409,11 @@ def inquire(s: Session, actor: Actor, tx_id: uuid.UUID) -> TerminalTxOut:
     t = _get(s, actor, tx_id)
     if t.status not in ("Unknown", "Pending"):
         return tx_out(t)
-    a = adapter()
+    if t.terminal_id is not None:
+        ct = s.get(CardTerminal, t.terminal_id)
+        a = _driver(ct)[0] if ct is not None else None
+    else:
+        a = adapter()
     if a is None or a.adapter_id != t.adapter_id:
         t.status = "ReconciliationRequired"
     else:
