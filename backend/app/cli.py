@@ -65,7 +65,10 @@ def register_cli(app: Flask) -> None:
     @click.option("--branch-name", default="شعبه مرکزی", show_default=True)
     @click.option("--admin-username", default="admin", show_default=True)
     @click.option("--admin-full-name", default="مدیر سیستم", show_default=True)
-    @click.password_option("--admin-password", prompt="رمز مدیر سیستم")
+    # setup.exe passes it in the environment, never on the command line.
+    @click.password_option(
+        "--admin-password", prompt="رمز مدیر سیستم", envvar="NEXTCAM_SETUP_ADMIN_PASSWORD"
+    )
     def setup(
         org_name: str,
         branch_code: str,
