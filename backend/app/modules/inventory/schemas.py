@@ -99,6 +99,18 @@ class ItemIn(_In):
     prices: list[PriceIO] = []
 
 
+class ItemImageOut(BaseModel):
+    id: uuid.UUID
+    # 0 = the main image.
+    position: int
+    width: int
+    height: int
+
+
+class ImageOrderIn(_In):
+    ids: list[uuid.UUID] = Field(max_length=20)
+
+
 class ItemOut(BaseModel):
     id: uuid.UUID
     code: str
@@ -121,6 +133,7 @@ class ItemOut(BaseModel):
     barcodes: list[BarcodeIO]
     prices: list[PriceIO]
     stock_qty: Qty | None = None
+    images: list[ItemImageOut] = []
     row_version: str
 
 
@@ -135,6 +148,8 @@ class ItemSummary(BaseModel):
     barcode: str | None
     price: Money | None
     stock_qty: Qty
+    # The main photo, if any (ADR-0022).
+    image_id: uuid.UUID | None = None
 
 
 class ItemQuery(BaseModel):

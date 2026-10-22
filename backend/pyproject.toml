@@ -18,6 +18,8 @@ dependencies = [
     "waitress>=3.0",
     # Backup encryption (AES-256-GCM) and license signatures (Ed25519).
     "cryptography>=44",
+    # Product photos: decoded, stripped of metadata and re-encoded (ADR-0022).
+    "pillow>=11",
     # Shared with the register agent; install first: pip install -e ../packages/nextcam-core
     "nextcam-core>=0.8",
 ]

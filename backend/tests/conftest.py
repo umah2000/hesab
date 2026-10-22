@@ -79,6 +79,7 @@ _TABLES = [
     "stock_document",
     "item_price",
     "item_barcode",
+    "item_image",
     "item_unit",
     "item",
     "item_group",

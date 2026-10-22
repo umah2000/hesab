@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PackagePlus, Pencil, Plus, ScanBarcode, Search, Trash2 } from "lucide-react";
+import { ImageIcon, PackagePlus, Pencil, Plus, ScanBarcode, Search, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import { ApiError, api, newIdempotencyKey, type Page } from "@/lib/api";
 import { formatMoney, toEnDigits, toFaDigits } from "@/lib/format";
 import { inputToRials, rialsToInput } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import { type Item, type ItemSummary, trimQty, useGroups, useUnits } from "./api";
+import { type Item, type ItemSummary, imageUrl, trimQty, useGroups, useUnits } from "./api";
+import { ItemImages } from "./ItemImages";
 
 type FormState = {
   code: string;
@@ -294,6 +295,11 @@ function ItemDialog({ itemId, open, onClose }: { itemId: string | null; open: bo
                 ))}
               </div>
             </fieldset>
+            {itemId ? (
+              <ItemImages itemId={itemId} canManage={can("inventory.item.manage")} />
+            ) : (
+              <p className="text-xs text-ink-faint">عکس کالا را پس از ذخیره‌ی کالا، در ویرایش آن اضافه کنید.</p>
+            )}
           </div>
         )}
         <DialogFooter>
@@ -373,6 +379,7 @@ export function ItemsPage() {
             <Table>
               <thead>
                 <tr>
+                  <Th className="w-14"><span className="sr-only">عکس</span></Th>
                   <Th className="w-28">کد</Th>
                   <Th>نام کالا</Th>
                   <Th className="w-36">گروه</Th>
@@ -389,6 +396,15 @@ export function ItemsPage() {
                     className={cn(can("inventory.item.manage") && "cursor-pointer", !it.is_active && "opacity-50")}
                     onClick={() => can("inventory.item.manage") && setEditing(it.id)}
                   >
+                    <Td className="py-1.5">
+                      {it.image_id ? (
+                        <img src={imageUrl(it.image_id)} alt="" loading="lazy" className="size-10 rounded-lg object-cover ring-1 ring-[var(--line)]" />
+                      ) : (
+                        <span className="flex size-10 items-center justify-center rounded-lg bg-black/5 text-ink-faint dark:bg-white/5" title="بدون عکس">
+                          <ImageIcon className="size-4" />
+                        </span>
+                      )}
+                    </Td>
                     <Td className="tabular" dir="ltr">{it.code}</Td>
                     <Td>
                       <span className="font-medium text-ink">{it.name}</span>

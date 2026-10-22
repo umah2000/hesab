@@ -45,6 +45,7 @@ from app.modules.inventory.schemas import (
     ScaleRuleOut,
     UnitOut,
 )
+from app.modules.inventory.services import images
 
 DEFAULT_UNITS = (
     ("PCS", "عدد", False),
@@ -176,6 +177,7 @@ def _item_out(s: Session, it: Item) -> ItemOut:
             PriceIO(price_list_id=p.price_list_id, unit_id=p.unit_id, price=p.price) for p in prices
         ],
         stock_qty=stock or Decimal(0),
+        images=images.list_images(s, it.id),
         row_version=version_to_str(it.row_version),
     )
 
@@ -418,6 +420,7 @@ def list_items(s: Session, q: ItemQuery) -> Page[ItemSummary]:
     rows = s.execute(
         stmt.order_by(Item.code).offset((q.page - 1) * q.page_size).limit(q.page_size)
     ).all()
+    photos = images.image_ids(s, [r[0].id for r in rows])
     items = [
         ItemSummary(
             id=it.id,
@@ -430,6 +433,7 @@ def list_items(s: Session, q: ItemQuery) -> Page[ItemSummary]:
             barcode=bc,
             price=pr,
             stock_qty=sq or Decimal(0),
+            image_id=next(iter(photos.get(it.id, [])), None),
         )
         for it, uname, gname, bc, pr, sq in rows
     ]

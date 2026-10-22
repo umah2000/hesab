@@ -44,6 +44,7 @@ from app.modules.distribution.schemas import (
 from app.modules.distribution.services import app as app_data
 from app.modules.distribution.services import orders, visitors
 from app.modules.iam.guard import current_actor, require
+from app.modules.inventory.api import image_response
 
 bp = Blueprint("distribution", __name__)
 APP = "distribution.visitor"
@@ -68,6 +69,13 @@ def mobile_bootstrap() -> ResponseReturnValue:
     resp = to_json(out)
     resp.headers["ETag"] = etag
     return resp
+
+
+@bp.get("/mobile/images/<image_id>")
+@require(APP)
+@doc("عکس کالا برای اپ (size=thumb|large؛ JPEG، تغییرناپذیر)")
+def mobile_image(image_id: str) -> ResponseReturnValue:
+    return image_response(parse_uuid(image_id), request.args.get("size", "thumb"))
 
 
 @bp.post("/mobile/quote")

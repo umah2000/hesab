@@ -26,6 +26,7 @@ from app.modules.distribution.services.orders import branch_warehouse
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
 from app.modules.inventory.models import Item, ItemGroup, ItemPrice, ItemUnit, StockBalance, Unit
+from app.modules.inventory.services import images
 from app.modules.organization.models import Branch
 from app.modules.sales.services import pricing
 
@@ -52,6 +53,7 @@ def bootstrap(s: Session, actor: Actor) -> BootstrapOut:
         for b in s.scalars(select(StockBalance).where(StockBalance.warehouse_id == wh))
     }
 
+    photos = images.image_ids(s)
     items = []
     for i in s.scalars(select(Item).where(Item.is_active == true()).order_by(Item.name)):
         base_price = prices.get((i.id, i.base_unit_id))
@@ -89,6 +91,7 @@ def bootstrap(s: Session, actor: Actor) -> BootstrapOut:
                 units=app_units,
                 stock=stock.get(i.id) if i.item_type == "goods" else None,
                 vat_exempt=i.vat_exempt,
+                image_ids=photos.get(i.id, []),
             )
         )
 

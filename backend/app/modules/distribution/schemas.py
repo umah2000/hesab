@@ -259,6 +259,8 @@ class AppItem(BaseModel):
     units: list[AppUnit]
     stock: Qty | None
     vat_exempt: bool
+    # Photo ids, main first (ADR-0022): /distribution/mobile/images/<id>?size=thumb|large.
+    image_ids: list[uuid.UUID] = []
 
 
 class AppSettings(BaseModel):
