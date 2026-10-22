@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { ApiError, api } from "@/lib/api";
 
@@ -49,6 +49,23 @@ export function useCan() {
 export function Can({ permission, children }: { permission: string; children: React.ReactNode }) {
   const can = useCan();
   return can(permission) ? <>{children}</> : null;
+}
+
+/**
+ * Ends the session and shows the login page. The user is set to null BEFORE the other cached
+ * data is dropped: clearing the whole cache first detaches the gate that watches the user,
+ * which then never sees the logout and keeps the old screen.
+ */
+export async function signOut(qc: QueryClient) {
+  try {
+    await api.post("/auth/logout");
+  } catch {
+    // The session ends on this device either way; the server expires it on its own.
+  } finally {
+    qc.setQueryData(meKey, null);
+    qc.removeQueries({ predicate: (q) => q.queryKey[0] !== meKey[0] });
+    window.history.replaceState(null, "", "/");
+  }
 }
 
 /** Any 401 from any request drops the cached user so the router shows the login page. */

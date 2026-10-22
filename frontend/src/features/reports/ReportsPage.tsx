@@ -301,7 +301,7 @@ export function ReportPage() {
           </div>
         ) : null}
       </Card>
-      <Card className="print-area">
+      <Card>
         <div className="hidden p-4 text-lg font-bold print:block">{table.data?.title ?? info.title}</div>
         <div className="surface m-4 overflow-x-auto rounded-2xl">
           {table.isLoading ? (

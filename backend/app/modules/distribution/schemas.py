@@ -71,7 +71,7 @@ class AssignmentIn(_In):
 
 
 class AssignmentsIn(_In):
-    customers: list[AssignmentIn] = Field(max_length=2000)
+    customers: list[AssignmentIn] = Field(max_length=20000)
 
 
 class AssignedCustomerOut(BaseModel):

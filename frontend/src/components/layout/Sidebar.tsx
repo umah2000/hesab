@@ -106,7 +106,7 @@ export function SidebarContent() {
 
 export function Sidebar() {
   return (
-    <aside className="glass sticky top-4 hidden h-[calc(100vh-2rem)] w-64 shrink-0 flex-col rounded-3xl p-4 lg:flex">
+    <aside className="no-print glass sticky top-4 hidden h-[calc(100vh-2rem)] w-64 shrink-0 flex-col rounded-3xl p-4 lg:flex">
       <SidebarContent />
     </aside>
   );

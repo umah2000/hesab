@@ -7,6 +7,7 @@ post the voucher from posting rules, take the gap-free number, then mark final.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -15,7 +16,7 @@ from nextcam_core.pricing import ItemRef
 from sqlalchemy import func, or_, select, true
 from sqlalchemy.orm import Session
 
-from app.core.db import utcnow
+from app.core.db import IN_CHUNK, utcnow
 from app.core.errors import ConflictError, DomainError, NotFoundError, PermissionDeniedError
 from app.core.http import Page
 from app.core.numbering import next_number
@@ -191,13 +192,43 @@ def _customer(s: Session, customer_id: uuid.UUID | None) -> DetailAccount | None
     return c
 
 
-def receivable_balance(s: Session, customer_id: uuid.UUID) -> Decimal:
-    account_id = s.scalar(
+def _receivable_account(s: Session) -> uuid.UUID | None:
+    return s.scalar(
         select(PostingRule.account_id).where(
             PostingRule.event_type == "sales.invoice.finalized",
             PostingRule.line_role == "receivable",
         )
     )
+
+
+def receivable_balances(
+    s: Session, customer_ids: Collection[uuid.UUID]
+) -> dict[uuid.UUID, Decimal]:
+    """Balances of many customers in one grouped query per chunk (a list of customers)."""
+    account_id = _receivable_account(s)
+    out = dict.fromkeys(customer_ids, ZERO)
+    if account_id is None or not out:
+        return out
+    pending = list(out)
+    for i in range(0, len(pending), IN_CHUNK):
+        rows = s.execute(
+            select(VoucherLine.detail_account_id, func.sum(VoucherLine.debit - VoucherLine.credit))
+            .join(Voucher, Voucher.id == VoucherLine.voucher_id)
+            .where(
+                Voucher.status == "final",
+                VoucherLine.account_id == account_id,
+                VoucherLine.detail_account_id.in_(pending[i : i + IN_CHUNK]),
+            )
+            .group_by(VoucherLine.detail_account_id)
+        )
+        for cid, total in list(rows):
+            if cid is not None:
+                out[cid] = Decimal(total or 0)
+    return out
+
+
+def receivable_balance(s: Session, customer_id: uuid.UUID) -> Decimal:
+    account_id = _receivable_account(s)
     if account_id is None:
         return ZERO
     total = s.scalar(

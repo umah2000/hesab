@@ -219,6 +219,14 @@ def assign_customers(visitor_id: str) -> ResponseReturnValue:
         return to_json(list(visitors.assign(s, current_actor(), parse_uuid(visitor_id), data)))
 
 
+@bp.post("/visitors/<visitor_id>/customers/all")
+@require(MANAGE)
+@doc("افزودن همه‌ی مشتریان فعال به فهرست ویزیتور", response=[AssignedCustomerOut])
+def assign_all_customers(visitor_id: str) -> ResponseReturnValue:
+    with unit_of_work() as s:
+        return to_json(list(visitors.assign_all(s, current_actor(), parse_uuid(visitor_id))))
+
+
 @bp.get("/orders")
 @require(MANAGE)
 @doc("سفارش‌های ویزیتورها (status=open: بررسی‌نشده و تأییدشده)", response=[OrderSummaryOut])

@@ -4,8 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ChevronDown, Gauge, KeyRound, LogOut, Menu, Moon, Search, Sparkles, Sun } from "lucide-react";
 import * as React from "react";
 import { useLocation, useNavigate } from "react-router";
-import { meKey, useMe } from "@/features/auth/auth";
-import { api } from "@/lib/api";
+import { signOut, useMe } from "@/features/auth/auth";
 import { formatLongDate } from "@/lib/format";
 import { CommandPalette } from "./CommandPalette";
 import { SidebarContent } from "./Sidebar";
@@ -86,17 +85,10 @@ export function Topbar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const logout = async () => {
-    try {
-      await api.post("/auth/logout");
-    } finally {
-      qc.clear();
-      qc.setQueryData(meKey, null);
-    }
-  };
+  const logout = () => signOut(qc);
 
   return (
-    <header className="glass sticky top-4 z-30 flex items-center gap-2 rounded-2xl px-3 py-2.5 sm:gap-3 sm:px-4">
+    <header className="no-print glass sticky top-4 z-30 flex items-center gap-2 rounded-2xl px-3 py-2.5 sm:gap-3 sm:px-4">
       <MobileMenu />
       <button
         type="button"

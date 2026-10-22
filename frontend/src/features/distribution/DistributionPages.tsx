@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MapPinned, Plus, ShieldAlert, Smartphone, Trash2, Truck, UserPlus } from "lucide-react";
+import { ListPlus, MapPinned, Plus, ShieldAlert, Smartphone, Trash2, Truck, UserPlus } from "lucide-react";
 import * as React from "react";
 import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -451,6 +451,16 @@ export function VisitorPage() {
     },
     onError,
   });
+  const addAll = useMutation({
+    mutationFn: () => api.post<AssignedCustomer[]>(`/distribution/visitors/${id}/customers/all`),
+    onSuccess: (list) => {
+      setRows(null);
+      qc.setQueryData(["distribution", "visitor", id, "customers"], list);
+      qc.invalidateQueries({ queryKey: ["distribution"] });
+      toast.success(`همه‌ی مشتریان فعال اضافه شدند (${toFaDigits(list.length)} مشتری)`);
+    },
+    onError,
+  });
   const toggle = useMutation({
     mutationFn: (v: Visitor) =>
       api.put<Visitor>(`/distribution/visitors/${v.id}`, { branch_id: v.branch_id, is_active: !v.is_active, note: v.note }, v.row_version),
@@ -497,6 +507,20 @@ export function VisitorPage() {
             </div>
           ) : null}
           <div className="flex-1" />
+          <Button
+            variant="outline"
+            disabled={rows !== null}
+            title={rows !== null ? "اول تغییرات فهرست را ذخیره کنید" : "مشتریانی که بعداً تعریف می‌شوند خودکار اضافه نمی‌شوند"}
+            loading={addAll.isPending}
+            onClick={() => window.confirm("همه‌ی مشتریان فعال به فهرست این ویزیتور اضافه شوند؟ روز بازدید مشتریان فعلی تغییر نمی‌کند.") && addAll.mutate()}
+          >
+            <ListPlus /> افزودن همه‌ی مشتریان
+          </Button>
+          {current.length ? (
+            <Button variant="ghost" onClick={() => window.confirm("همه‌ی مشتریان از فهرست حذف شوند؟ تا «ذخیره» را نزنید چیزی تغییر نمی‌کند.") && update([])}>
+              <Trash2 /> حذف همه
+            </Button>
+          ) : null}
           <Button disabled={rows === null} loading={save.isPending} onClick={() => save.mutate()}>ذخیره‌ی مشتریان و مسیر</Button>
         </div>
         <div className="surface mx-4 mb-4 overflow-hidden rounded-2xl">

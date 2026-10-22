@@ -292,3 +292,29 @@ def test_back_office_rules(app: Flask, field: dict[str, Any]) -> None:
     web = login(app, "visitor1")
     assert web.get("/api/v1/distribution/orders").status_code == 403
     assert login(app, "cashier").get("/api/v1/distribution/visitors").status_code == 403
+
+
+def test_assign_all_customers_keeps_visit_days(app: Flask, field: dict[str, Any]) -> None:
+    boss: Api = field["boss"]
+    vid = field["visitor"]["id"]
+    with app.app_context(), unit_of_work() as s:
+        s.add(DetailAccount(code="C3", name="مشتری غیرفعال", kind="person", is_active=False))
+        s.add(DetailAccount(code="S9", name="تأمین‌کننده", kind="person", is_active=True))
+        s.flush()
+        from app.modules.parties.models import Party
+
+        sup = s.scalar(select(DetailAccount).where(DetailAccount.code == "S9"))
+        assert sup is not None
+        s.add(Party(id=sup.id, party_type="company", is_customer=False, is_supplier=True))
+    r = boss.post(f"/api/v1/distribution/visitors/{vid}/customers/all")
+    assert r.status_code == 200, r.get_json()
+    got = {c["code"]: c["visit_weekday"] for c in r.json}
+    # Active customers only (no inactive one, no pure supplier); C1 keeps its day.
+    assert got["C1"] == 0 and got["C2"] is None
+    assert "C3" not in got and "S9" not in got
+    again = boss.post(f"/api/v1/distribution/visitors/{vid}/customers/all")
+    assert len(again.json) == len(r.json)
+    assert (
+        login(app, "cashier").post(f"/api/v1/distribution/visitors/{vid}/customers/all").status_code
+        == 403
+    )
