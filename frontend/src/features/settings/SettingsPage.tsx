@@ -10,6 +10,7 @@ import { Field, Input, Select } from "@/components/ui/form-controls";
 import { useCan } from "@/features/auth/auth";
 import { ApiError, api, newIdempotencyKey } from "@/lib/api";
 import { formatDateTime, toEnDigits, toFaDigits } from "@/lib/format";
+import { BrandingCard } from "./BrandingCard";
 import { LicenseCard } from "./LicenseCard";
 import type { Branch, CashRegister, Organization } from "./types";
 
@@ -211,6 +212,7 @@ export function SettingsPage() {
       <PageTitle title="تنظیمات" subtitle="سازمان، شعب و صندوق‌های فروش" />
       <div className="flex flex-col gap-4">
         <OrganizationCard />
+        <BrandingCard />
         <BackupCard />
         <LicenseCard />
         <BranchesCard />

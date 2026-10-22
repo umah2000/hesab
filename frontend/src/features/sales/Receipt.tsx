@@ -1,3 +1,4 @@
+import { logoUrl, useBranding } from "@/components/layout/branding";
 import { formatDateTime, formatMoney, toFaDigits } from "@/lib/format";
 import type { DisplayCurrency } from "@/lib/format";
 import { trimQty } from "@/features/inventory/api";
@@ -23,9 +24,11 @@ export function Receipt({
   const money = (v: string) => formatMoney(v, currency).replace(/ (تومان|ریال)$/, "");
   const unit = currency === "IRT" ? "تومان" : "ریال";
   const isReturn = invoice.kind === "return";
+  const logo = useBranding().data?.logo_version;
   return (
     <div className="receipt w-[72mm] bg-white p-[2mm] text-[9pt] leading-snug text-black" dir="rtl">
       <div className="text-center">
+        {logo ? <img src={logoUrl(logo)} alt="" className="mx-auto mb-1 max-h-[18mm] max-w-[40mm] object-contain grayscale" /> : null}
         <div className="text-[12pt] font-black">{organization}</div>
         {header ? <div className="whitespace-pre-line">{header}</div> : null}
         <div className="mt-1 font-bold">{isReturn ? "رسید برگشت از فروش" : "فاکتور فروش"}{reprint ? " (چاپ مجدد)" : ""}</div>

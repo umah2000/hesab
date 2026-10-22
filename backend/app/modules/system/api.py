@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, Response, current_app, jsonify, request
 from flask.typing import ResponseReturnValue
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -15,7 +15,7 @@ from app.core.errors import DomainError
 from app.core.http import parse_body, to_json
 from app.core.openapi import doc
 from app.modules.audit import service as audit
-from app.modules.iam.guard import current_actor, require, require_any
+from app.modules.iam.guard import current_actor, login_required, require, require_any
 from app.modules.system import backup, license
 
 bp = Blueprint("system", __name__)
@@ -53,6 +53,81 @@ def version() -> ResponseReturnValue:
             "schema": current,
             "schema_head": head,
             "schema_ok": current == head,
+        }
+    )
+
+
+# --- branding and about ---------------------------------------------------------
+
+
+def _org_brand(s: Any) -> tuple[str, str | None]:
+    from sqlalchemy import select
+
+    from app.modules.organization.models import Organization
+
+    row = s.execute(select(Organization.name, Organization.logo_sha256)).first()
+    if row is None:
+        return "", None
+    return row[0], row[1][:16] if row[1] else None
+
+
+@bp.get("/branding")
+@doc("نام و نسخه‌ی لوگوی سازمان برای صفحه‌ی ورود (بدون ورود)")
+def branding() -> ResponseReturnValue:
+    s = new_session()
+    try:
+        name, logo_version = _org_brand(s)
+    finally:
+        s.close()
+    return jsonify({"organization_name": name, "logo_version": logo_version})
+
+
+@bp.get("/logo")
+@doc("لوگوی سازمان (PNG؛ بدون ورود، برای صفحه‌ی ورود)")
+def organization_logo() -> ResponseReturnValue:
+    from app.modules.organization import services as org
+
+    s = new_session()
+    try:
+        found = org.logo(s)
+    finally:
+        s.close()
+    if found is None:
+        return Response(status=404)
+    data, sha = found
+    resp = Response(data, mimetype="image/png")
+    resp.set_etag(sha)
+    # The URL carries ?v=<version>, so a new logo is a new URL; revalidate anyway.
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    resp.make_conditional(request)
+    return resp
+
+
+@bp.get("/about")
+@login_required
+@doc("درباره‌ی سازمان، نسخه‌ی برنامه و برنامه‌نویس")
+def about() -> ResponseReturnValue:
+    from app.modules.organization import services as org
+    from app.vendor import DEVELOPER
+    from app.version import RELEASED, VERSION
+
+    s = new_session()
+    try:
+        o = org.get_organization(s)
+    finally:
+        s.close()
+    return jsonify(
+        {
+            "organization": {
+                "name": o.name,
+                "about": o.about,
+                "phone": o.phone,
+                "address": o.address,
+                "website": o.website,
+                "logo_version": o.logo_version,
+            },
+            "app": {"name": "NEXTCAM ERP", "version": VERSION, "released": RELEASED.isoformat()},
+            "developer": {k: v for k, v in DEVELOPER.items() if v},
         }
     )
 

@@ -1,7 +1,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ChevronDown, Gauge, KeyRound, LogOut, Menu, Moon, Search, Sparkles, Sun } from "lucide-react";
+import { ChevronDown, Gauge, Info, KeyRound, LogOut, Menu, Moon, Search, Sparkles, Sun } from "lucide-react";
 import * as React from "react";
 import { useLocation, useNavigate } from "react-router";
 import { signOut, useMe } from "@/features/auth/auth";
@@ -139,6 +139,12 @@ export function Topbar() {
               className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-ink outline-none data-[highlighted]:bg-brand-500/10"
             >
               <KeyRound className="size-4" /> تغییر رمز عبور
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              onSelect={() => navigate("/about")}
+              className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-ink outline-none data-[highlighted]:bg-brand-500/10"
+            >
+              <Info className="size-4" /> درباره
             </DropdownMenu.Item>
             <DropdownMenu.Item
               onSelect={() => setPerf(perf === "lite" ? "glass" : "lite")}

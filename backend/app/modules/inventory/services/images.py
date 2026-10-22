@@ -9,25 +9,23 @@ from __future__ import annotations
 import hashlib
 import io
 import uuid
-import warnings
 from dataclasses import dataclass
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core import images as pictures
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.modules.audit import service as audit
 from app.modules.iam.guard import Actor
 from app.modules.inventory.models import Item, ItemImage
 from app.modules.inventory.schemas import ItemImageOut
 
-MAX_UPLOAD = 15 * 1024 * 1024
-MAX_PIXELS = 40_000_000
+MAX_UPLOAD = pictures.MAX_UPLOAD
 MAX_PER_ITEM = 6
 LARGE_SIDE = 1600
 THUMB_SIDE = 400
-ACCEPTED = {"JPEG", "PNG", "WEBP"}
 SIZES = ("thumb", "large")
 
 
@@ -50,36 +48,7 @@ def _jpeg(img: Image.Image, side: int, quality: int) -> tuple[bytes, int, int]:
 
 def process(data: bytes) -> Processed:
     """Decode an upload and produce the stored JPEGs; anything else is refused."""
-    if not data:
-        raise DomainError("فایل عکس خالی است", code="invalid_image")
-    if len(data) > MAX_UPLOAD:
-        raise DomainError("حجم عکس بیش از ۱۵ مگابایت است", code="image_too_large")
-    try:
-        with warnings.catch_warnings():
-            # A decompression bomb is an error, not a warning.
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(io.BytesIO(data)) as src:
-                if src.format not in ACCEPTED:
-                    raise DomainError(
-                        "فقط عکس JPEG، PNG یا WebP پذیرفته می‌شود", code="invalid_image"
-                    )
-                if src.width * src.height > MAX_PIXELS:
-                    raise DomainError("ابعاد عکس بیش از حد بزرگ است", code="image_too_large")
-                src.load()
-                img = ImageOps.exif_transpose(src)
-    except DomainError:
-        raise
-    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as e:
-        raise DomainError("فایل عکس خوانا نیست", code="invalid_image") from e
-    except Image.DecompressionBombWarning as e:
-        raise DomainError("ابعاد عکس بیش از حد بزرگ است", code="image_too_large") from e
-    if img.mode in ("RGBA", "LA", "P"):
-        rgba = img.convert("RGBA")
-        flat = Image.new("RGB", rgba.size, (255, 255, 255))
-        flat.paste(rgba, mask=rgba.getchannel("A"))
-        img = flat
-    elif img.mode != "RGB":
-        img = img.convert("RGB")
+    img = pictures.on_white(pictures.decode(data))
     large, w, h = _jpeg(img, LARGE_SIDE, 85)
     thumb, _, _ = _jpeg(img, THUMB_SIDE, 80)
     return Processed(large, thumb, w, h, hashlib.sha256(large).hexdigest())

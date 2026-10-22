@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { Info } from "lucide-react";
 import { NavLink } from "react-router";
 import { useCan } from "@/features/auth/auth";
 import { api } from "@/lib/api";
 import { toFaDigits } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Logo } from "./Logo";
+import { BrandMark, useBranding } from "./branding";
 import { NAV_ADMIN, NAV_MAIN, type NavItem } from "./nav";
 
 const APP_VERSION = "0.1.0";
@@ -76,14 +77,15 @@ function ServerStatus() {
 
 export function SidebarContent() {
   const can = useCan();
+  const brand = useBranding();
   const admin = NAV_ADMIN.filter((i) => can(i.permission));
   return (
     <>
       <div className="mb-6 flex items-center gap-3 px-2 pt-1">
-        <Logo size={40} />
-        <div>
-          <p className="font-extrabold tracking-tight text-ink">NEXTCAM</p>
-          <p className="text-xs text-ink-faint">حسابداری و انبارداری</p>
+        <BrandMark size={40} />
+        <div className="min-w-0">
+          <p className="truncate font-extrabold tracking-tight text-ink">{brand.data?.organization_name || "NEXTCAM"}</p>
+          <p className="text-xs text-ink-faint">{brand.data?.organization_name ? "NEXTCAM ERP" : "حسابداری و انبارداری"}</p>
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto" aria-label="منوی اصلی">
@@ -98,6 +100,9 @@ export function SidebarContent() {
             ))}
           </>
         ) : null}
+        <div className="mt-auto pt-3">
+          <Item item={{ to: "/about", label: "درباره", icon: Info }} />
+        </div>
       </nav>
       <ServerStatus />
     </>

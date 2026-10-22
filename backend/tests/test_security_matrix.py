@@ -54,6 +54,9 @@ def test_every_api_route_requires_session_except_public(app: Flask, seed: Seed) 
         # The visitor app signs in with a password or a refresh token (rate-limited).
         "/api/v1/auth/mobile/login",
         "/api/v1/auth/mobile/refresh",
+        # The login page shows the shop's name and logo (nothing else, ADR-0022).
+        "/api/v1/system/branding",
+        "/api/v1/system/logo",
     }
     c = app.test_client()
     for rule in app.url_map.iter_rules():
