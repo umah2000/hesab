@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../format.dart';
@@ -161,4 +163,97 @@ class LabelValue extends StatelessWidget {
       ),
     );
   }
+}
+
+/// One product photo from the phone's store (or the server, then kept). Shows a
+/// placeholder while loading and when there is none, so a list never waits on photos.
+class Photo extends StatefulWidget {
+  const Photo({
+    super.key,
+    required this.state,
+    required this.id,
+    this.large = false,
+    this.fit = BoxFit.cover,
+  });
+  final AppState state;
+  final String? id;
+  final bool large;
+  final BoxFit fit;
+
+  @override
+  State<Photo> createState() => _PhotoState();
+}
+
+class _PhotoState extends State<Photo> {
+  Future<Uint8List?>? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(Photo old) {
+    super.didUpdateWidget(old);
+    if (old.id != widget.id || old.large != widget.large) _load();
+  }
+
+  void _load() => _bytes = widget.id == null
+      ? null
+      : widget.state.images.get(widget.id!, large: widget.large);
+
+  @override
+  Widget build(BuildContext context) {
+    final placeholder = ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Center(
+        child: Icon(
+          widget.id == null
+              ? Icons.image_not_supported_outlined
+              : Icons.image_outlined,
+          color: Theme.of(context).colorScheme.outline,
+        ),
+      ),
+    );
+    if (_bytes == null) return placeholder;
+    return FutureBuilder<Uint8List?>(
+      future: _bytes,
+      builder: (context, snap) {
+        final b = snap.data;
+        if (b == null) return placeholder;
+        return Image.memory(
+          b,
+          fit: widget.fit,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => placeholder,
+        );
+      },
+    );
+  }
+}
+
+/// The main photo of an item as a small rounded square.
+class ItemThumb extends StatelessWidget {
+  const ItemThumb({
+    super.key,
+    required this.state,
+    required this.item,
+    this.size = 48,
+  });
+  final AppState state;
+  final Item item;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(10),
+    child: SizedBox.square(
+      dimension: size,
+      child: Photo(
+        state: state,
+        id: item.imageIds.isEmpty ? null : item.imageIds.first,
+      ),
+    ),
+  );
 }

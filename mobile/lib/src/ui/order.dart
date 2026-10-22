@@ -5,6 +5,7 @@ import '../api.dart';
 import '../format.dart';
 import '../models.dart';
 import '../state.dart';
+import 'gallery.dart';
 import 'widgets.dart';
 
 /// Writing an order. Offline the phone shows list prices only; the final price
@@ -50,20 +51,21 @@ class _OrderScreenState extends State<OrderScreen> {
   });
 
   Future<void> _addItem() async {
-    final item = await showModalBottomSheet<Item>(
+    final picked = await showModalBottomSheet<_Picked>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => _ItemPicker(catalog: _cat),
+      builder: (_) => _ItemPicker(state: widget.state, catalog: _cat),
     );
-    if (item == null) return;
+    if (picked == null) return;
+    final (item, unitId, qty) = picked;
     final existing = _lines.where(
-      (l) => l.item.id == item.id && l.unitId == item.baseUnitId,
+      (l) => l.item.id == item.id && l.unitId == unitId,
     );
     if (existing.isNotEmpty) {
-      existing.first.qty += Decimal.one;
+      existing.first.qty += qty;
     } else {
-      _lines.add(DraftLine(item, item.baseUnitId, Decimal.one));
+      _lines.add(DraftLine(item, unitId, qty));
     }
     _changed();
   }
@@ -134,6 +136,7 @@ class _OrderScreenState extends State<OrderScreen> {
               children: [
                 for (final (i, l) in _lines.indexed) ...[
                   _LineCard(
+                    state: widget.state,
                     line: l,
                     currency: cur,
                     onChanged: _changed,
@@ -187,6 +190,8 @@ class _OrderScreenState extends State<OrderScreen> {
                             ),
                             bold: true,
                           ),
+                          if (_quote!['credit_unlimited'] == true)
+                            const LabelValue('اعتبار مشتری', 'نامحدود'),
                           if (_quote!['available_after'] != null)
                             LabelValue(
                               'اعتبار پس از این سفارش',
@@ -282,11 +287,13 @@ class _OrderScreenState extends State<OrderScreen> {
 
 class _LineCard extends StatelessWidget {
   const _LineCard({
+    required this.state,
     required this.line,
     required this.currency,
     required this.onChanged,
     required this.onRemove,
   });
+  final AppState state;
   final DraftLine line;
   final String currency;
   final VoidCallback onChanged;
@@ -305,6 +312,14 @@ class _LineCard extends StatelessWidget {
           children: [
             Row(
               children: [
+                if (l.item.imageIds.isNotEmpty) ...[
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => showGallery(context, state, l.item, currency),
+                    child: ItemThumb(state: state, item: l.item, size: 44),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: Text(
                     l.item.name,
@@ -386,8 +401,30 @@ class _LineCard extends StatelessWidget {
   }
 }
 
+/// (item, unit, quantity) chosen in the picker.
+typedef _Picked = (Item, String, Decimal);
+
+/// Opens an item's photos full screen; with [canAdd] returns the chosen quantity.
+Future<PickedQty?> showGallery(
+  BuildContext context,
+  AppState state,
+  Item item,
+  String currency, {
+  bool canAdd = false,
+}) => Navigator.of(context).push<PickedQty>(
+  MaterialPageRoute(
+    builder: (_) => ItemGalleryScreen(
+      state: state,
+      item: item,
+      currency: currency,
+      canAdd: canAdd,
+    ),
+  ),
+);
+
 class _ItemPicker extends StatefulWidget {
-  const _ItemPicker({required this.catalog});
+  const _ItemPicker({required this.state, required this.catalog});
+  final AppState state;
   final Catalog catalog;
 
   @override
@@ -396,53 +433,167 @@ class _ItemPicker extends StatefulWidget {
 
 class _ItemPickerState extends State<_ItemPicker> {
   String _q = '';
+  // Photos first when the catalogue has any: the buyer chooses by looking.
+  late bool _grid = widget.catalog.items.any((i) => i.imageIds.isNotEmpty);
+
+  Future<void> _openPhotos(Item it) async {
+    final nav = Navigator.of(context);
+    final picked = await showGallery(
+      context,
+      widget.state,
+      it,
+      widget.catalog.currency,
+      canAdd: true,
+    );
+    if (picked != null) nav.pop<_Picked>((it, picked.unitId, picked.qty));
+  }
+
+  void _addOne(Item it) =>
+      Navigator.pop<_Picked>(context, (it, it.baseUnitId, Decimal.one));
 
   @override
   Widget build(BuildContext context) {
-    final items = widget.catalog.search(_q);
+    final items = widget.catalog.search(_q, limit: _grid ? 60 : 30);
     final outline = Theme.of(context).colorScheme.outline;
+    final cur = widget.catalog.currency;
     return SizedBox(
-      height: MediaQuery.of(context).size.height * 0.8,
+      height: MediaQuery.of(context).size.height * 0.85,
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: TextField(
-              autofocus: true,
-              onChanged: (v) => setState(() => _q = enDigits(v)),
-              decoration: const InputDecoration(
-                hintText: 'نام یا کد کالا',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    autofocus: !_grid,
+                    onChanged: (v) => setState(() => _q = enDigits(v)),
+                    decoration: const InputDecoration(
+                      hintText: 'نام یا کد کالا',
+                      prefixIcon: Icon(Icons.search_rounded),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: _grid ? 'نمایش فهرستی' : 'نمایش با عکس',
+                  onPressed: () => setState(() => _grid = !_grid),
+                  icon: Icon(
+                    _grid ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: items.length,
-              itemBuilder: (context, i) {
-                final it = items[i];
-                final base = it.unit(it.baseUnitId);
-                return ListTile(
-                  title: Text(it.name),
-                  subtitle: Text(
-                    [
-                      faDigits(it.code),
-                      if (it.groupName != null) it.groupName!,
-                      if (it.stock != null)
-                        'موجودی ${qty(it.stock.toString())} ${base.name}',
-                    ].join(' · '),
-                    style: TextStyle(color: outline),
+            child: _grid
+                ? GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 200,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 0.72,
+                        ),
+                    itemCount: items.length,
+                    itemBuilder: (context, i) {
+                      final it = items[i];
+                      final base = it.unit(it.baseUnitId);
+                      return Card(
+                        clipBehavior: Clip.antiAlias,
+                        margin: EdgeInsets.zero,
+                        child: InkWell(
+                          onTap: () => _openPhotos(it),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: Photo(
+                                  state: widget.state,
+                                  id: it.imageIds.isEmpty
+                                      ? null
+                                      : it.imageIds.first,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  10,
+                                  8,
+                                  10,
+                                  2,
+                                ),
+                                child: Text(
+                                  it.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(10, 0, 4, 4),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        base.price == null
+                                            ? '—'
+                                            : money(base.price!, cur),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: outline,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'افزودن ${it.name}',
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => _addOne(it),
+                                      icon: const Icon(
+                                        Icons.add_circle_rounded,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : ListView.builder(
+                    itemCount: items.length,
+                    itemBuilder: (context, i) {
+                      final it = items[i];
+                      final base = it.unit(it.baseUnitId);
+                      return ListTile(
+                        leading: InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => _openPhotos(it),
+                          child: ItemThumb(state: widget.state, item: it),
+                        ),
+                        title: Text(it.name),
+                        subtitle: Text(
+                          [
+                            faDigits(it.code),
+                            if (it.groupName != null) it.groupName!,
+                            if (it.stock != null)
+                              'موجودی ${qty(it.stock.toString())} ${base.name}',
+                          ].join(' · '),
+                          style: TextStyle(color: outline),
+                        ),
+                        trailing: Text(
+                          base.price == null ? '—' : money(base.price!, cur),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        onTap: () => _addOne(it),
+                      );
+                    },
                   ),
-                  trailing: Text(
-                    base.price == null
-                        ? '—'
-                        : money(base.price!, widget.catalog.currency),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  onTap: () => Navigator.pop(context, it),
-                );
-              },
-            ),
           ),
         ],
       ),

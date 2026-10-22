@@ -5,9 +5,11 @@
 ///   when the server has answered for it; it is never deleted while pending, so a
 ///   dead battery or a sign-out does not lose an order.
 /// * `orders`: the visitor's orders as the server last reported them (status).
+/// * `images`: product photos, kept for showing them without a connection.
 library;
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:sqflite/sqflite.dart';
 
@@ -57,8 +59,12 @@ class LocalDb {
     final db = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
+        onUpgrade: (db, from, _) async {
+          if (from < 2) await _createImages(db);
+        },
         onCreate: (db, _) async {
+          await _createImages(db);
           await db.execute(
             'CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)',
           );
@@ -79,6 +85,48 @@ class LocalDb {
       ),
     );
     return LocalDb(db);
+  }
+
+  /// Product photos as the server sent them (ADR-0022); `size` is thumb or large.
+  static Future<void> _createImages(Database db) => db.execute(
+    'CREATE TABLE images (id TEXT NOT NULL, size TEXT NOT NULL, '
+    'bytes BLOB NOT NULL, PRIMARY KEY (id, size))',
+  );
+
+  Future<Uint8List?> image(String id, String size) async {
+    final r = await db.query(
+      'images',
+      columns: ['bytes'],
+      where: 'id = ? AND size = ?',
+      whereArgs: [id, size],
+    );
+    return r.isEmpty ? null : r.first['bytes'] as Uint8List;
+  }
+
+  Future<void> putImage(String id, String size, Uint8List bytes) => db.insert(
+    'images',
+    {'id': id, 'size': size, 'bytes': bytes},
+    conflictAlgorithm: ConflictAlgorithm.replace,
+  );
+
+  Future<Set<String>> imageIds(String size) async {
+    final r = await db.query(
+      'images',
+      columns: ['id'],
+      where: 'size = ?',
+      whereArgs: [size],
+    );
+    return r.map((e) => e['id'] as String).toSet();
+  }
+
+  /// Drops photos no longer in the catalogue (removed or replaced on the server).
+  Future<void> keepImages(Set<String> ids) async {
+    final all = await db.query('images', columns: ['id'], distinct: true);
+    for (final id in all.map((e) => e['id'] as String)) {
+      if (!ids.contains(id)) {
+        await db.delete('images', where: 'id = ?', whereArgs: [id]);
+      }
+    }
   }
 
   Future<String?> get(String key) async {

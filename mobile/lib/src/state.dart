@@ -10,13 +10,15 @@ import 'package:uuid/uuid.dart';
 
 import 'api.dart';
 import 'db.dart';
+import 'images.dart';
 import 'models.dart';
 import 'sync.dart';
 import 'tokens.dart';
 
 class AppState extends ChangeNotifier {
   AppState({required this.api, required this.db, this.deviceName = 'Android'})
-    : sync = SyncService(api, db) {
+    : sync = SyncService(api, db),
+      images = ImageStore(api, db) {
     api.onSignedOut = () {
       signedOut = true;
       notifyListeners();
@@ -26,6 +28,7 @@ class AppState extends ChangeNotifier {
   final ApiClient api;
   final LocalDb db;
   final SyncService sync;
+  final ImageStore images;
   final String deviceName;
   static const _uuid = Uuid();
 
@@ -93,6 +96,7 @@ class AppState extends ChangeNotifier {
     try {
       final r = await sync.run();
       online = r.online;
+      if (r.online) unawaited(_refreshImages());
     } on ApiException catch (e) {
       online = true;
       syncError = e.message;
@@ -102,6 +106,27 @@ class AppState extends ChangeNotifier {
       syncing = false;
       await reload();
     }
+  }
+
+  /// After a sync: forget removed photos, fetch thumbnails the phone does not have.
+  Future<void> _refreshImages() async {
+    final items = catalog?.items;
+    if (items == null) return;
+    try {
+      await images.keepOnly(items);
+      if (await images.prefetch(items) > 0) notifyListeners();
+    } on ApiException {
+      // Photos are optional; the next sync tries again.
+    }
+  }
+
+  /// Large main photos of the whole catalogue, for showing them without a connection.
+  Future<int> downloadPhotos(
+    void Function(int done, int total) progress,
+  ) async {
+    final items = catalog?.items ?? const <Item>[];
+    await images.prefetch(items, progress: progress);
+    return images.prefetch(items, large: true, progress: progress);
   }
 
   /// Queue an order (and its visit); it is sent now if there is a connection.

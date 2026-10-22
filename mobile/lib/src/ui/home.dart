@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../api.dart';
 import '../db.dart';
 import '../format.dart';
 import '../models.dart';
@@ -55,8 +58,15 @@ class _HomeScreenState extends State<HomeScreen> {
           PopupMenuButton<String>(
             onSelected: (v) async {
               if (v == 'logout') await _confirmLogout(context);
+              if (v == 'photos' && context.mounted) {
+                await _downloadPhotos(context);
+              }
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'photos',
+                child: Text('دریافت عکس‌ها برای کار بدون اینترنت'),
+              ),
               PopupMenuItem(value: 'logout', child: Text('خروج')),
             ],
           ),
@@ -104,6 +114,56 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'صف ارسال',
           ),
         ],
+      ),
+    );
+  }
+
+  /// Fetches every main photo in large size, with progress; stops when offline.
+  Future<void> _downloadPhotos(BuildContext context) async {
+    final s = widget.state;
+    final progress = ValueNotifier<(int, int)>((0, 0));
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('دریافت عکس‌ها'),
+          content: ValueListenableBuilder<(int, int)>(
+            valueListenable: progress,
+            builder: (_, p, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: p.$2 == 0 ? null : p.$1 / p.$2),
+                const SizedBox(height: 12),
+                Text(
+                  p.$2 == 0
+                      ? 'در حال بررسی…'
+                      : '${faDigits(p.$1)} از ${faDigits(p.$2)}',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    var have = 0;
+    try {
+      have = await s.downloadPhotos((d, t) => progress.value = (d, t));
+    } on ApiException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      nav.pop();
+    }
+    final total = s.catalog?.items.where((i) => i.imageIds.isNotEmpty).length;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          s.online || have == total
+              ? 'عکس ${faDigits(have)} کالا روی گوشی است'
+              : 'اینترنت قطع شد؛ عکس ${faDigits(have)} کالا روی گوشی است',
+        ),
       ),
     );
   }
