@@ -277,7 +277,7 @@ class CardTerminal(EntityMixin, ActorMixin, VersionedMixin, Base):
 
     __tablename__ = "card_terminal"
     __table_args__ = (
-        CheckConstraint("provider IN ('sep','mock')", name="provider"),
+        CheckConstraint("provider IN ('sep','sep_central','mock')", name="provider"),
         CheckConstraint("port IS NULL OR (port BETWEEN 1 AND 65535)", name="port"),
     )
 
@@ -321,6 +321,9 @@ class TerminalTransaction(EntityMixin, VersionedMixin, Base):
     trace_no: Mapped[str | None] = mapped_column(String(32))
     masked_pan: Mapped[str | None] = mapped_column(String(19))
     response_code: Mapped[str | None] = mapped_column(String(16))
+    # The provider's own id for this attempt (SEP central: Identifier), saved before the
+    # amount is sent so the attempt can always be inquired.
+    provider_ref: Mapped[str | None] = mapped_column(String(64))
     is_simulated: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"))
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(UNIQUEIDENTIFIER)

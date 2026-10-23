@@ -93,6 +93,23 @@ export function PaymentDialog({
     onSuccess: setTx,
     onError: (e) => setError(e instanceof ApiError ? e.message : "استعلام انجام نشد"),
   });
+  const cancelTx = useMutation({
+    mutationFn: () => api.post<TerminalTx>(`/payments/terminal-transactions/${tx?.id}/cancel`),
+    onSuccess: setTx,
+    onError: (e) => setError(e instanceof ApiError ? e.message : "لغو انجام نشد"),
+  });
+  // A reader that waits for the customer answers later: follow the attempt until it does.
+  const pendingId = tx?.status === "Pending" ? tx.id : null;
+  React.useEffect(() => {
+    if (!pendingId) return;
+    const timer = window.setInterval(() => {
+      api
+        .get<TerminalTx>(`/payments/terminal-transactions/${pendingId}`)
+        .then((t) => setTx((cur) => (cur?.id === t.id ? t : cur)))
+        .catch(() => undefined);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [pendingId]);
   const customers = useQuery({
     queryKey: ["sales", "customers", q],
     queryFn: () => api.get<Customer[]>(`/sales/customers?q=${encodeURIComponent(q)}`),
@@ -225,6 +242,17 @@ export function PaymentDialog({
                     <Button type="button" size="sm" loading={inquire.isPending} onClick={() => inquire.mutate()}>
                       استعلام
                     </Button>
+                  ) : null}
+                  {tx?.status === "Pending" && chosen?.can_cancel ? (
+                    <Button type="button" size="sm" variant="ghost" loading={cancelTx.isPending} onClick={() => cancelTx.mutate()}>
+                      لغو ارسال
+                    </Button>
+                  ) : null}
+                  {tx?.message || (tx?.response_code && tx.status !== "Approved") ? (
+                    <p role="status" className="w-full text-xs text-ink-soft">
+                      پاسخ بانک: {tx.message ?? "—"}
+                      {tx.response_code ? <>{" "}<bdi className="latin-digits">(کد {tx.response_code})</bdi></> : null}
+                    </p>
                   ) : null}
                   {chosen && !chosen.ready ? (
                     <p role="status" className="flex w-full items-start gap-1.5 text-xs text-ink-soft">

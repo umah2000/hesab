@@ -48,6 +48,7 @@ export type TerminalChoice = {
   reason: string | null;
   simulated: boolean;
   scenarios: string[];
+  can_cancel?: boolean;
 };
 
 export type RegisterState = {
@@ -198,6 +199,8 @@ export type TerminalTx = {
   trace_no: string | null;
   masked_pan: string | null;
   response_code: string | null;
+  /** The provider's text for response_code (SEP), when known. */
+  message?: string | null;
   is_simulated: boolean;
   created_at: string;
   row_version: string;
@@ -205,7 +208,7 @@ export type TerminalTx = {
 
 export const TX_LABEL: Record<TerminalTx["status"], string> = {
   Created: "ایجاد شد",
-  Pending: "در انتظار دستگاه",
+  Pending: "در انتظار کارت مشتری روی دستگاه",
   Approved: "تأیید شد",
   Declined: "رد شد",
   Unknown: "نامشخص — استعلام لازم است",

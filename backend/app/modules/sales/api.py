@@ -400,8 +400,8 @@ def card_terminal_update(terminal_id: str) -> ResponseReturnValue:
 @doc("ارسال مبلغ به کارت‌خوان", body=TerminalStartIn, response=TerminalTxOut)
 def terminal_start() -> ResponseReturnValue:
     data = parse_body(TerminalStartIn)
-    with unit_of_work() as s:
-        return to_json(terminal.start(s, current_actor(), data), 201)
+    # Its own units of work: a reader that waits for the customer answers later (poll).
+    return to_json(terminal.start(current_actor(), data), 201)
 
 
 @payments_bp.get("/terminal-transactions")
@@ -432,6 +432,14 @@ def terminal_get(tx_id: str) -> ResponseReturnValue:
 def terminal_inquire(tx_id: str) -> ResponseReturnValue:
     with unit_of_work() as s:
         return to_json(terminal.inquire(s, current_actor(), parse_uuid(tx_id)))
+
+
+@payments_bp.post("/terminal-transactions/<tx_id>/cancel")
+@require("sales.payment.card")
+@doc("لغو ارسال به کارت‌خوان (پیش از کشیدن کارت)", response=TerminalTxOut)
+def terminal_cancel(tx_id: str) -> ResponseReturnValue:
+    with unit_of_work() as s:
+        return to_json(terminal.cancel(s, current_actor(), parse_uuid(tx_id)))
 
 
 @payments_bp.post("/terminal-transactions/<tx_id>/resolve")

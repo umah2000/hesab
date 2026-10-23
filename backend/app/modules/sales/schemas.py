@@ -319,7 +319,7 @@ TxStatus = Literal[
 ]
 
 
-CardProvider = Literal["sep", "mock"]
+CardProvider = Literal["sep", "sep_central", "mock"]
 
 
 class CardTerminalIn(_In):
@@ -366,6 +366,8 @@ class TerminalChoiceOut(BaseModel):
     reason: str | None
     simulated: bool
     scenarios: list[str]
+    # The cashier may cancel an amount still waiting on the device.
+    can_cancel: bool = False
 
 
 class TerminalStartIn(_In):
@@ -397,6 +399,8 @@ class TerminalTxOut(BaseModel):
     trace_no: str | None
     masked_pan: str | None
     response_code: str | None
+    # The provider's text for response_code, when its document gives one.
+    message: str | None = None
     is_simulated: bool
     created_at: datetime
     row_version: str

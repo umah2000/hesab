@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Pencil, Plus, TriangleAlert } from "lucide-react";
+import { CreditCard, Info, Pencil, Plus, TriangleAlert } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import type { Branch, CashRegister } from "@/features/settings/types";
 import { ApiError, api } from "@/lib/api";
 import { toEnDigits, toFaDigits } from "@/lib/format";
 
-export type CardProvider = "sep" | "mock";
+export type CardProvider = "sep_central" | "sep" | "mock";
 
 export type CardTerminal = {
   id: string;
@@ -34,7 +34,8 @@ export type CardTerminal = {
 };
 
 const PROVIDERS: { value: CardProvider; label: string }[] = [
-  { value: "sep", label: "پرداخت الکترونیک سامان (SEP)، پروتکل SSP1126" },
+  { value: "sep_central", label: "پرداخت الکترونیک سامان (SEP)، پی‌سی‌پوز مرکزی" },
+  { value: "sep", label: "پرداخت الکترونیک سامان (SEP)، پروتکل SSP1126 در شبکه‌ی فروشگاه" },
   { value: "mock", label: "کارت‌خوان آزمایشی (فقط محیط توسعه)" },
 ];
 
@@ -130,7 +131,7 @@ function TerminalDialog({ terminal, onClose }: { terminal: CardTerminal | null; 
   const branches = useQuery({ queryKey: ["branches"], queryFn: () => api.get<Branch[]>("/organization/branches") });
   const [f, setF] = React.useState({
     name: terminal?.name ?? "",
-    provider: terminal?.provider ?? ("sep" as CardProvider),
+    provider: terminal?.provider ?? ("sep_central" as CardProvider),
     host: terminal?.host ?? "",
     port: terminal?.port != null ? String(terminal.port) : "",
     terminal_no: terminal?.terminal_no ?? "",
@@ -186,12 +187,16 @@ function TerminalDialog({ terminal, onClose }: { terminal: CardTerminal | null; 
               ))}
             </Select>
           </Field>
+          {f.provider !== "sep_central" ? (
+            <>
           <Field htmlFor="ct-host" label="نشانی IP دستگاه" hint="در دستگاه: منو ← پیکربندی ← گزارشات ← تنظیمات ارتباط">
             <Input id="ct-host" dir="ltr" className="latin-digits" placeholder="192.168.1.105" value={f.host} onChange={(e) => set("host", toEnDigits(e.target.value).trim())} />
           </Field>
           <Field htmlFor="ct-port" label="درگاه (port)" hint="اگر مستند PSP آن را مشخص کرده است">
             <Input id="ct-port" dir="ltr" className="latin-digits" inputMode="numeric" value={f.port} onChange={(e) => set("port", toEnDigits(e.target.value).replace(/\D/g, "").slice(0, 5))} />
           </Field>
+            </>
+          ) : null}
           <Field htmlFor="ct-branch" label="شعبه">
             <Select id="ct-branch" value={branchId} onChange={(e) => setF((s) => ({ ...s, branch_id: e.target.value, cash_register_id: "" }))}>
               {branches.data?.map((b) => (
@@ -207,7 +212,11 @@ function TerminalDialog({ terminal, onClose }: { terminal: CardTerminal | null; 
               ))}
             </Select>
           </Field>
-          <Field htmlFor="ct-terminal" label="شماره ترمینال (اختیاری)">
+          <Field
+            htmlFor="ct-terminal"
+            label={f.provider === "sep_central" ? "شماره ترمینال" : "شماره ترمینال (اختیاری)"}
+            hint={f.provider === "sep_central" ? "همان شماره‌ی ترمینال روی رسید دستگاه" : undefined}
+          >
             <Input id="ct-terminal" dir="ltr" className="latin-digits" value={f.terminal_no} onChange={(e) => set("terminal_no", toEnDigits(e.target.value).replace(/[^0-9A-Za-z]/g, "").slice(0, 16))} />
           </Field>
           <Field htmlFor="ct-note" label="توضیح">
@@ -216,6 +225,13 @@ function TerminalDialog({ terminal, onClose }: { terminal: CardTerminal | null; 
           <label className="flex items-center gap-2 text-sm text-ink-soft sm:col-span-2">
             <Checkbox checked={f.is_active} onCheckedChange={(c) => set("is_active", c === true)} /> فعال
           </label>
+          {f.provider === "sep_central" ? (
+            <p className="flex items-start gap-1.5 rounded-xl bg-info/10 p-3 text-xs text-ink sm:col-span-2">
+              <Info className="mt-0.5 size-4 shrink-0 text-info" />
+              مبلغ از راه سرویس پی‌سی‌پوز مرکزی سامان به دستگاه می‌رسد؛ دستگاه باید از سوی سامان برای این سرویس فعال شده باشد. نشانی سرویس و
+              اطلاعات ورودی که سامان می‌دهد فقط روی سرور تنظیم می‌شود (راهنمای نصب، بخش کارت‌خوان سامان)، نه در این فرم.
+            </p>
+          ) : null}
           {f.provider === "sep" ? (
             <p className="flex items-start gap-1.5 rounded-xl bg-warning/10 p-3 text-xs text-ink sm:col-span-2">
               <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
@@ -225,7 +241,9 @@ function TerminalDialog({ terminal, onClose }: { terminal: CardTerminal | null; 
           ) : null}
         </div>
         <DialogFooter>
-          <Button loading={save.isPending} disabled={f.name.trim().length < 2 || !branchId} onClick={() => save.mutate()}>
+          <Button
+            loading={save.isPending}
+            disabled={f.name.trim().length < 2 || !branchId || (f.provider === "sep_central" && !f.terminal_no.trim())} onClick={() => save.mutate()}>
             {terminal ? "ذخیره" : "تعریف کارت‌خوان"}
           </Button>
           <Button variant="ghost" onClick={onClose}>انصراف</Button>

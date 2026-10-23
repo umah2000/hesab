@@ -59,6 +59,23 @@ NEXTCAM_COOKIE_SECURE=false
 ```
 > `NEXTCAM_ENABLE_MOCK_PAYMENT_TERMINAL` در production مجاز نیست و برنامه با آن بالا نمی‌آید.
 
+**کارت‌خوان سامان، پی‌سی‌پوز مرکزی (اختیاری، ADR-0024).** این مقادیر را پرداخت الکترونیک سامان می‌دهد و فقط در همین فایل قرار می‌گیرند:
+```ini
+NEXTCAM_SEP_PCPOS_URL=https://<سرور سرویس>:<درگاه سرویس>
+NEXTCAM_SEP_PCPOS_IDENTITY_URL=https://<سرور هویت>:<درگاه هویت>
+NEXTCAM_SEP_PCPOS_CLIENT_ID=<نام کاربری کلاینت>
+NEXTCAM_SEP_PCPOS_CLIENT_SECRET=<رمز کلاینت>
+NEXTCAM_SEP_PCPOS_USERNAME=<نام کاربری>
+NEXTCAM_SEP_PCPOS_PASSWORD=<رمز>
+# فقط اگر سامان نشانی http در شبکه‌ی داخلی داده است:
+# NEXTCAM_SEP_PCPOS_ALLOW_HTTP=true
+# حداکثر انتظار برای کارت و رمز مشتری (ثانیه):
+# NEXTCAM_SEP_PCPOS_TIMEOUT_SECONDS=100
+```
+- سپس در «دستگاه‌های صندوق ← کارت‌خوان‌های بانکی» هر دستگاه را با ارائه‌دهنده‌ی «پی‌سی‌پوز مرکزی» و **شماره‌ی ترمینال** تعریف کنید.
+- سرور باید به نشانی سامان دسترسی شبکه داشته باشد.
+- پیش از فروش واقعی، چک‌لیست آزمون در `docs/hardware/payment-terminal-adapter.md` (بخش ۸) را با ترمینال آزمایشی انجام دهید.
+
 ۶. دیتابیس و راه‌اندازی اولیه:
 ```powershell
 cd C:\nextcam\backend
