@@ -1255,3 +1255,99 @@ def test_sep_central_reader_pays_in_the_background(app: Flask, pos: Pos) -> None
         for k, v in before.items():
             setattr(settings, k, v)
         fake.close()
+
+
+def test_shop_scale_label_shelf_tickets_and_receipt_prices(app: Flask, pos: Pos) -> None:
+    """The shop's samples (1405/08/02): a scale label of 12 digits without check digit
+    (250212001442 = PLU 02120, 1.442 kg), eggs at 3,400,000 sold at 2,580,000 a kilo;
+    the receipt's shop price and amount, and the shelf ticket, from the server."""
+    from tests.test_inventory import make_item
+
+    boss = login(app, "boss")
+    rule = boss.post(
+        "/api/v1/inventory/scale-rules",
+        {
+            "name": "ترازوی فروشگاه",
+            "prefix": "25",
+            "item_code_length": 5,
+            "value_length": 5,
+            "value_type": "weight",
+            "value_decimals": 3,
+            "check_digit": False,
+        },
+        idem=new_key(),
+    )
+    assert rule.status_code == 201 and rule.json["check_digit"] is False, rule.get_json()
+    eggs = make_item(
+        boss,
+        _inv(pos.wh, pos.kg),
+        "EGG",
+        name="تخم مرغ",
+        base_unit_id=pos.kg,
+        is_weighted=True,
+        scale_code="02120",
+        prices=[{"unit_id": pos.kg, "price": "3400000"}],
+    )
+    # A normal product barcode can no longer take this shape.
+    clash = boss.post(
+        "/api/v1/inventory/items",
+        {
+            "code": "X12",
+            "name": "کالای آزمایشی",
+            "base_unit_id": pos.kg,
+            "barcodes": [{"barcode": "250000000001"}],
+        },
+        idem=new_key(),
+    )
+    assert clash.json["error"]["code"] == "barcode_scale_prefix"
+    promo = boss.post(
+        "/api/v1/sales/promotions",
+        {
+            "name": "تخم مرغ ویژه",
+            "kind": "amount",
+            "scope": "item",
+            "item_id": eggs["id"],
+            "value": "820000",
+            "starts_on": "2026-01-01",
+            "ends_on": "2027-12-31",
+        },
+        idem=new_key(),
+    )
+    assert promo.status_code == 201, promo.get_json()
+
+    c = login(app, "cashier")
+    open_shift(c, pos.r1)
+    q = c.post(
+        "/api/v1/sales/quote",
+        {
+            "cash_register_id": pos.r1,
+            "lines": [{"item_id": eggs["id"], "qty": "1", "barcode": "250212001442"}],
+        },
+    ).get_json()
+    line = q["lines"][0]
+    assert (line["qty"], line["gross"], line["promotion_discount"]) == (
+        "1.442",
+        "4902800.0000",
+        "1182440.0000",
+    )
+    assert (line["net_amount"], line["net_unit_price"]) == ("3720360.0000", "2580000.0000")
+
+    tickets = boss.post("/api/v1/sales/price-tickets", {"item_ids": [eggs["id"], pos.milk]})
+    assert tickets.status_code == 200, tickets.get_json()
+    by_code = {t["code"]: t for t in tickets.json["tickets"]}
+    egg = by_code["EGG"]
+    assert (egg["price"], egg["final_price"], egg["discount_percent"]) == (
+        "3400000.0000",
+        "2580000.0000",
+        "24.12",
+    )
+    assert egg["is_weighted"] is True and egg["unit_name"] == "کیلوگرم"
+    assert (by_code["M1"]["discount_percent"], by_code["M1"]["final_price"]) == (
+        None,
+        "110000.0000",
+    )
+    promoted = boss.post("/api/v1/sales/price-tickets", {"promoted_only": True}).json
+    assert [t["code"] for t in promoted["tickets"]] == ["EGG"]
+    none = boss.post("/api/v1/sales/price-tickets", {})
+    assert none.json["error"]["code"] == "no_items"
+    assert c.post("/api/v1/sales/price-tickets", {"item_ids": [pos.milk]}).status_code == 403

@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from types import SimpleNamespace
 from typing import Any
 
@@ -125,7 +125,13 @@ class Snapshot:
                 self.by_scale_code[i["scale_code"].lstrip("0")] = i["id"]
         self.by_code: dict[str, str] = {i["code"].upper(): i["id"] for i in r["items"]}
         self.rules = [
-            ScaleRule(x["prefix"], x["item_code_length"], x["value_type"], x["value_decimals"])
+            ScaleRule(
+                x["prefix"],
+                x["item_code_length"],
+                x["value_type"],
+                x["value_decimals"],
+                x.get("check_digit", True),
+            )
             for x in r["scale_rules"]
         ]
         self.promos: list[dict[str, Any]] = r["promotions"]
@@ -289,7 +295,7 @@ def lookup(snap: Snapshot, raw: str) -> dict[str, Any]:
         return result(
             bc["item_id"], unit, Decimal(1), "pack_barcode" if bc["unit_id"] else "barcode"
         )
-    if len(code) == 13 and code.isdigit():
+    if is_scale_label(code, snap.rules):
         try:
             hit = SnapCatalog(snap)._parse(code)
         except CoreError as e:
@@ -407,6 +413,11 @@ def quote_view(cart: PricedCart) -> dict[str, Any]:
 
 
 def line_view(ln: Any) -> dict[str, Any]:
+    # As the server's QuoteLineOut: the receipt's shop price and amount, before tax.
+    net = ln.gross - ln.promotion_discount - ln.manual_discount
+    net_unit = (
+        (net / ln.qty).quantize(Decimal(1), rounding=ROUND_HALF_UP) if ln.qty else ln.unit_price
+    )
     return {
         "line_no": ln.line_no,
         "item_id": str(ln.item.id),
@@ -428,6 +439,8 @@ def line_view(ln: Any) -> dict[str, Any]:
         "line_total": m(ln.line_total),
         "stock_qty": q3(ln.stock_qty) if ln.stock_qty is not None else None,
         "scanned_barcode": ln.scanned_barcode,
+        "net_amount": m(net),
+        "net_unit_price": m(net_unit),
     }
 
 
@@ -775,6 +788,8 @@ def receipt(
         organization=st["organization_name"],
         header=st["receipt_header"],
         footer=st["receipt_footer"],
+        phone=st.get("phone"),
+        address=st.get("address"),
         currency=st["display_currency"],
         timezone=st.get("timezone") or "Asia/Tehran",
         reprint=reprint,

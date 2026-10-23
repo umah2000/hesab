@@ -444,6 +444,8 @@ def print_receipt(s: Session, actor: Actor, data: PrintReceiptIn) -> JobOut:
         organization=org.name,
         header=org.receipt_header,
         footer=org.receipt_footer,
+        phone=org.phone,
+        address=org.address,
         currency=org.display_currency,
         timezone=org.timezone,
         reprint=reprint,

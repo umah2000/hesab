@@ -21,6 +21,7 @@ class OrganizationOut(BaseModel):
     backup_warning_days: int
     receipt_header: str | None
     receipt_footer: str | None
+    invoice_paper: Literal["thermal", "a5", "a4"] = "thermal"
     about: str | None = None
     phone: str | None = None
     address: str | None = None
@@ -50,6 +51,7 @@ class OrganizationUpdateIn(BaseModel):
     backup_warning_days: int | None = Field(default=None, ge=1, le=60)
     receipt_header: str | None = Field(default=None, max_length=500)
     receipt_footer: str | None = Field(default=None, max_length=500)
+    invoice_paper: Literal["thermal", "a5", "a4"] | None = None
     about: str | None = Field(default=None, max_length=2000)
     phone: str | None = Field(default=None, max_length=40)
     address: str | None = Field(default=None, max_length=300)

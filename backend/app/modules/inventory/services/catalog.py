@@ -6,7 +6,13 @@ import uuid
 from decimal import ROUND_HALF_UP, Decimal
 
 from nextcam_core import CoreError
-from nextcam_core.scan import ScaleRule, ean13_check_digit, normalize_scan, parse_scale
+from nextcam_core.scan import (
+    ScaleRule,
+    ean13_check_digit,
+    is_scale_label,
+    normalize_scan,
+    parse_scale,
+)
 from sqlalchemy import func, or_, select, true
 from sqlalchemy.orm import Session
 
@@ -227,9 +233,9 @@ def _validate(s: Session, data: ItemIn, item_id: uuid.UUID | None) -> None:
             raise ConflictError(
                 f"بارکد {clash[0]} قبلاً برای کالای {clash[1]} ثبت شده است", code="barcode_taken"
             )
-    rules = list(s.scalars(select(ScaleBarcodeRule).where(ScaleBarcodeRule.is_active == true())))
+    rules = scale_rules(s)
     for code in codes:
-        if len(code) == 13 and any(code.startswith(r.prefix) for r in rules):
+        if is_scale_label(code, rules):
             raise DomainError(
                 f"بارکد {code} با پیشوند بارکد ترازو شروع می‌شود و قابل ثبت نیست",
                 code="barcode_scale_prefix",
@@ -443,6 +449,23 @@ def list_items(s: Session, q: ItemQuery) -> Page[ItemSummary]:
 # --- scale rules ------------------------------------------------------------
 
 
+def scale_rules(s: Session) -> list[ScaleRule]:
+    """The active scale rules (reference data, cached; cleared when a rule is saved)."""
+    return list(
+        refcache.get(
+            "scale_rules",
+            lambda: tuple(
+                ScaleRule(
+                    r.prefix, r.item_code_length, r.value_type, r.value_decimals, r.check_digit
+                )
+                for r in s.scalars(
+                    select(ScaleBarcodeRule).where(ScaleBarcodeRule.is_active == true())
+                )
+            ),
+        )
+    )
+
+
 def _rule_out(r: ScaleBarcodeRule) -> ScaleRuleOut:
     return ScaleRuleOut(
         id=r.id,
@@ -452,6 +475,7 @@ def _rule_out(r: ScaleBarcodeRule) -> ScaleRuleOut:
         value_length=r.value_length,
         value_type=r.value_type,  # type: ignore[arg-type]
         value_decimals=r.value_decimals,
+        check_digit=r.check_digit,
         is_active=r.is_active,
         row_version=version_to_str(r.row_version),
     )
@@ -466,7 +490,7 @@ def list_scale_rules(s: Session) -> list[ScaleRuleOut]:
 def _check_rule(data: ScaleRuleIn) -> None:
     if len(data.prefix) + data.item_code_length + data.value_length != 12:
         raise DomainError(
-            "جمع طول پیشوند، کد کالا و مقدار باید ۱۲ رقم باشد (رقم سیزدهم کنترلی است)",
+            "جمع طول پیشوند، کد کالا و مقدار باید ۱۲ رقم باشد (رقم کنترل، اگر باشد، جدا است)",
             code="invalid_rule",
         )
 
@@ -580,11 +604,8 @@ def lookup(s: Session, raw: str, price_list_id: uuid.UUID | None = None) -> Look
             "pack_barcode" if bc.unit_id else "barcode",
         )
 
-    if len(code) == 13 and code.isdigit():
-        rules = [
-            ScaleRule(r.prefix, r.item_code_length, r.value_type, r.value_decimals)
-            for r in s.scalars(select(ScaleBarcodeRule).where(ScaleBarcodeRule.is_active == true()))
-        ]
+    rules = scale_rules(s)
+    if is_scale_label(code, rules):
 
         def find_plu(plu: str) -> uuid.UUID | None:
             return s.scalar(

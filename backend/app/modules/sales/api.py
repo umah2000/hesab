@@ -30,6 +30,8 @@ from app.modules.sales.schemas import (
     InvoiceQuery,
     InvoiceSummaryOut,
     LineRemovalIn,
+    PriceTicketIn,
+    PriceTicketsOut,
     PromotionIn,
     PromotionOut,
     QuoteOut,
@@ -93,6 +95,9 @@ def register_state(register_id: str) -> ResponseReturnValue:
                 receipt_header=org.receipt_header,
                 receipt_footer=org.receipt_footer,
                 organization_name=org.name,
+                phone=org.phone,
+                address=org.address,
+                invoice_paper=org.invoice_paper,  # type: ignore[arg-type]
                 terminal=terminal.info(),
                 terminals=terminal.choices(s, reg),
                 permissions=sorted(
@@ -175,6 +180,18 @@ def quote() -> ResponseReturnValue:
         return to_json(
             pricing.quote_out(pricing.price_cart(s, data, warehouse_id=wh.id, today=tehran_today()))
         )
+    finally:
+        s.close()
+
+
+@bp.post("/price-tickets")
+@require_any("inventory.item.manage", "inventory.price.manage")
+@doc("برچسب قیمت قفسه", body=PriceTicketIn, response=PriceTicketsOut)
+def price_tickets() -> ResponseReturnValue:
+    data = parse_body(PriceTicketIn)
+    s = new_session()
+    try:
+        return to_json(pricing.price_tickets(s, data, tehran_today()))
     finally:
         s.close()
 

@@ -1,4 +1,7 @@
-"""Barcode normalisation and scale-label decoding (EAN-13 with weight or price)."""
+"""Barcode normalisation and scale-label decoding (weight or price in the barcode).
+
+A scale label is [prefix][PLU][value] = 12 digits, then an EAN-13 check digit, or, on
+scales that print a plain 12-digit code (Code 128 and the like), no check digit."""
 
 from __future__ import annotations
 
@@ -32,6 +35,14 @@ class ScaleRule:
     item_code_length: int
     value_type: str  # "weight" | "price"
     value_decimals: int
+    check_digit: bool = True  # False: the scale prints 12 digits, no EAN check digit
+
+    @property
+    def length(self) -> int:
+        return 13 if self.check_digit else 12
+
+    def matches(self, code: str) -> bool:
+        return len(code) == self.length and code.isdigit() and code.startswith(self.prefix)
 
 
 @dataclass(frozen=True)
@@ -43,7 +54,7 @@ class LabelHit:
 
 
 def is_scale_label(code: str, rules: list[ScaleRule]) -> bool:
-    return len(code) == 13 and code.isdigit() and any(code.startswith(r.prefix) for r in rules)
+    return any(r.matches(code) for r in rules)
 
 
 def parse_scale(
@@ -54,12 +65,10 @@ def parse_scale(
 ) -> LabelHit | None:
     """Decode a scale label; None if no rule's prefix matches. The weight or price is
     always read from the label itself, never from what the client sent."""
-    if len(code) != 13 or not code.isdigit():
-        return None
     for rule in rules:
-        if not code.startswith(rule.prefix):
+        if not rule.matches(code):
             continue
-        if ean13_check_digit(code[:12]) != int(code[12]):
+        if rule.check_digit and ean13_check_digit(code[:12]) != int(code[12]):
             raise CoreError("رقم کنترل بارکد ترازو نادرست است؛ دوباره اسکن کنید", "bad_check_digit")
         start = len(rule.prefix)
         plu = code[start : start + rule.item_code_length]

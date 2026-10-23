@@ -22,6 +22,7 @@ import { InventoryLayout } from "@/features/inventory/InventoryLayout";
 import { InventorySettingsPage } from "@/features/inventory/InventorySettingsPage";
 import { ItemsPage } from "@/features/inventory/ItemsPage";
 import { LabelsPage } from "@/features/inventory/LabelsPage";
+import { PriceTicketsPage } from "@/features/inventory/PriceTicketsPage";
 import { StockDocEditorPage, StockDocsPage } from "@/features/inventory/StockDocsPage";
 import { AboutPage } from "@/features/about/AboutPage";
 import { LoginPage } from "@/features/auth/LoginPage";
@@ -144,6 +145,7 @@ const router = createBrowserRouter([
           { path: "documents/:id", element: <StockDocEditorPage /> },
           { path: "balances", element: <BalancesPage /> },
           { path: "labels", element: <LabelsPage /> },
+          { path: "price-tickets", element: <PriceTicketsPage /> },
           { path: "import", element: <ImportPage /> },
           { path: "settings", element: <InventorySettingsPage /> },
         ],

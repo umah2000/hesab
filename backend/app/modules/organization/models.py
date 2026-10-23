@@ -30,6 +30,7 @@ class Organization(EntityMixin, ActorMixin, VersionedMixin, Base):
         CheckConstraint(
             "negative_stock_policy IN ('deny','warn','allow')", name="negative_stock_policy"
         ),
+        CheckConstraint("invoice_paper IN ('thermal','a5','a4')", name="invoice_paper"),
     )
 
     name: Mapped[str] = mapped_column(Unicode(200))
@@ -47,6 +48,8 @@ class Organization(EntityMixin, ActorMixin, VersionedMixin, Base):
     backup_warning_days: Mapped[int] = mapped_column(Integer, default=3)
     receipt_header: Mapped[str | None] = mapped_column(Unicode(500))
     receipt_footer: Mapped[str | None] = mapped_column(Unicode(500))
+    # Default paper for printing an invoice: the 80 mm roll, or A5 / A4 sheets.
+    invoice_paper: Mapped[str] = mapped_column(String(8), default="thermal")
     # «درباره ما»: shown on the About page to every user.
     about: Mapped[str | None] = mapped_column(Unicode(2000))
     phone: Mapped[str | None] = mapped_column(String(40))

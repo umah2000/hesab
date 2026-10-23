@@ -39,6 +39,15 @@ export type ShiftReport = {
 export type TerminalInfo = { adapter_id: string; label: string; verified: boolean; simulated: boolean; scenarios: string[] };
 
 /** A card reader the register may send to (ADR-0023); `reason` says why it cannot yet. */
+/** Where an invoice is printed: the 80 mm roll, or A5 / A4 sheets. */
+export type InvoicePaper = "thermal" | "a5" | "a4";
+
+export const PAPER_LABEL: Record<InvoicePaper, string> = {
+  thermal: "فیش حرارتی ۸۰ میلی‌متری",
+  a5: "کاغذ A5",
+  a4: "کاغذ A4",
+};
+
 export type TerminalChoice = {
   id: string;
   name: string;
@@ -64,6 +73,9 @@ export type RegisterState = {
   receipt_header: string | null;
   receipt_footer: string | null;
   organization_name: string;
+  phone?: string | null;
+  address?: string | null;
+  invoice_paper?: InvoicePaper;
   terminal: TerminalInfo | null;
   terminals: TerminalChoice[];
   permissions: string[];
@@ -103,6 +115,10 @@ export type QuoteLine = {
   line_total: string;
   stock_qty: string | null;
   scanned_barcode: string | null;
+  /** After discounts, before tax (server-computed; absent on offline sales queued earlier). */
+  net_amount?: string;
+  /** The receipt's «قیمت فروشگاه»: net per unit, whole rials. */
+  net_unit_price?: string;
 };
 
 export type Quote = {

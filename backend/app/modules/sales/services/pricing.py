@@ -16,7 +16,7 @@ from nextcam_core import CoreError
 from nextcam_core.pricing import ItemRef, LineIn, PricedCart, PricedLine, PromoRef, fmt_qty, rial
 from nextcam_core.pricing import Settings as CoreSettings
 from nextcam_core.pricing import price_cart as core_price_cart
-from nextcam_core.scan import LabelHit
+from nextcam_core.scan import LabelHit, is_scale_label
 from sqlalchemy import or_, select, true
 from sqlalchemy.orm import Session
 
@@ -26,7 +26,6 @@ from app.modules.inventory.models import (
     Item,
     ItemPrice,
     ItemUnit,
-    ScaleBarcodeRule,
     StockBalance,
     Unit,
     Warehouse,
@@ -34,7 +33,14 @@ from app.modules.inventory.models import (
 from app.modules.inventory.services import catalog
 from app.modules.organization.models import CashRegister, Organization
 from app.modules.sales.models import Promotion
-from app.modules.sales.schemas import CartIn, QuoteLineOut, QuoteOut
+from app.modules.sales.schemas import (
+    CartIn,
+    PriceTicketIn,
+    PriceTicketOut,
+    PriceTicketsOut,
+    QuoteLineOut,
+    QuoteOut,
+)
 
 ZERO = Decimal(0)
 __all__ = [
@@ -105,6 +111,9 @@ class SalesSettings:
     cashier_discount_limit: Decimal
     receipt_header: str | None
     receipt_footer: str | None
+    phone: str | None
+    address: str | None
+    invoice_paper: str
 
 
 @dataclass(frozen=True)
@@ -135,6 +144,9 @@ def organization(s: Session) -> SalesSettings:
             cashier_discount_limit=org.cashier_discount_limit,
             receipt_header=org.receipt_header,
             receipt_footer=org.receipt_footer,
+            phone=org.phone,
+            address=org.address,
+            invoice_paper=org.invoice_paper,
         )
 
     return refcache.get("organization", load)
@@ -179,15 +191,7 @@ def _unit_names(s: Session) -> dict[uuid.UUID, str]:
 
 
 def _is_scale_label(s: Session, code: str) -> bool:
-    if len(code) != 13 or not code.isdigit():
-        return False
-    prefixes = refcache.get(
-        "scale_prefixes",
-        lambda: tuple(
-            s.scalars(select(ScaleBarcodeRule.prefix).where(ScaleBarcodeRule.is_active == true()))
-        ),
-    )
-    return any(code.startswith(p) for p in prefixes)
+    return is_scale_label(code, catalog.scale_rules(s))
 
 
 def item_ref(i: Item) -> ItemRef:
@@ -336,3 +340,80 @@ def price_cart(
         discount=data.discount,
         negative_policy=negative_policy,
     )
+
+
+TICKET_LIMIT = 500
+
+
+def price_tickets(s: Session, data: PriceTicketIn, today: date) -> PriceTicketsOut:
+    """Shelf tickets: one base unit of each item at the default price list with today's
+    promotions, priced by the same code as the register (rule 21)."""
+    q = select(Item.id).where(Item.is_active == true())
+    if data.item_ids:
+        q = q.where(Item.id.in_(data.item_ids))
+    elif data.group_id is not None:
+        q = q.where(Item.group_id == data.group_id)
+    elif not data.promoted_only:
+        raise DomainError("کالا، گروه یا «فقط کالاهای تخفیف‌دار» را انتخاب کنید", code="no_items")
+    if data.promoted_only:
+        promoted = list(
+            s.execute(
+                select(Promotion.item_id, Promotion.group_id).where(
+                    Promotion.is_active == true(),
+                    Promotion.starts_on <= today,
+                    Promotion.ends_on >= today,
+                )
+            )
+        )
+        item_ids = [i for i, _ in promoted if i] or [uuid.UUID(int=0)]
+        group_ids = [g for _, g in promoted if g] or [uuid.UUID(int=0)]
+        q = q.where(or_(Item.id.in_(item_ids), Item.group_id.in_(group_ids)))
+    ids = list(s.scalars(q.order_by(Item.code).limit(TICKET_LIMIT + 1)))
+    skipped: list[str] = []
+    if len(ids) > TICKET_LIMIT:
+        ids = ids[:TICKET_LIMIT]
+        skipped.append(f"فقط {TICKET_LIMIT} برچسب اول؛ بقیه را جدا چاپ کنید")
+    if not ids:
+        return PriceTicketsOut(tickets=[], skipped=skipped)
+    cat = DbCatalog(s, uuid.UUID(int=0))  # stock plays no part in a price
+    items = cat.items(ids)
+    priced = []
+    for item_id in ids:
+        it = items[item_id]
+        if cat.price(it.id, it.base_unit_id) is None:
+            skipped.append(f"«{it.name}»: قیمت فروش ندارد")
+        else:
+            priced.append(LineIn(item_id=it.id, qty=Decimal(1)))
+    tickets: list[PriceTicketOut] = []
+    if priced:
+        try:
+            cart = core_price_cart(cat, core_settings(s), priced, ZERO, today, "allow")
+        except CoreError as e:
+            raise domain_error(e) from e
+        weighted = set(
+            s.scalars(select(Item.id).where(Item.id.in_(ids), Item.is_weighted == true()))
+        )
+        for ln in cart.lines:
+            final = ln.gross - ln.promotion_discount
+            percent = None
+            if ln.promotion is not None and ln.promotion_discount:
+                value = (
+                    ln.promotion.value
+                    if ln.promotion.kind == "percent"
+                    else ln.promotion_discount * 100 / ln.gross
+                )
+                percent = format(value.quantize(Decimal("0.01")), "f")
+            tickets.append(
+                PriceTicketOut(
+                    item_id=ln.item.id,
+                    code=ln.item.code,
+                    name=ln.item.name,
+                    unit_name=ln.unit_name,
+                    is_weighted=ln.item.id in weighted,
+                    price=ln.gross,
+                    promotion_name=ln.promotion.name if ln.promotion else None,
+                    discount_percent=percent,
+                    final_price=final,
+                )
+            )
+    return PriceTicketsOut(tickets=tickets, skipped=skipped)

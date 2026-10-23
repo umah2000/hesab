@@ -227,3 +227,11 @@ body {
   unicode-bidi: isolate;
   direction: ltr;
 }
+
+/* Receipt grey (header and total rows): fine dots, like the thermal printer's shading. */
+.receipt-shade {
+  background-image: radial-gradient(#000 0.55px, transparent 0.65px);
+  background-size: 2.5px 2.5px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}

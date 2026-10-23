@@ -56,6 +56,7 @@ def _org_out(o: Organization) -> OrganizationOut:
         backup_warning_days=o.backup_warning_days,
         receipt_header=o.receipt_header,
         receipt_footer=o.receipt_footer,
+        invoice_paper=o.invoice_paper,  # type: ignore[arg-type]
         about=o.about,
         phone=o.phone,
         address=o.address,

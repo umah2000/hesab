@@ -7,7 +7,8 @@ const TABS = [
   { to: "/inventory/items", label: "کالاها" },
   { to: "/inventory/documents", label: "اسناد انبار", perm: ["inventory.stock.create", "inventory.stock.adjust", "inventory.report.view"] },
   { to: "/inventory/balances", label: "موجودی و کاردکس", perm: ["inventory.report.view", "inventory.stock.create", "inventory.item.manage"] },
-  { to: "/inventory/labels", label: "چاپ برچسب", perm: ["inventory.item.manage", "inventory.stock.create"] },
+  { to: "/inventory/labels", label: "برچسب بارکد", perm: ["inventory.item.manage", "inventory.stock.create"] },
+  { to: "/inventory/price-tickets", label: "برچسب قیمت", perm: ["inventory.item.manage", "inventory.price.manage"] },
   { to: "/inventory/import", label: "ورود از Excel", perm: "import.run" },
   { to: "/inventory/settings", label: "تنظیمات انبار" },
 ];
