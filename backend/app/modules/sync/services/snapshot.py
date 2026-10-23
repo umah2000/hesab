@@ -128,6 +128,8 @@ def snapshot(s: Session, d: Device) -> SnapshotOut:
             negative_stock_policy=org.negative_stock_policy,
             receipt_header=org.receipt_header,
             receipt_footer=org.receipt_footer,
+            phone=org.phone,
+            address=org.address,
         ),
         units=[
             SnapUnit(id=u.id, name=u.name, allows_fraction=u.allows_fraction)
@@ -155,6 +157,7 @@ def snapshot(s: Session, d: Device) -> SnapshotOut:
                 item_code_length=r.item_code_length,
                 value_type=r.value_type,
                 value_decimals=r.value_decimals,
+                check_digit=r.check_digit,
             )
             for r in s.scalars(
                 select(ScaleBarcodeRule)

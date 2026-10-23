@@ -11,6 +11,7 @@ export type Organization = {
   backup_warning_days: number;
   receipt_header: string | null;
   receipt_footer: string | null;
+  invoice_paper: "thermal" | "a5" | "a4";
   about: string | null;
   phone: string | null;
   address: string | null;

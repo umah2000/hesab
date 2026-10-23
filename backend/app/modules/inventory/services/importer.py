@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 import jdatetime
+from nextcam_core.scan import is_scale_label
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,10 +32,10 @@ from app.modules.inventory.models import (
     ItemBarcode,
     ItemGroup,
     ItemPrice,
-    ScaleBarcodeRule,
     Unit,
 )
 from app.modules.inventory.schemas import StockDocIn, StockLineIn
+from app.modules.inventory.services import catalog
 from app.modules.inventory.services.catalog import default_price_list, normalize_scan
 from app.modules.inventory.services.stock import create_doc
 
@@ -145,7 +146,7 @@ def _parse_items(s: Session, file_bytes: bytes, currency: str) -> _Parsed:
             select(Item.scale_code, Item.code).where(Item.scale_code.is_not(None))
         )
     }
-    prefixes = [r.prefix for r in s.scalars(select(ScaleBarcodeRule)) if r.is_active]
+    rules = catalog.scale_rules(s)
     out = _Parsed()
     seen_codes: set[str] = set()
     seen_barcodes: dict[str, int] = {}
@@ -179,7 +180,7 @@ def _parse_items(s: Session, file_bytes: bytes, currency: str) -> _Parsed:
                 err(4, f"بارکد {b} متعلق به کالای {barcode_owner[b]} است")
             elif b in seen_barcodes and seen_barcodes[b] != n:
                 err(4, f"بارکد {b} در ردیف {seen_barcodes[b]} هم آمده است")
-            elif len(b) == 13 and any(b.startswith(p) for p in prefixes):
+            elif is_scale_label(b, rules):
                 err(4, f"بارکد {b} با پیشوند بارکد ترازو شروع می‌شود")
             seen_barcodes[b] = n
         price = None

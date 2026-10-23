@@ -9,13 +9,14 @@ from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from flask import Flask, current_app
-from sqlalchemy import DateTime, FetchedValue, MetaData, create_engine, func
+from sqlalchemy import DateTime, FetchedValue, MetaData, create_engine, event, func
 from sqlalchemy.dialects.mssql import ROWVERSION, UNIQUEIDENTIFIER
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
+    ORMExecuteState,
     Session,
     declared_attr,
     mapped_column,
@@ -37,17 +38,37 @@ NAMING_CONVENTION = {
 
 @compiles(Select, "mssql")
 def _mssql_row_lock(select: Select[Any], compiler: Any, **kw: Any) -> str:
-    """``with_for_update()`` as SQL Server's ``WITH (UPDLOCK, ROWLOCK)`` table hint.
+    """``with_for_update()`` as a SQL Server table hint.
 
     SQLAlchemy's SQL Server dialect drops FOR UPDATE without a word, so without this
     every ``with_for_update`` (and ``Session.get(..., with_for_update=True)``) read the
-    row without locking it. An update lock is held to the end of the transaction and
-    reads the latest committed row, also under RCSI. Lock only by key (rule 22).
+    row without locking it. ``WITH (UPDLOCK, ROWLOCK)``: an update lock held to the end
+    of the transaction, reading the latest committed row also under RCSI;
+    ``skip_locked`` adds READPAST, ``nowait`` NOWAIT. Lock only by key (rule 22).
     """
-    if select._for_update_arg is not None:
+    arg = select._for_update_arg
+    if arg is not None:
+        hint = ["HOLDLOCK" if arg.read else "UPDLOCK", "ROWLOCK"]
+        if arg.skip_locked:
+            hint.append("READPAST")
+        if arg.nowait:
+            hint.append("NOWAIT")
         for table in select.get_final_froms():
-            select = select.with_hint(table, "WITH (UPDLOCK, ROWLOCK)", "mssql")
+            select = select.with_hint(table, f"WITH ({', '.join(hint)})", "mssql")
     return str(compiler.visit_select(select, **kw))
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _locked_reads_are_fresh(state: ORMExecuteState) -> None:
+    """A locked read always refreshes the objects it returns.
+
+    Without this, a row already in the session would keep the values read before the
+    lock when another transaction changed it in between, and the lock would guard stale
+    data. (A versioned row raises StaleDataError instead, answered as 409.)
+    """
+    stmt = state.statement
+    if state.is_select and getattr(stmt, "_for_update_arg", None) is not None:
+        state.update_execution_options(populate_existing=True)
 
 
 def utcnow() -> datetime:

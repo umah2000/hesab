@@ -132,6 +132,41 @@ def test_long_names_wrap_instead_of_overflowing() -> None:
     assert tall.width == 384 and tall.height > short.height
 
 
+TABLE_PAYLOAD = dict(
+    PAYLOAD,
+    table={
+        "columns": ["شرح کالا", "مقدار", "قیمت کالا", "قیمت فروشگاه", "مبلغ کل"],
+        "rows": [
+            ["تخم مرغ", "۱٫۴۴۲", "۳٬۴۰۰٬۰۰۰", "۲٬۵۸۰٬۰۰۰", "۳٬۷۲۰٬۳۶۰"],
+            ["آب گازدار انگور شیشه‌ای ۳۳۰ م هوفنبرگ", "۲", "۶۸۵٬۰۰۰", "۵۶۳٬۰۰۰", "۱٬۱۲۶٬۰۰۰"],
+        ],
+    },
+    contact=["۰۹۳۰۵۲۴۶۵۰۲", "ایذه، خیابان طالقانی"],
+)
+
+
+@pytest.mark.parametrize("raqm", [True, False])
+def test_table_receipt_on_80mm_line_layout_on_58mm(raqm: bool) -> None:
+    """The shop's layout (bordered item table) needs 80 mm; 58 mm keeps the line layout.
+    Both shaping paths draw it."""
+    if raqm and not render.RAQM:
+        pytest.skip("needs RAQM")
+    saved = render.RAQM
+    render.RAQM = raqm
+    try:
+        wide = receipt_image(TABLE_PAYLOAD, 80)
+        narrow = receipt_image(TABLE_PAYLOAD, 58)
+        old = receipt_image(PAYLOAD, 58)
+    finally:
+        render.RAQM = saved
+    assert wide.width == 576 and 500 < wide.height < 2000
+    # The table's frame runs from margin to margin.
+    ink = ImageChops.invert(wide.convert("L")).getbbox()
+    assert ink is not None and ink[0] <= render.MARGIN and ink[2] >= 576 - render.MARGIN - 1
+    # 58 mm: the old layout plus the contact lines, no table.
+    assert narrow.width == 384 and narrow.height > old.height
+
+
 # --- transport -----------------------------------------------------------------------
 
 

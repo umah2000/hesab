@@ -143,7 +143,8 @@ class ItemImage(EntityMixin, ActorMixin, Base):
 
 
 class ScaleBarcodeRule(EntityMixin, ActorMixin, VersionedMixin, Base):
-    """EAN-13 printed by a label scale: [prefix][PLU][value][check digit] (12 + 1 digits)."""
+    """A label scale's barcode: [prefix][PLU][value] (12 digits), then an EAN-13 check
+    digit, or none on scales that print a plain 12-digit code (``check_digit`` off)."""
 
     __tablename__ = "scale_barcode_rule"
     __table_args__ = (
@@ -158,6 +159,7 @@ class ScaleBarcodeRule(EntityMixin, ActorMixin, VersionedMixin, Base):
     value_type: Mapped[str] = mapped_column(String(8))
     # weight: digits / 10^decimals = kg (3 → grams). price: digits = rials × 10^decimals.
     value_decimals: Mapped[int] = mapped_column(Integer, default=3)
+    check_digit: Mapped[bool] = mapped_column(Boolean, default=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 

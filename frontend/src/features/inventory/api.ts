@@ -80,6 +80,8 @@ export type ScaleRule = {
   value_length: number;
   value_type: "weight" | "price";
   value_decimals: number;
+  /** False: the scale prints 12 digits without the EAN-13 check digit. */
+  check_digit: boolean;
   is_active: boolean;
   row_version: string;
 };

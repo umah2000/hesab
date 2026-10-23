@@ -293,9 +293,11 @@ function Workspace({ state }: { state: RegisterState }) {
   const publish = useDisplayPublisher(reg);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   /** Receipt through the register's Device Agent when it is online, otherwise the browser. */
+  const paper = state.invoice_paper ?? "thermal";
   const printInvoice = (inv: Invoice, reprint: boolean) => {
-    if (viaAgent) void printViaAgent(inv.id, { reprint, browserPrint: printReceipt });
-    else setTimeout(printReceipt, 50);
+    // The agent prints the roll; an A5 / A4 invoice goes through the browser's printer.
+    if (viaAgent && paper === "thermal") void printViaAgent(inv.id, { reprint, browserPrint: () => printReceipt(paper) });
+    else setTimeout(() => printReceipt(paper), 50);
   };
   const money = (v: string) => formatMoney(v, currency);
 
@@ -720,7 +722,16 @@ function Workspace({ state }: { state: RegisterState }) {
 
       {lastInvoice ? (
         <div className="print-area pointer-events-none fixed top-0 -left-[200mm] print:static">
-          <Receipt invoice={lastInvoice} currency={currency} organization={state.organization_name} header={state.receipt_header} footer={state.receipt_footer} />
+          <Receipt
+            invoice={lastInvoice}
+            currency={currency}
+            organization={state.organization_name}
+            header={state.receipt_header}
+            footer={state.receipt_footer}
+            phone={state.phone}
+            address={state.address}
+            paper={paper}
+          />
         </div>
       ) : null}
 

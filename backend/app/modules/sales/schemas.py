@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer
 
 from app.core.money import Money
 from app.modules.inventory.schemas import Qty
@@ -116,6 +116,19 @@ class QuoteLineOut(BaseModel):
     @field_serializer("vat_rate")
     def _vr(self, v: Decimal) -> str:
         return _rate(v)
+
+    # The receipt's «قیمت فروشگاه» and «مبلغ کل»: after discounts, before tax.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def net_amount(self) -> Money:
+        return self.gross - self.promotion_discount - self.manual_discount
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def net_unit_price(self) -> Money:
+        if not self.qty:
+            return self.unit_price
+        return (self.net_amount / self.qty).quantize(Decimal(1), rounding=ROUND_HALF_UP)
 
 
 class QuoteOut(BaseModel):
@@ -470,7 +483,39 @@ class RegisterStateOut(BaseModel):
     receipt_header: str | None
     receipt_footer: str | None
     organization_name: str
+    phone: str | None = None
+    address: str | None = None
+    # Default paper for printing an invoice (the settings page).
+    invoice_paper: Literal["thermal", "a5", "a4"] = "thermal"
     terminal: TerminalInfoOut | None
     # Card readers defined for this register's branch, the register's default first.
     terminals: list[TerminalChoiceOut] = []
     permissions: list[str]
+
+
+class PriceTicketIn(_In):
+    """Which items to print shelf tickets for: a list, a group, or everything on sale."""
+
+    item_ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    group_id: uuid.UUID | None = None
+    promoted_only: bool = False
+
+
+class PriceTicketOut(BaseModel):
+    item_id: uuid.UUID
+    code: str
+    name: str
+    unit_name: str
+    is_weighted: bool
+    # The shelf price of one base unit, today's promotion and what the customer pays
+    # (computed like the register does, before tax when shelf prices exclude it).
+    price: Money
+    promotion_name: str | None
+    discount_percent: str | None
+    final_price: Money
+
+
+class PriceTicketsOut(BaseModel):
+    tickets: list[PriceTicketOut]
+    # Items left out, with the reason (no price, inactive, …).
+    skipped: list[str]

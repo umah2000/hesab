@@ -167,3 +167,88 @@ def test_scale_labels_are_read_from_the_barcode() -> None:
         )
     assert e.value.code == "bad_check_digit"
     assert normalize_scan(" ۶۲۶۰ ") == "6260"
+
+
+def test_twelve_digit_scale_label_without_check_digit() -> None:
+    """The shop's scale (1405/08/02): 250212001442 = prefix 25, PLU 02120, 1.442 kg,
+    printed as 12 digits with no EAN check digit."""
+    eggs = item("EGG", base_unit_id=KG, is_weighted=True)
+    rule = ScaleRule("25", 5, "weight", 3, check_digit=False)
+    cat = Cat([eggs], {(eggs.id, KG): D(3400000)}, rules=[rule])
+    cat._plu = {"02120": eggs.id}  # type: ignore[attr-defined]
+    cart = price_cart(
+        cat, VAT_EXCL, [LineIn(eggs.id, D(1), barcode="250212001442")], D(0), date(2026, 10, 1)
+    )
+    assert (cart.lines[0].qty, cart.lines[0].gross) == (D("1.442"), D(4902800))
+    assert is_scale_label("250212001442", [rule])
+    # A 13-digit code is not this rule's, and a 13-digit rule ignores 12 digits.
+    assert not is_scale_label("2502120014421", [rule])
+    assert not is_scale_label("250212001442", [ScaleRule("25", 5, "weight", 3)])
+
+
+def test_receipt_table_like_the_shop_sample() -> None:
+    """Sample receipt 954094 (1405/08/01): list price, shop price, amount per line;
+    total at list prices, discount, payable."""
+    from datetime import UTC, datetime
+    from types import SimpleNamespace as N
+
+    from nextcam_core.receipt import build
+
+    def ln(name: str, q: str, price: int, gross: int, net: int) -> N:
+        return N(
+            item_name=name,
+            unit_name="",
+            qty=D(q),
+            unit_price=D(price),
+            gross=D(gross),
+            promotion_discount=D(gross - net),
+            manual_discount=D(0),
+            line_total=D(net),
+            vat_exempt=False,
+        )
+
+    inv = N(
+        kind="sale",
+        number=954094,
+        finalized_at=datetime(2026, 10, 23, 11, 13, tzinfo=UTC),
+        created_at=None,
+        register_name="صندوق ۱",
+        cashier_name="szadeh",
+        customer_name=None,
+        original_number=None,
+        subtotal=D(6272800),
+        discount_total=D(1426440),
+        tax_total=D(0),
+        grand_total=D(4846360),
+        cash_tendered=None,
+        change_due=None,
+        payments=[],
+        lines=[
+            ln("تخم مرغ", "1.442", 3400000, 4902800, 3720360),
+            ln("نوشابه", "2", 685000, 1370000, 1126000),
+        ],
+    )
+    p = build(
+        inv,
+        organization="ستاره شهر",
+        header=None,
+        footer=None,
+        currency="IRR",
+        timezone="Asia/Tehran",
+        reprint=False,
+        open_drawer=False,
+        cut=True,
+        phone="09305246502",
+        address="ایذه",
+    )
+    assert p["table"]["rows"] == [
+        ["تخم مرغ", "۱٫۴۴۲", "۳٬۴۰۰٬۰۰۰", "۲٬۵۸۰٬۰۰۰", "۳٬۷۲۰٬۳۶۰"],
+        ["نوشابه", "۲", "۶۸۵٬۰۰۰", "۵۶۳٬۰۰۰", "۱٬۱۲۶٬۰۰۰"],
+    ]
+    assert [(t["label"], t["value"]) for t in p["totals"]] == [
+        ("جمع کل", "۶٬۲۷۲٬۸۰۰"),
+        ("تخفیف", "۱٬۴۲۶٬۴۴۰"),
+        ("قابل پرداخت", "۴٬۸۴۶٬۳۶۰ ریال"),
+    ]
+    assert p["contact"] == ["۰۹۳۰۵۲۴۶۵۰۲", "ایذه"]
+    assert len(p["lines"]) == 2  # older agents still print from these

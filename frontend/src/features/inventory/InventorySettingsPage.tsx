@@ -140,16 +140,20 @@ type RuleForm = Omit<ScaleRule, "id" | "row_version">;
 /** Common layouts, offered as starting points only — the real layout must be read off a printed label. */
 const PRESETS: { label: string; rule: RuleForm }[] = [
   {
+    label: "ترازوی فروشگاه: ۲۵ + کد ۵ رقمی + وزن ۵ رقمی به گرم، ۱۲ رقم بدون رقم کنترل",
+    rule: { name: "ترازوی فروشگاه", prefix: "25", item_code_length: 5, value_length: 5, value_type: "weight", value_decimals: 3, check_digit: false, is_active: true },
+  },
+  {
     label: "پیشوند ۲ رقمی + کد ۵ رقمی + وزن ۵ رقمی به گرم",
-    rule: { name: "ترازو — وزن", prefix: "21", item_code_length: 5, value_length: 5, value_type: "weight", value_decimals: 3, is_active: true },
+    rule: { name: "ترازو — وزن", prefix: "21", item_code_length: 5, value_length: 5, value_type: "weight", value_decimals: 3, check_digit: true, is_active: true },
   },
   {
     label: "پیشوند ۲ رقمی + کد ۵ رقمی + مبلغ ۵ رقمی به تومان",
-    rule: { name: "ترازو — مبلغ", prefix: "22", item_code_length: 5, value_length: 5, value_type: "price", value_decimals: 1, is_active: true },
+    rule: { name: "ترازو — مبلغ", prefix: "22", item_code_length: 5, value_length: 5, value_type: "price", value_decimals: 1, check_digit: true, is_active: true },
   },
   {
     label: "پیشوند ۱ رقمی + کد ۶ رقمی + وزن ۵ رقمی به گرم",
-    rule: { name: "ترازو — وزن", prefix: "2", item_code_length: 6, value_length: 5, value_type: "weight", value_decimals: 3, is_active: true },
+    rule: { name: "ترازو — وزن", prefix: "2", item_code_length: 6, value_length: 5, value_type: "weight", value_decimals: 3, check_digit: true, is_active: true },
   },
 ];
 
@@ -187,7 +191,7 @@ function RuleDialog({ rule, onClose }: { rule: ScaleRule | null; onClose: () => 
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title={rule ? "ویرایش قاعده بارکد ترازو" : "قاعده بارکد ترازو"} description="ساختار ۱۳ رقمی برچسب ترازو: پیشوند + کد کالا در ترازو + مقدار + رقم کنترل" className="max-w-xl">
+      <DialogContent title={rule ? "ویرایش قاعده بارکد ترازو" : "قاعده بارکد ترازو"} description="ساختار برچسب ترازو: پیشوند + کد کالا در ترازو + مقدار (۱۲ رقم)، و رقم کنترل اگر ترازو چاپ کند" className="max-w-xl">
         <form
           className="flex flex-col gap-4"
           onSubmit={(e) => {
@@ -234,9 +238,18 @@ function RuleDialog({ rule, onClose }: { rule: ScaleRule | null; onClose: () => 
           <LayoutStrip f={f} />
           {total !== 12 ? (
             <p role="alert" className="text-sm text-danger">
-              جمع طول‌ها {toFaDigits(total)} است؛ باید ۱۲ باشد (رقم سیزدهم کنترلی است).
+              جمع طول‌ها {toFaDigits(total)} است؛ باید ۱۲ باشد (رقم کنترل جدا است).
             </p>
           ) : null}
+          <label className="flex cursor-pointer items-start gap-2 text-sm text-ink-soft">
+            <Checkbox checked={f.check_digit} onCheckedChange={(c) => set("check_digit", c === true)} />
+            <span>
+              رقم کنترل دارد (بارکد ۱۳ رقمی EAN-13)
+              <span className="block text-xs text-ink-faint">
+                اگر عدد زیر بارکد برچسب ۱۲ رقم است، این گزینه را بردارید. با «آزمایش بارکد» پایین همین صفحه یک برچسب واقعی را اسکن کنید.
+              </span>
+            </span>
+          </label>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-soft">
             <Checkbox checked={f.is_active} onCheckedChange={(c) => set("is_active", c === true)} />
             فعال
@@ -263,12 +276,12 @@ const SEG = {
 };
 
 /** The 13 digits of a label coloured by segment; with `code`, shows those digits instead of placeholders. */
-function LayoutStrip({ f, code }: { f: Pick<ScaleRule, "prefix" | "item_code_length" | "value_length">; code?: string }) {
+function LayoutStrip({ f, code }: { f: Pick<ScaleRule, "prefix" | "item_code_length" | "value_length" | "check_digit">; code?: string }) {
   const parts: [keyof typeof SEG, number, string][] = [
     ["prefix", f.prefix.length, "پیشوند"],
     ["item", f.item_code_length, "کد کالا"],
     ["value", f.value_length, "مقدار"],
-    ["check", 1, "کنترل"],
+    ["check", f.check_digit ? 1 : 0, "کنترل"],
   ];
   let pos = 0;
   return (
@@ -305,7 +318,9 @@ function Tester({ rules }: { rules: ScaleRule[] }) {
     onError: (e, code) => setResult({ code, error: e instanceof ApiError ? e.message : "خطا" }),
   });
   const code = result?.code ?? "";
-  const rule = /^\d{13}$/.test(code) ? rules.find((r) => r.is_active && code.startsWith(r.prefix)) : undefined;
+  const rule = /^\d+$/.test(code)
+    ? rules.find((r) => r.is_active && code.length === (r.check_digit ? 13 : 12) && code.startsWith(r.prefix))
+    : undefined;
 
   return (
     <Card>

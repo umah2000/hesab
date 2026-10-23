@@ -44,6 +44,16 @@ def jalali(dt: datetime, tz: str) -> str:
     return fa(f"{jy:04d}/{jm:02d}/{jd:02d}  {local:%H:%M}")
 
 
+# The item table, as on the shop's own receipts (1405/08/02): the list price, the
+# shop's price after discount, and the line amount before tax.
+COLUMNS = ["شرح کالا", "مقدار", "قیمت کالا", "قیمت فروشگاه", "مبلغ کل"]
+
+
+def _gross(ln: Any) -> Decimal:
+    gross = getattr(ln, "gross", None)
+    return Decimal(gross) if gross is not None else ln.qty * ln.unit_price
+
+
 def build(
     inv: Any,
     *,
@@ -56,18 +66,24 @@ def build(
     open_drawer: bool,
     cut: bool,
     device_number: str | None = None,
+    phone: str | None = None,
+    address: str | None = None,
 ) -> dict[str, Any]:
     """``inv`` is a final invoice (server ``InvoiceOut``) or an offline sale with the same
-    attribute names. Offline sales have no final number yet: the device number is shown."""
+    attribute names. Offline sales have no final number yet: the device number is shown.
+
+    ``table`` and ``contact`` are drawn by agents from 1405/08 on; ``lines`` stays for
+    older agents, which still print a readable receipt from it."""
     is_return = inv.kind == "return"
 
     def m(d: Decimal) -> str:
         return money(d, currency)
 
+    when = inv.finalized_at or inv.created_at
     meta = [
         # A register number is a code staff type into search: kept in Latin characters.
         ["شماره", fa(inv.number or 0)] if not device_number else ["شماره صندوق", device_number],
-        ["تاریخ", jalali(inv.finalized_at or inv.created_at, timezone)],
+        ["تاریخ", jalali(when, timezone)],
         ["صندوق", inv.register_name],
         ["صندوق‌دار", inv.cashier_name],
     ]
@@ -76,23 +92,24 @@ def build(
     if inv.customer_name:
         meta.append(["مشتری", inv.customer_name])
     lines = []
+    rows = []
     for ln in inv.lines:
-        detail = f"{qty(ln.qty)} {ln.unit_name} × {m(ln.unit_price)}"
+        name = ln.item_name + (" *" if ln.vat_exempt else "")
         disc = ln.promotion_discount + ln.manual_discount
+        gross = _gross(ln)
+        net = gross - disc
+        detail = f"{qty(ln.qty)} {ln.unit_name} × {m(ln.unit_price)}"
         if disc:
             detail += f" − تخفیف {m(disc)}"
-        lines.append(
-            {
-                "name": ln.item_name + (" *" if ln.vat_exempt else ""),
-                "detail": detail,
-                "amount": m(ln.line_total),
-            }
-        )
-    totals: list[dict[str, Any]] = [{"label": "جمع", "value": m(inv.subtotal), "bold": False}]
+        lines.append({"name": name, "detail": detail, "amount": m(ln.line_total)})
+        shop_price = (net / ln.qty).quantize(Decimal(1)) if ln.qty else ln.unit_price
+        rows.append([name, qty(ln.qty), m(ln.unit_price), m(shop_price), m(net)])
+    unit = "تومان" if currency == "IRT" else "ریال"
+    totals: list[dict[str, Any]] = [{"label": "جمع کل", "value": m(inv.subtotal), "bold": False}]
     if inv.discount_total:
         totals.append({"label": "تخفیف", "value": m(inv.discount_total), "bold": False})
-    totals.append({"label": "مالیات بر ارزش افزوده", "value": m(inv.tax_total), "bold": False})
-    unit = "تومان" if currency == "IRT" else "ریال"
+    if inv.tax_total:
+        totals.append({"label": "مالیات بر ارزش افزوده", "value": m(inv.tax_total), "bold": False})
     totals.append(
         {
             "label": "مبلغ استرداد" if is_return else "قابل پرداخت",
@@ -117,8 +134,10 @@ def build(
         + (" (چاپ مجدد)" if reprint else ""),
         "meta": meta,
         "lines": lines,
+        "table": {"columns": COLUMNS, "rows": rows},
         "totals": totals,
         "notes": notes,
+        "contact": [x for x in (fa(phone) if phone else "", address or "") if x],
         "footer": (footer or "").splitlines(),
         "open_drawer": open_drawer,
         "cut": cut,

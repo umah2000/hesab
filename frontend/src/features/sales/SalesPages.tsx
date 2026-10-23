@@ -24,8 +24,10 @@ import { cn } from "@/lib/utils";
 import {
   type DailyReport,
   type Invoice,
+  type InvoicePaper,
   type InvoiceSummary,
   METHOD_LABEL,
+  PAPER_LABEL,
   type Method,
   type Promotion,
   type Shift,
@@ -34,6 +36,7 @@ import {
   type TerminalTx,
   TX_LABEL,
 } from "./api";
+import type { Organization } from "@/features/settings/types";
 import { printReceipt, Receipt } from "./Receipt";
 
 const onError = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "خطا");
@@ -157,7 +160,9 @@ export function InvoiceDetailPage() {
   const currency = useCurrency();
   const [returning, setReturning] = React.useState(false);
   const inv = useQuery({ queryKey: ["sales", "invoice", id], queryFn: () => api.get<Invoice>(`/sales/invoices/${id}`) });
-  const org = useQuery({ queryKey: ["organization"], queryFn: () => api.get<{ name: string; receipt_header: string | null; receipt_footer: string | null }>("/organization/settings") });
+  const org = useQuery({ queryKey: ["organization"], queryFn: () => api.get<Organization>("/organization/settings") });
+  const [paperChoice, setPaper] = React.useState<InvoicePaper | null>(null);
+  const paper = paperChoice ?? org.data?.invoice_paper ?? "thermal";
   if (inv.isLoading) return <Spinner />;
   if (inv.isError || !inv.data) return <ErrorBox error={inv.error} />;
   const d = inv.data;
@@ -181,8 +186,13 @@ export function InvoiceDetailPage() {
             </Link>
           ) : null}
           <div className="flex-1" />
-          <Button variant="outline" onClick={printReceipt}>
-            <Printer /> چاپ مجدد فیش
+          <Select className="w-52" value={paper} onChange={(e) => setPaper(e.target.value as InvoicePaper)} aria-label="کاغذ چاپ">
+            {(Object.keys(PAPER_LABEL) as InvoicePaper[]).map((k) => (
+              <option key={k} value={k}>{PAPER_LABEL[k]}</option>
+            ))}
+          </Select>
+          <Button variant="outline" onClick={() => printReceipt(paper)}>
+            <Printer /> چاپ مجدد
           </Button>
           {returnable && can("sales.return.create") ? (
             <Button onClick={() => setReturning(true)}>
@@ -238,9 +248,19 @@ export function InvoiceDetailPage() {
           ))}
         </div>
       </Card>
-      <Card className="hidden p-3 xl:block print:block">
-        <div className="print-area">
-          <Receipt invoice={d} currency={currency} organization={org.data?.name ?? ""} header={org.data?.receipt_header} footer={org.data?.receipt_footer} reprint />
+      <Card className={`hidden p-3 xl:block print:block ${paper === "thermal" ? "" : "xl:col-span-2"}`}>
+        <div className="print-area overflow-x-auto">
+          <Receipt
+            invoice={d}
+            currency={currency}
+            organization={org.data?.name ?? ""}
+            header={org.data?.receipt_header}
+            footer={org.data?.receipt_footer}
+            phone={org.data?.phone}
+            address={org.data?.address}
+            paper={paper}
+            reprint
+          />
         </div>
       </Card>
       {returning ? <ReturnDialog invoice={d} onClose={() => setReturning(false)} /> : null}

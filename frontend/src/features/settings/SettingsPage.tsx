@@ -77,6 +77,17 @@ function OrganizationCard() {
         <Field label="سقف تخفیف صندوق‌دار (٪ فاکتور)" hint="بیشتر از این، تأیید سرپرست لازم است">
           <Input dir="ltr" value={v.cashier_discount_limit} disabled={!editable} onChange={(e) => setDraft({ ...draft, cashier_discount_limit: toEnDigits(e.target.value) })} />
         </Field>
+        <Field label="کاغذ پیش‌فرض چاپ فاکتور" hint="فیش حرارتی با Device Agent چاپ می‌شود؛ A5 و A4 با چاپگر معمولی">
+          <Select
+            value={v.invoice_paper}
+            disabled={!editable}
+            onChange={(e) => setDraft({ ...draft, invoice_paper: e.target.value as Organization["invoice_paper"] })}
+          >
+            <option value="thermal">فیش حرارتی ۸۰ میلی‌متری</option>
+            <option value="a5">کاغذ A5</option>
+            <option value="a4">کاغذ A4</option>
+          </Select>
+        </Field>
         <Field label="متن بالای فیش" className="md:col-span-1">
           <Textarea value={v.receipt_header ?? ""} disabled={!editable} onChange={(e) => setDraft({ ...draft, receipt_header: e.target.value })} />
         </Field>

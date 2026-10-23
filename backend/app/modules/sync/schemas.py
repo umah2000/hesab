@@ -86,6 +86,7 @@ class SnapScaleRule(BaseModel):
     item_code_length: int
     value_type: str
     value_decimals: int
+    check_digit: bool = True
 
 
 class SnapPromotion(BaseModel):
@@ -109,6 +110,8 @@ class SnapSettings(BaseModel):
     negative_stock_policy: str
     receipt_header: str | None
     receipt_footer: str | None
+    phone: str | None = None
+    address: str | None = None
 
     @field_serializer("default_vat_rate", "cashier_discount_limit")
     def _r(self, v: Decimal) -> str:

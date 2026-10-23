@@ -185,6 +185,8 @@ class ScaleRuleIn(_In):
     value_length: int = Field(ge=1, le=10)
     value_type: Literal["weight", "price"]
     value_decimals: int = Field(default=3, ge=0, le=4)
+    # False: the scale prints 12 digits without the EAN-13 check digit.
+    check_digit: bool = True
     is_active: bool = True
 
 
