@@ -238,7 +238,7 @@ export function InvoiceDetailPage() {
           ))}
         </div>
       </Card>
-      <Card className="hidden p-3 xl:block">
+      <Card className="hidden p-3 xl:block print:block">
         <div className="print-area">
           <Receipt invoice={d} currency={currency} organization={org.data?.name ?? ""} header={org.data?.receipt_header} footer={org.data?.receipt_footer} reprint />
         </div>

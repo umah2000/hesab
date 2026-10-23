@@ -493,6 +493,24 @@ def test_payment_rules_card_reference_and_credit_limit(app: Flask, pos: Pos) -> 
     no_customer = sell(sup, pos.r2, line, [{"method": "credit", "amount": "110000"}])
     assert no_customer.get_json()["error"]["code"] == "customer_required"
 
+    # Unlimited credit: no limit to exceed; a customer with neither still gets none.
+    with app.app_context(), unit_of_work() as s:
+        c1 = s.scalar(select(DetailAccount).where(DetailAccount.code == "C1"))
+        assert c1 is not None
+        c1.credit_limit, c1.credit_unlimited = None, True
+        s.add(DetailAccount(code="C0", name="بدون نسیه", kind="person", is_active=True))
+        s.flush()
+        none_id = str(s.scalar(select(DetailAccount.id).where(DetailAccount.code == "C0")))
+    big = [{"item_id": pos.milk, "qty": "5"}]
+    free = sell(sup, pos.r2, big, [{"method": "credit", "amount": "550000"}], customer_id=customer)
+    assert free.status_code == 201, free.get_json()
+    listed = {c["code"]: c for c in sup.get("/api/v1/sales/customers?q=C").get_json()}
+    assert listed["C1"]["credit_unlimited"] is True and listed["C1"]["available"] is None
+    refused = sell(
+        sup, pos.r2, line, [{"method": "credit", "amount": "110000"}], customer_id=none_id
+    )
+    assert refused.get_json()["error"]["code"] == "no_credit"
+
 
 def test_checkout_is_idempotent_and_final_invoice_is_immutable(app: Flask, pos: Pos) -> None:
     c = login(app, "cashier")
@@ -986,3 +1004,254 @@ def test_stock_screens_show_sales_documents(app: Flask, pos: Pos) -> None:
     assert docs.status_code == 200, docs.get_json()
     sale_doc = next(d for d in docs.get_json()["items"] if d["doc_type"] == "sale")
     assert m.get(f"/api/v1/inventory/stock-documents/{sale_doc['id']}").status_code == 200
+
+
+def test_several_card_readers_chosen_at_payment(app: Flask, pos: Pos) -> None:
+    """ADR-0023: readers are defined per branch, a register has a default, the cashier
+    picks one; a provider without a driver is listed with the reason, never sent to."""
+    from app.modules.organization.models import CashRegister
+
+    with app.app_context(), unit_of_work() as s:
+        r1 = s.get(CashRegister, uuid.UUID(pos.r1))
+        rb = s.get(CashRegister, uuid.UUID(pos.r_b))
+        assert r1 is not None and rb is not None
+        branch, other = str(r1.branch_id), str(rb.branch_id)
+    boss = login(app, "boss")
+    sep = {
+        "name": "سامان صندوق ۱",
+        "provider": "sep",
+        "host": "192.168.1.105",
+        "branch_id": branch,
+        "cash_register_id": pos.r1,
+    }
+    a = boss.post("/api/v1/payments/terminals", sep)
+    assert a.status_code == 201, a.get_json()
+    assert a.json["driver_ready"] is False and "SSP1126" in a.json["driver_note"]
+    assert (
+        boss.post("/api/v1/payments/terminals", sep).json["error"]["code"] == "terminal_name_taken"
+    )
+    wrong = boss.post(
+        "/api/v1/payments/terminals", sep | {"name": "x1", "cash_register_id": pos.r_b}
+    )
+    assert wrong.json["error"]["code"] == "register_branch_mismatch"
+    bad_host = boss.post("/api/v1/payments/terminals", sep | {"name": "x2", "host": "a b;c"})
+    assert bad_host.status_code == 400
+    # A mock reader is for development only.
+    mock = sep | {"name": "آزمایشی", "provider": "mock", "cash_register_id": None}
+    assert (
+        boss.post("/api/v1/payments/terminals", mock).json["error"]["code"] == "mock_in_production"
+    )
+    app.config["SETTINGS"].enable_mock_payment_terminal = True
+    try:
+        m = boss.post("/api/v1/payments/terminals", mock).get_json()
+        far = boss.post(
+            "/api/v1/payments/terminals", mock | {"name": "شعبه ب", "branch_id": other}
+        ).get_json()
+
+        c = login(app, "cashier")
+        assert c.post("/api/v1/payments/terminals", sep | {"name": "x3"}).status_code == 403
+        open_shift(c, pos.r1)
+        state = c.get(f"/api/v1/sales/registers/{pos.r1}/state").get_json()
+        listed = [(t["name"], t["is_default"], t["ready"]) for t in state["terminals"]]
+        # This register's default first; the other branch's reader is not offered.
+        assert listed == [("سامان صندوق ۱", True, False), ("آزمایشی", False, True)]
+        assert "SSP1126" in state["terminals"][0]["reason"]
+
+        cart = str(uuid.uuid4())
+        start = {"cash_register_id": pos.r1, "cart_id": cart, "amount": "110000"}
+        no_driver = c.post(
+            "/api/v1/payments/terminal-transactions", start | {"terminal_id": a.json["id"]}
+        )
+        assert no_driver.json["error"]["code"] == "terminal_driver_unavailable"
+        elsewhere = c.post(
+            "/api/v1/payments/terminal-transactions", start | {"terminal_id": far["id"]}
+        )
+        assert elsewhere.status_code == 404
+        t = c.post(
+            "/api/v1/payments/terminal-transactions",
+            start | {"terminal_id": m["id"], "scenario": "timeout"},
+        ).get_json()
+        assert t["terminal_id"] == m["id"] and t["status"] == "Unknown"
+        inq = c.post(f"/api/v1/payments/terminal-transactions/{t['id']}/inquire").get_json()
+        assert inq["status"] == "Approved"
+
+        # Switched off: no longer offered, and an open attempt goes to reconciliation.
+        off = boss.put(
+            f"/api/v1/payments/terminals/{m['id']}", mock | {"is_active": False}, m["row_version"]
+        )
+        assert off.status_code == 200 and off.json["driver_ready"] is False
+        names = [
+            x["name"] for x in c.get(f"/api/v1/sales/registers/{pos.r1}/state").json["terminals"]
+        ]
+        assert names == ["سامان صندوق ۱"]
+        listed_all = boss.get("/api/v1/payments/terminals").get_json()
+        assert {x["name"] for x in listed_all} == {"سامان صندوق ۱", "آزمایشی", "شعبه ب"}
+    finally:
+        app.config["SETTINGS"].enable_mock_payment_terminal = False
+
+
+def test_sep_central_reader_pays_in_the_background(app: Flask, pos: Pos) -> None:
+    """ADR-0024: the attempt is saved as Pending with SEP's Identifier, the device is
+    called after the response, the register polls; cancel and inquiry never overwrite a
+    different final answer. Against the stand-in in tests/sep_fake.py, not Saman."""
+    import time
+
+    from pydantic import SecretStr
+
+    from app.modules.sales.services import sep_pcpos
+    from tests.sep_fake import CLIENT, USER, FakeSep, approved, fail
+
+    with app.app_context(), unit_of_work() as s:
+        r1 = s.get(CashRegister, uuid.UUID(pos.r1))
+        assert r1 is not None
+        branch = str(r1.branch_id)
+    boss = login(app, "boss")
+    reader = {
+        "name": "سامان مرکزی ۱",
+        "provider": "sep_central",
+        "branch_id": branch,
+        "cash_register_id": pos.r1,
+    }
+    no_terminal = boss.post("/api/v1/payments/terminals", reader)
+    assert no_terminal.json["error"]["code"] == "terminal_no_required"
+    made = boss.post("/api/v1/payments/terminals", reader | {"terminal_no": "1371"})
+    assert made.status_code == 201, made.get_json()
+    assert made.json["driver_ready"] is False
+    assert "NEXTCAM_SEP_PCPOS_URL" in made.json["driver_note"]
+
+    fake = FakeSep()
+    sep_pcpos._tokens.clear()
+    settings = app.config["SETTINGS"]
+    before = {k: getattr(settings, k) for k in type(settings).model_fields if "sep_" in k}
+    settings.sep_pcpos_url = settings.sep_pcpos_identity_url = fake.url
+    settings.sep_pcpos_client_id, settings.sep_pcpos_username = CLIENT[0], USER[0]
+    settings.sep_pcpos_client_secret = SecretStr(CLIENT[1])
+    settings.sep_pcpos_password = SecretStr(USER[1])
+    try:
+        assert "https" in boss.get("/api/v1/payments/terminals").json[0]["driver_note"]
+        settings.sep_pcpos_allow_http = True
+        listed = boss.get("/api/v1/payments/terminals").json
+        assert [(t["name"], t["driver_ready"]) for t in listed] == [("سامان مرکزی ۱", True)]
+
+        c = login(app, "cashier")
+        open_shift(c, pos.r1)
+        state = c.get(f"/api/v1/sales/registers/{pos.r1}/state").json
+        assert [(t["name"], t["ready"]) for t in state["terminals"]] == [("سامان مرکزی ۱", True)]
+
+        def wait(tx_id: str) -> dict:
+            for _ in range(100):
+                t = c.get(f"/api/v1/payments/terminal-transactions/{tx_id}").get_json()
+                if t["status"] != "Pending":
+                    return t
+                time.sleep(0.05)
+            raise AssertionError("still pending")
+
+        cart = str(uuid.uuid4())
+        start = {
+            "cash_register_id": pos.r1,
+            "cart_id": cart,
+            "amount": "110000",
+            "terminal_id": made.json["id"],
+        }
+        frac = c.post("/api/v1/payments/terminal-transactions", start | {"amount": "110000.5"})
+        assert frac.json["error"]["code"] == "terminal_amount_fraction"
+
+        fake.pay_delay = 0.3
+        t = c.post("/api/v1/payments/terminal-transactions", start)
+        assert t.status_code == 201 and t.json["status"] == "Pending"
+        # Still at the device: an inquiry does not ask SEP anything yet.
+        mid = c.post(f"/api/v1/payments/terminal-transactions/{t.json['id']}/inquire").json
+        assert mid["status"] == "Pending"
+        done = wait(t.json["id"])
+        assert (done["status"], done["rrn"], done["message"]) == (
+            "Approved",
+            "802151113805",
+            "تراکنش با موفقیت انجام پذیرفت",
+        )
+        assert "Inquery" not in fake.ops()
+        pay_body = next(x.body for x in fake.calls if x.path.endswith("/StartPayment"))
+        assert pay_body["Amount"] == "110000" and pay_body["TerminalID"] == "1371"
+        assert pay_body["ResNum"] == uuid.UUID(done["request_id"]).hex
+        sale = {
+            "id": cart,
+            "cash_register_id": pos.r1,
+            "lines": [{"item_id": pos.milk, "qty": "1"}],
+            "payments": [
+                {"method": "card", "amount": "110000", "terminal_transaction_id": done["id"]}
+            ],
+        }
+        paid = c.post("/api/v1/sales/invoices", sale, idem=new_key())
+        assert paid.status_code == 201, paid.get_json()
+
+        # Declined by the card's bank: the message comes from SEP's table.
+        fake.pay_delay = 0
+        fake.pay = lambda body: (200, fail(51, "insufficient"))
+        cart2 = str(uuid.uuid4())
+        d = wait(
+            c.post("/api/v1/payments/terminal-transactions", start | {"cart_id": cart2}).json["id"]
+        )
+        assert (d["status"], d["response_code"], d["message"]) == (
+            "Declined",
+            "51",
+            "موجودی کافی نیست",
+        )
+
+        # The customer walks away: the cashier cancels while the device waits.
+        fake.pay_delay = 1.0
+        fake.pay = lambda body: (200, fail(98, "لغو عملیات توسط کاربر"))
+        fake.inquiry = lambda body: (200, fail(98, "لغو عملیات توسط کاربر"))
+        w = c.post("/api/v1/payments/terminal-transactions", start | {"cart_id": cart2}).json
+        cancelled = c.post(f"/api/v1/payments/terminal-transactions/{w['id']}/cancel").json
+        assert cancelled["status"] == "Declined"
+        assert fake.calls[-1].body["CancelPendingRequest"] is True
+        time.sleep(1.3)
+        assert wait(w["id"])["status"] == "Declined"
+
+        # No answer in time: Unknown, then the inquiry finds it approved.
+        settings.sep_pcpos_timeout_seconds = 1
+        fake.pay_delay = 2.0
+        fake.pay = None
+        fake.inquiry = lambda body: (200, approved(body, amount="110000"))
+        cart3 = str(uuid.uuid4())
+        u = wait(
+            c.post("/api/v1/payments/terminal-transactions", start | {"cart_id": cart3}).json["id"]
+        )
+        assert (u["status"], u["response_code"]) == ("Unknown", "NOANSWER")
+        again = c.post("/api/v1/payments/terminal-transactions", start | {"cart_id": cart3})
+        assert again.json["error"]["code"] == "terminal_tx_unresolved"
+        inq = c.post(f"/api/v1/payments/terminal-transactions/{u['id']}/inquire").json
+        assert inq["status"] == "Approved"
+        assert fake.calls[-1].body["CancelPendingRequest"] is False
+        time.sleep(1.2)  # the late device answer (approved too) changes nothing
+
+        # Two sends for one cart at once (double click, two tabs): one reaches the device.
+        settings.sep_pcpos_timeout_seconds = 100
+        fake.pay_delay, fake.ident_delay, fake.inquiry = 0.0, 0.5, None
+        cart4, results = str(uuid.uuid4()), []
+        sent = sum(1 for x in fake.calls if x.path.endswith("/StartPayment"))
+        tills = [login(app, "cashier"), login(app, "cashier")]
+
+        def send(till: Api) -> None:
+            r = till.post("/api/v1/payments/terminal-transactions", start | {"cart_id": cart4})
+            results.append(r.status_code)
+
+        threads = [threading.Thread(target=send, args=(t,)) for t in tills]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+        assert sorted(results) == [201, 409]
+        time.sleep(0.3)
+        assert sum(1 for x in fake.calls if x.path.endswith("/StartPayment")) == sent + 1
+        fake.ident_delay = 0.0
+
+        # The service is down before anything is sent: no attempt is recorded.
+        fake.close()
+        down = c.post(
+            "/api/v1/payments/terminal-transactions", start | {"cart_id": str(uuid.uuid4())}
+        )
+        assert down.json["error"]["code"] == "terminal_unreachable"
+    finally:
+        for k, v in before.items():
+            setattr(settings, k, v)
+        fake.close()

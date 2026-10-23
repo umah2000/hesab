@@ -4,7 +4,7 @@ import { Topbar } from "./Topbar";
 
 export function AppShell() {
   return (
-    <div className="mx-auto flex min-h-full max-w-[1600px] gap-4 p-4">
+    <div className="mx-auto flex min-h-full max-w-[1600px] gap-4 p-4 print:block print:max-w-none print:p-0">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <Topbar />

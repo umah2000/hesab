@@ -19,11 +19,20 @@
 [CmdletBinding()]
 param(
     [string]$Root = "C:\nextcam",
-    [int]$Port = 8080,
+    # Default: NEXTCAM_PORT from <Root>\config\.env.
+    [int]$Port = 0,
     [string]$Python = "py",
     [int]$KeepReleases = 3
 )
 . "$PSScriptRoot\common.ps1"
+
+trap {
+    Write-Host ""
+    Write-Host "ERROR: $_" -ForegroundColor Red
+    if ($env:NEXTCAM_INSTALL_PAUSE_ON_ERROR) { Read-Host "Press Enter to close" | Out-Null }
+    exit 1
+}
+if (-not $Port) { $Port = Get-ConfiguredPort $Root }
 
 $package = Get-PackageRoot
 $version = Get-PackageVersion $package

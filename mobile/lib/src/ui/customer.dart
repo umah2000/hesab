@@ -46,7 +46,9 @@ class CustomerScreen extends StatelessWidget {
                   ),
                   LabelValue(
                     'سقف اعتبار',
-                    c.creditLimit == null
+                    c.creditUnlimited
+                        ? 'نامحدود'
+                        : c.creditLimit == null
                         ? 'فروش نسیه تعریف نشده'
                         : money(c.creditLimit!, cur, unit: true),
                   ),

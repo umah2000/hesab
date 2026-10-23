@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CreditCard, Search, Wallet } from "lucide-react";
+import { CreditCard, Search, TriangleAlert, Wallet } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
@@ -48,6 +48,11 @@ export function PaymentDialog({
   const [splitCash, setSplitCash] = React.useState("");
   const [tx, setTx] = React.useState<TerminalTx | null>(null);
   const [scenario, setScenario] = React.useState("approve");
+  const choices = state.terminals ?? [];
+  const [terminalId, setTerminalId] = React.useState<string>(() => (choices.find((t) => t.is_default) ?? choices[0])?.id ?? "");
+  const chosen = choices.find((t) => t.id === terminalId);
+  // Simulated scenarios come from the chosen mock reader, or the built-in development mock.
+  const sim = chosen ? (chosen.simulated ? chosen.scenarios : null) : state.terminal?.simulated ? state.terminal.scenarios : null;
   const [customer, setCustomer] = React.useState<Customer | null>(null);
   const [q, setQ] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -77,7 +82,8 @@ export function PaymentDialog({
         cash_register_id: state.cash_register_id,
         cart_id: cartId,
         amount: cardAmount,
-        scenario: state.terminal?.simulated ? scenario : undefined,
+        terminal_id: chosen?.id,
+        scenario: sim ? scenario : undefined,
       }),
     onSuccess: setTx,
     onError: (e) => setError(e instanceof ApiError ? e.message : "خطای کارت‌خوان"),
@@ -87,6 +93,23 @@ export function PaymentDialog({
     onSuccess: setTx,
     onError: (e) => setError(e instanceof ApiError ? e.message : "استعلام انجام نشد"),
   });
+  const cancelTx = useMutation({
+    mutationFn: () => api.post<TerminalTx>(`/payments/terminal-transactions/${tx?.id}/cancel`),
+    onSuccess: setTx,
+    onError: (e) => setError(e instanceof ApiError ? e.message : "لغو انجام نشد"),
+  });
+  // A reader that waits for the customer answers later: follow the attempt until it does.
+  const pendingId = tx?.status === "Pending" ? tx.id : null;
+  React.useEffect(() => {
+    if (!pendingId) return;
+    const timer = window.setInterval(() => {
+      api
+        .get<TerminalTx>(`/payments/terminal-transactions/${pendingId}`)
+        .then((t) => setTx((cur) => (cur?.id === t.id ? t : cur)))
+        .catch(() => undefined);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [pendingId]);
   const customers = useQuery({
     queryKey: ["sales", "customers", q],
     queryFn: () => api.get<Customer[]>(`/sales/customers?q=${encodeURIComponent(q)}`),
@@ -184,7 +207,61 @@ export function PaymentDialog({
 
           {mode === "card" || mode === "split" ? (
             <div className="surface flex flex-col gap-3 rounded-2xl p-4">
-              {state.terminal ? (
+              {choices.length ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <CreditCard className="size-5 text-brand-500" />
+                  <Select
+                    className="min-w-72 flex-1"
+                    value={terminalId}
+                    disabled={!!tx && tx.status !== "Declined"}
+                    onChange={(e) => setTerminalId(e.target.value)}
+                    aria-label="کارت‌خوان"
+                  >
+                    {choices.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.is_default ? " (پیش‌فرض این صندوق)" : ""}{t.ready ? "" : " — آماده‌ی اتصال نیست"}
+                      </option>
+                    ))}
+                  </Select>
+                  {sim ? (
+                    <Select className="w-44" value={scenario} onChange={(e) => setScenario(e.target.value)} aria-label="سناریوی آزمایشی">
+                      {sim.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </Select>
+                  ) : null}
+                  {chosen?.ready ? (
+                    <Button type="button" size="sm" variant="secondary" loading={startTx.isPending} disabled={!!tx && tx.status !== "Declined"} onClick={() => startTx.mutate()}>
+                      ارسال مبلغ به دستگاه
+                    </Button>
+                  ) : null}
+                  {tx ? (
+                    <Badge tone={tx.status === "Approved" ? "success" : tx.status === "Declined" ? "danger" : "warning"}>{TX_LABEL[tx.status]}</Badge>
+                  ) : null}
+                  {tx && (tx.status === "Unknown" || tx.status === "Pending") ? (
+                    <Button type="button" size="sm" loading={inquire.isPending} onClick={() => inquire.mutate()}>
+                      استعلام
+                    </Button>
+                  ) : null}
+                  {tx?.status === "Pending" && chosen?.can_cancel ? (
+                    <Button type="button" size="sm" variant="ghost" loading={cancelTx.isPending} onClick={() => cancelTx.mutate()}>
+                      لغو ارسال
+                    </Button>
+                  ) : null}
+                  {tx?.message || (tx?.response_code && tx.status !== "Approved") ? (
+                    <p role="status" className="w-full text-xs text-ink-soft">
+                      پاسخ بانک: {tx.message ?? "—"}
+                      {tx.response_code ? <>{" "}<bdi className="latin-digits">(کد {tx.response_code})</bdi></> : null}
+                    </p>
+                  ) : null}
+                  {chosen && !chosen.ready ? (
+                    <p role="status" className="flex w-full items-start gap-1.5 text-xs text-ink-soft">
+                      <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning" />
+                      {chosen.reason}
+                    </p>
+                  ) : null}
+                </div>
+              ) : state.terminal ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <CreditCard className="size-5 text-brand-500" />
                   <span className="text-sm font-semibold">{state.terminal.label}</span>
@@ -237,7 +314,7 @@ export function PaymentDialog({
               </div>
               <ul className="surface max-h-56 overflow-y-auto rounded-xl">
                 {customers.data?.map((c) => {
-                  const enough = c.available !== null && compareRials(c.available, due) >= 0;
+                  const enough = c.credit_unlimited || (c.available !== null && compareRials(c.available, due) >= 0);
                   return (
                     <li key={c.id}>
                       <button
@@ -249,7 +326,9 @@ export function PaymentDialog({
                         )}
                       >
                         <span className="flex-1 font-medium">{c.name}</span>
-                        {c.credit_limit === null ? (
+                        {c.credit_unlimited ? (
+                          <Badge tone="success">اعتبار نامحدود</Badge>
+                        ) : c.credit_limit === null ? (
                           <Badge tone="neutral">بدون اعتبار</Badge>
                         ) : (
                           <span className={cn("tabular text-xs", enough ? "text-success" : "text-danger")}>

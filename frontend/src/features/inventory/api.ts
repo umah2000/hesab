@@ -32,8 +32,15 @@ export type Item = {
   barcodes: Barcode[];
   prices: Price[];
   stock_qty: string | null;
+  images: ItemImage[];
   row_version: string;
 };
+
+/** A product photo (ADR-0022); position 0 is the main one. */
+export type ItemImage = { id: string; position: number; width: number; height: number };
+
+/** URL of a stored photo; the content of an id never changes, so browsers cache it. */
+export const imageUrl = (id: string, size: "thumb" | "large" = "thumb") => `/api/v1/inventory/images/${id}?size=${size}`;
 
 export type ItemSummary = {
   id: string;
@@ -46,6 +53,8 @@ export type ItemSummary = {
   barcode: string | null;
   price: string | null;
   stock_qty: string;
+  /** The main photo, if any. */
+  image_id: string | null;
 };
 
 export type Lookup = {

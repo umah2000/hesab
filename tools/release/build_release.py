@@ -36,8 +36,8 @@ INCLUDE = [
     ("deploy", "deploy"),
     ("docs/install", "docs/install"),
 ]
-SKIP_DIRS = {"__pycache__", ".venv", "node_modules", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
-SKIP_FILES = re.compile(r"(^\.env$|\.pyc$|\.pyo$|\.log$|\.partial$|\.pem$|\.nclic$)")
+SKIP_DIRS = {"redist", "__pycache__", ".venv", "node_modules", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
+SKIP_FILES = re.compile(r"(^\.env$|\.isl$|\.pyc$|\.pyo$|\.log$|\.partial$|\.pem$|\.nclic$)")
 PY = "3.13"
 
 

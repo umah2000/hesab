@@ -319,9 +319,62 @@ TxStatus = Literal[
 ]
 
 
+CardProvider = Literal["sep", "sep_central", "mock"]
+
+
+class CardTerminalIn(_In):
+    name: str = Field(min_length=2, max_length=100)
+    provider: CardProvider
+    # IPv4 or a host name on the shop network (the device's address).
+    host: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9.-]*$")
+    port: int | None = Field(default=None, ge=1, le=65535)
+    terminal_no: str | None = Field(default=None, max_length=16, pattern=r"^[0-9A-Za-z]+$")
+    branch_id: uuid.UUID
+    cash_register_id: uuid.UUID | None = None
+    is_active: bool = True
+    note: str | None = Field(default=None, max_length=300)
+
+
+class CardTerminalOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    provider: CardProvider
+    provider_label: str
+    host: str | None
+    port: int | None
+    terminal_no: str | None
+    branch_id: uuid.UUID
+    branch_name: str
+    cash_register_id: uuid.UUID | None
+    register_name: str | None
+    is_active: bool
+    note: str | None
+    # Whether the program can talk to this provider yet; if not, why (shown as is).
+    driver_ready: bool
+    driver_note: str | None
+    row_version: str
+
+
+class TerminalChoiceOut(BaseModel):
+    """A reader the register may send to (the payment dialog's list)."""
+
+    id: uuid.UUID
+    name: str
+    provider_label: str
+    is_default: bool
+    ready: bool
+    reason: str | None
+    simulated: bool
+    scenarios: list[str]
+    # The cashier may cancel an amount still waiting on the device.
+    can_cancel: bool = False
+
+
 class TerminalStartIn(_In):
     cash_register_id: uuid.UUID
     cart_id: uuid.UUID
+    # The chosen reader; omitted only for the built-in development mock.
+    terminal_id: uuid.UUID | None = None
     amount: Money = Field(gt=0)
     # Development/test only (mock adapter): approve | decline | timeout | unknown | ...
     scenario: str | None = Field(default=None, max_length=32)
@@ -339,12 +392,15 @@ class TerminalTxOut(BaseModel):
     cash_register_id: uuid.UUID
     cart_id: uuid.UUID
     adapter_id: str
+    terminal_id: uuid.UUID | None = None
     amount: Money
     status: TxStatus
     rrn: str | None
     trace_no: str | None
     masked_pan: str | None
     response_code: str | None
+    # The provider's text for response_code, when its document gives one.
+    message: str | None = None
     is_simulated: bool
     created_at: datetime
     row_version: str
@@ -366,6 +422,7 @@ class CustomerOut(BaseModel):
     code: str
     name: str
     credit_limit: Money | None
+    credit_unlimited: bool = False
     balance: Money
     available: Money | None
 
@@ -414,4 +471,6 @@ class RegisterStateOut(BaseModel):
     receipt_footer: str | None
     organization_name: str
     terminal: TerminalInfoOut | None
+    # Card readers defined for this register's branch, the register's default first.
+    terminals: list[TerminalChoiceOut] = []
     permissions: list[str]

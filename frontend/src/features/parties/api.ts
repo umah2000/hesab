@@ -13,6 +13,8 @@ export type PartySummary = {
   group_name: string | null;
   mobile: string | null;
   credit_limit: string | null;
+  /** Credit sales with no limit (credit_limit is then null). */
+  credit_unlimited: boolean;
   /** Rials; positive = the party owes us, negative = we owe them. */
   balance: string;
   is_active: boolean;

@@ -11,6 +11,12 @@ export type Organization = {
   backup_warning_days: number;
   receipt_header: string | null;
   receipt_footer: string | null;
+  about: string | null;
+  phone: string | null;
+  address: string | null;
+  website: string | null;
+  /** Changes with every new logo; null = no logo. */
+  logo_version: string | null;
   row_version: string;
 };
 

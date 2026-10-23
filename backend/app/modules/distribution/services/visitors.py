@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import delete, func, select, true
+from sqlalchemy import delete, func, or_, select, true
 from sqlalchemy.orm import Session
 
-from app.core.db import version_to_str
+from app.core.db import load_columns_by_ids, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError, PermissionDeniedError
 from app.modules.accounting.models import DetailAccount
 from app.modules.accounting.services.chart import check_version
@@ -26,7 +26,7 @@ from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser, MobileSession
 from app.modules.organization.models import Branch
 from app.modules.parties.models import Party
-from app.modules.sales.services.invoices import receivable_balance
+from app.modules.sales.services.invoices import receivable_balances
 from app.modules.system import license
 
 ZERO = Decimal(0)
@@ -166,9 +166,10 @@ def assigned(s: Session, visitor_id: uuid.UUID) -> list[AssignedCustomerOut]:
         .where(VisitorCustomer.visitor_id == visitor_id)
         .order_by(DetailAccount.name)
     ).all()
+    balances = receivable_balances(s, [acc.id for _, acc, _ in rows])
     out = []
     for vc, acc, party in rows:
-        balance = receivable_balance(s, acc.id)
+        balance = balances[acc.id]
         out.append(
             AssignedCustomerOut(
                 customer_id=acc.id,
@@ -178,6 +179,7 @@ def assigned(s: Session, visitor_id: uuid.UUID) -> list[AssignedCustomerOut]:
                 address=party.address if party else None,
                 visit_weekday=vc.visit_weekday,
                 credit_limit=acc.credit_limit,
+                credit_unlimited=acc.credit_unlimited,
                 balance=balance,
                 available=acc.credit_limit - balance if acc.credit_limit is not None else None,
             )
@@ -197,17 +199,9 @@ def assign(
     ids = [a.customer_id for a in data.customers]
     if len(set(ids)) != len(ids):
         raise DomainError("مشتری تکراری در فهرست است", code="duplicate_customer")
-    if ids:
-        found = {
-            a.id
-            for a in s.scalars(
-                select(DetailAccount).where(
-                    DetailAccount.id.in_(ids), DetailAccount.kind == "person"
-                )
-            )
-        }
-        if len(found) != len(ids):
-            raise NotFoundError("مشتری یافت نشد")
+    found = load_columns_by_ids(s, DetailAccount.id, [DetailAccount.kind], ids)
+    if len(found) != len(ids) or any(r.kind != "person" for r in found.values()):
+        raise NotFoundError("مشتری یافت نشد")
     s.execute(delete(VisitorCustomer).where(VisitorCustomer.visitor_id == v.id))
     for a in data.customers:
         s.add(
@@ -228,6 +222,48 @@ def assign(
         entity_type="visitor",
         entity_id=v.id,
         data={"count": len(ids)},
+    )
+    return assigned(s, v.id)
+
+
+def assign_all(s: Session, actor: Actor, visitor_id: uuid.UUID) -> list[AssignedCustomerOut]:
+    """Add every active customer the visitor does not have yet; visit days already set stay.
+    Customers created later are not added by themselves (run it again, or add them)."""
+    v = _get(s, actor, visitor_id)
+    have = set(
+        s.scalars(select(VisitorCustomer.customer_id).where(VisitorCustomer.visitor_id == v.id))
+    )
+    candidates = list(
+        s.scalars(
+            select(DetailAccount.id)
+            .outerjoin(Party, Party.id == DetailAccount.id)
+            .where(
+                DetailAccount.kind == "person",
+                DetailAccount.is_active == true(),
+                or_(Party.id.is_(None), Party.is_customer == true()),
+            )
+        )
+    )
+    added = [c for c in candidates if c not in have]
+    for cid in added:
+        s.add(
+            VisitorCustomer(
+                visitor_id=v.id,
+                customer_id=cid,
+                visit_weekday=None,
+                created_by=actor.user_id,
+                updated_by=actor.user_id,
+            )
+        )
+    s.flush()
+    audit.record(
+        s,
+        "distribution.customers_assigned",
+        user_id=actor.user_id,
+        branch_id=v.branch_id,
+        entity_type="visitor",
+        entity_id=v.id,
+        data={"count": len(have) + len(added), "added_all": len(added)},
     )
     return assigned(s, v.id)
 

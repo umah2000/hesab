@@ -268,6 +268,32 @@ class SalesApproval(EntityMixin, Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class CardTerminal(EntityMixin, ActorMixin, VersionedMixin, Base):
+    """A bank card reader the program can send amounts to (ADR-0023).
+
+    The provider names the driver that speaks its protocol; a provider without a
+    driver can be defined (so the shop's devices are on record) but is not sent to.
+    """
+
+    __tablename__ = "card_terminal"
+    __table_args__ = (
+        CheckConstraint("provider IN ('sep','sep_central','mock')", name="provider"),
+        CheckConstraint("port IS NULL OR (port BETWEEN 1 AND 65535)", name="port"),
+    )
+
+    name: Mapped[str] = mapped_column(Unicode(100), unique=True)
+    provider: Mapped[str] = mapped_column(String(16))
+    host: Mapped[str | None] = mapped_column(String(64))
+    port: Mapped[int | None] = mapped_column(Integer)
+    # The terminal number on the PSP's slip, when the protocol needs it.
+    terminal_no: Mapped[str | None] = mapped_column(String(16))
+    branch_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("branch.id"))
+    # The register that uses it by default (several registers may share one reader).
+    cash_register_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cash_register.id"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    note: Mapped[str | None] = mapped_column(Unicode(300))
+
+
 class TerminalTransaction(EntityMixin, VersionedMixin, Base):
     """One card-reader request (hardware/payment-terminal-adapter.md). Never PAN/PIN."""
 
@@ -287,12 +313,17 @@ class TerminalTransaction(EntityMixin, VersionedMixin, Base):
     # Client-side cart id; ties the attempt to one sale before the invoice exists.
     cart_id: Mapped[uuid.UUID] = mapped_column(UNIQUEIDENTIFIER, index=True)
     adapter_id: Mapped[str] = mapped_column(String(32))
+    # The reader it was sent to (NULL: the built-in development mock).
+    terminal_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("card_terminal.id"))
     amount: Mapped[Decimal] = mapped_column(MONEY)
     status: Mapped[str] = mapped_column(String(24))
     rrn: Mapped[str | None] = mapped_column(String(32))
     trace_no: Mapped[str | None] = mapped_column(String(32))
     masked_pan: Mapped[str | None] = mapped_column(String(19))
     response_code: Mapped[str | None] = mapped_column(String(16))
+    # The provider's own id for this attempt (SEP central: Identifier), saved before the
+    # amount is sent so the attempt can always be inquired.
+    provider_ref: Mapped[str | None] = mapped_column(String(64))
     is_simulated: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("app_user.id"))
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(UNIQUEIDENTIFIER)

@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from app.core.db import new_session, utcnow
 from app.modules.system import upgrade
-from tests.conftest import Api, Seed
+from tests.conftest import TEST_BACKUP_DIR, Api, Seed
 from tests.test_inventory import Inv, inv, keeper, make_item, stock_doc  # noqa: F401 - fixtures
 
 pytestmark = pytest.mark.db
@@ -71,7 +71,7 @@ def test_upgrade_guards_backs_up_and_checks(app: Flask, seed: Seed, keeper: Api)
             s.close()
 
     settings = app.config["SETTINGS"]
-    settings.backup_dir = "/var/opt/mssql/backup"
+    settings.backup_dir = TEST_BACKUP_DIR
     lines: list[str] = []
     try:
         report = upgrade.run(app, echo=lines.append)

@@ -19,6 +19,19 @@ class Settings(BaseSettings):
     # Mock payment terminal may never be enabled in production (see ADR-0008).
     enable_mock_payment_terminal: bool = False
 
+    # SEP central PC-POS (ADR-0024): addresses and credentials issued by Saman. The
+    # service and its identity server may listen on different ports.
+    sep_pcpos_url: str | None = None  # e.g. https://<server>:<service port>
+    sep_pcpos_identity_url: str | None = None  # e.g. https://<server>:<identity port>
+    sep_pcpos_client_id: str | None = None
+    sep_pcpos_client_secret: SecretStr | None = None
+    sep_pcpos_username: str | None = None
+    sep_pcpos_password: SecretStr | None = None
+    # Saman's first phase is plain http inside its network; anything else needs TLS.
+    sep_pcpos_allow_http: bool = False
+    # How long to wait for the device's answer (the customer swipes and types the PIN).
+    sep_pcpos_timeout_seconds: int = 100
+
     # Production server (python -m app.serve). static_dir = built frontend (frontend/dist),
     # so the shop LAN needs only this one service on one port.
     host: str = "0.0.0.0"  # noqa: S104 - a LAN server by design; firewall per install guide
@@ -64,6 +77,15 @@ class Settings(BaseSettings):
         if v and info.data.get("env") == "production":
             raise ValueError("mock payment terminal cannot be enabled in production")
         return v
+
+    @field_validator("sep_pcpos_url", "sep_pcpos_identity_url")
+    @classmethod
+    def _sep_url(cls, v: str | None, info: ValidationInfo) -> str | None:
+        if not v:
+            return None
+        if not v.startswith(("https://", "http://")):
+            raise ValueError(f"{info.field_name} must start with https://")
+        return v.rstrip("/")
 
     @field_validator("backup_copy_dir")
     @classmethod

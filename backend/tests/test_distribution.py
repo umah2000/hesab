@@ -292,3 +292,57 @@ def test_back_office_rules(app: Flask, field: dict[str, Any]) -> None:
     web = login(app, "visitor1")
     assert web.get("/api/v1/distribution/orders").status_code == 403
     assert login(app, "cashier").get("/api/v1/distribution/visitors").status_code == 403
+
+
+def test_assign_all_customers_keeps_visit_days(app: Flask, field: dict[str, Any]) -> None:
+    boss: Api = field["boss"]
+    vid = field["visitor"]["id"]
+    with app.app_context(), unit_of_work() as s:
+        s.add(DetailAccount(code="C3", name="مشتری غیرفعال", kind="person", is_active=False))
+        s.add(DetailAccount(code="S9", name="تأمین‌کننده", kind="person", is_active=True))
+        s.flush()
+        from app.modules.parties.models import Party
+
+        sup = s.scalar(select(DetailAccount).where(DetailAccount.code == "S9"))
+        assert sup is not None
+        s.add(Party(id=sup.id, party_type="company", is_customer=False, is_supplier=True))
+    r = boss.post(f"/api/v1/distribution/visitors/{vid}/customers/all")
+    assert r.status_code == 200, r.get_json()
+    got = {c["code"]: c["visit_weekday"] for c in r.json}
+    # Active customers only (no inactive one, no pure supplier); C1 keeps its day.
+    assert got["C1"] == 0 and got["C2"] is None
+    assert "C3" not in got and "S9" not in got
+    again = boss.post(f"/api/v1/distribution/visitors/{vid}/customers/all")
+    assert len(again.json) == len(r.json)
+    assert (
+        login(app, "cashier").post(f"/api/v1/distribution/visitors/{vid}/customers/all").status_code
+        == 403
+    )
+
+
+def test_unlimited_credit_approves_any_amount(
+    app: Flask,
+    field: dict[str, Any],
+    pos: Pos,  # noqa: F811
+) -> None:
+    boss: Api = field["boss"]
+    phone = Phone(app.test_client())
+    assert phone.login("visitor1").status_code == 200
+    lines = [{"item_id": pos.milk, "qty": "20"}]  # 2.2M rials, over C1's 1M limit
+    o = phone.post("/distribution/mobile/orders", order(field["c1"], lines)).json
+    over = boss.post(
+        f"/api/v1/distribution/orders/{o['id']}/approve", {}, headers={"If-Match": o["row_version"]}
+    )
+    assert over.json["error"]["code"] == "credit_limit_exceeded"
+    with app.app_context(), unit_of_work() as s:
+        c1 = s.get(DetailAccount, uuid.UUID(field["c1"]))
+        assert c1 is not None
+        c1.credit_limit, c1.credit_unlimited = None, True
+    q = phone.post("/distribution/mobile/quote", {"customer_id": field["c1"], "lines": lines}).json
+    assert q["credit_unlimited"] is True and q["available_after"] is None
+    mine = phone.get("/distribution/mobile/bootstrap").json["customers"]
+    assert [c["credit_unlimited"] for c in mine] == [True]
+    ok = boss.post(
+        f"/api/v1/distribution/orders/{o['id']}/approve", {}, headers={"If-Match": o["row_version"]}
+    )
+    assert ok.status_code == 200, ok.get_json()

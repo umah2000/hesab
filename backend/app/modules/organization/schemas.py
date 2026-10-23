@@ -21,6 +21,12 @@ class OrganizationOut(BaseModel):
     backup_warning_days: int
     receipt_header: str | None
     receipt_footer: str | None
+    about: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    website: str | None = None
+    # Changes with every new logo (cache key); None = no logo.
+    logo_version: str | None = None
     row_version: str
 
     @field_serializer("default_vat_rate", "cashier_discount_limit")
@@ -44,6 +50,12 @@ class OrganizationUpdateIn(BaseModel):
     backup_warning_days: int | None = Field(default=None, ge=1, le=60)
     receipt_header: str | None = Field(default=None, max_length=500)
     receipt_footer: str | None = Field(default=None, max_length=500)
+    about: str | None = Field(default=None, max_length=2000)
+    phone: str | None = Field(default=None, max_length=40)
+    address: str | None = Field(default=None, max_length=300)
+    website: str | None = Field(
+        default=None, max_length=200, pattern=r"^$|^(https?://)?[\w.-]+\.[a-z]{2,}(/\S*)?$"
+    )
 
 
 class BranchOut(BaseModel):

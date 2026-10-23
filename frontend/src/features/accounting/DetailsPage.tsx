@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Badge, ErrorBox, Spinner } from "@/components/ui/feedback";
-import { Field, Input, Select } from "@/components/ui/form-controls";
+import { Checkbox, Field, Input, Select } from "@/components/ui/form-controls";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { useCan } from "@/features/auth/auth";
 import { ApiError, api, newIdempotencyKey } from "@/lib/api";
-import { formatMoney } from "@/lib/format";
+import { formatCredit } from "@/lib/format";
 import { inputToRials, rialsToInput } from "@/lib/money";
 import { type DetailAccount, useCurrency, useDetailAccounts } from "./api";
 import { MoneyInput } from "./inputs";
@@ -54,12 +54,16 @@ export function DetailsPage() {
   const currency = useCurrency();
   const [credit, setCredit] = React.useState<DetailAccount | null>(null);
   const [limit, setLimit] = React.useState("");
-  React.useEffect(() => setLimit(credit?.credit_limit ? rialsToInput(credit.credit_limit, currency) : ""), [credit, currency]);
+  const [unlimited, setUnlimited] = React.useState(false);
+  React.useEffect(() => {
+    setLimit(credit?.credit_limit ? rialsToInput(credit.credit_limit, currency) : "");
+    setUnlimited(!!credit?.credit_unlimited);
+  }, [credit, currency]);
   const saveCredit = useMutation({
     mutationFn: (d: DetailAccount) => {
-      const rials = limit.trim() ? inputToRials(limit, currency) : null;
-      if (limit.trim() && rials === null) throw new ApiError(0, "invalid", "مبلغ نامعتبر است");
-      return api.patch(`/accounting/detail-accounts/${d.id}`, { credit_limit: rials }, d.row_version);
+      const rials = !unlimited && limit.trim() ? inputToRials(limit, currency) : null;
+      if (!unlimited && limit.trim() && rials === null) throw new ApiError(0, "invalid", "مبلغ نامعتبر است");
+      return api.patch(`/accounting/detail-accounts/${d.id}`, { credit_limit: rials, credit_unlimited: unlimited }, d.row_version);
     },
     onSuccess: () => {
       setCredit(null);
@@ -122,7 +126,7 @@ export function DetailsPage() {
                         onClick={() => setCredit(d)}
                         className="tabular text-sm text-brand-600 hover:underline disabled:text-ink-soft disabled:no-underline dark:text-brand-300"
                       >
-                        {d.credit_limit ? formatMoney(d.credit_limit, currency) : "بدون نسیه"}
+                        {formatCredit(d, currency, "بدون نسیه")}
                       </button>
                     ) : null}
                   </Td>
@@ -148,9 +152,14 @@ export function DetailsPage() {
       {credit ? (
         <Dialog open onOpenChange={(o) => !o && setCredit(null)}>
           <DialogContent title={`سقف اعتبار نسیه: ${credit.name}`} description="خالی = فروش نسیه به این شخص مجاز نیست.">
-            <Field label={`سقف (${currency === "IRT" ? "تومان" : "ریال"})`}>
-              <MoneyInput autoFocus value={limit} onChange={setLimit} />
-            </Field>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={unlimited} onCheckedChange={(c) => setUnlimited(c === true)} /> نامحدود (بدون سقف)
+            </label>
+            {unlimited ? null : (
+              <Field label={`سقف (${currency === "IRT" ? "تومان" : "ریال"})`}>
+                <MoneyInput autoFocus value={limit} onChange={setLimit} />
+              </Field>
+            )}
             <DialogFooter>
               <Button loading={saveCredit.isPending} onClick={() => saveCredit.mutate(credit)}>ذخیره</Button>
               <Button variant="ghost" onClick={() => setCredit(null)}>انصراف</Button>

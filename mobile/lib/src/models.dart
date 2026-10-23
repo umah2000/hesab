@@ -14,6 +14,7 @@ class Customer {
       address = j['address'] as String?,
       visitWeekday = j['visit_weekday'] as int?,
       creditLimit = _d(j['credit_limit']),
+      creditUnlimited = (j['credit_unlimited'] as bool?) ?? false,
       balance = Decimal.parse(j['balance'] as String),
       available = _d(j['available']);
 
@@ -24,6 +25,9 @@ class Customer {
   final String? address;
   final int? visitWeekday;
   final Decimal? creditLimit;
+
+  /// Credit sales with no limit (then [creditLimit] and [available] are null).
+  final bool creditUnlimited;
   final Decimal balance;
   final Decimal? available;
 }
@@ -54,7 +58,10 @@ class Item {
           .map((u) => ItemUnit.fromJson(u as Map<String, dynamic>))
           .toList(),
       stock = _d(j['stock']),
-      vatExempt = j['vat_exempt'] as bool;
+      vatExempt = j['vat_exempt'] as bool,
+      imageIds = ((j['image_ids'] as List?) ?? const [])
+          .cast<String>()
+          .toList();
 
   final String id;
   final String code;
@@ -64,6 +71,9 @@ class Item {
   final List<ItemUnit> units;
   final Decimal? stock;
   final bool vatExempt;
+
+  /// Product photos, main first (ADR-0022).
+  final List<String> imageIds;
 
   ItemUnit unit(String id) =>
       units.firstWhere((u) => u.unitId == id, orElse: () => units.first);

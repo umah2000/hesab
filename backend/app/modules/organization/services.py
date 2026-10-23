@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 
 from sqlalchemy import select
@@ -55,8 +56,68 @@ def _org_out(o: Organization) -> OrganizationOut:
         backup_warning_days=o.backup_warning_days,
         receipt_header=o.receipt_header,
         receipt_footer=o.receipt_footer,
+        about=o.about,
+        phone=o.phone,
+        address=o.address,
+        website=o.website,
+        logo_version=o.logo_sha256[:16] if o.logo_sha256 else None,
         row_version=version_to_str(o.row_version),
     )
+
+
+LOGO_SIDE = 512
+
+
+def set_logo(s: Session, actor: Actor, data: bytes) -> OrganizationOut:
+    """Store the organization logo, re-encoded as a PNG of at most 512 px (ADR-0022)."""
+    from app.core import images
+
+    logo = images.png(images.decode(data), LOGO_SIDE)
+    org = _org(s)
+    org.logo = logo
+    org.logo_sha256 = hashlib.sha256(logo).hexdigest()
+    org.updated_by = actor.user_id
+    org.updated_at = utcnow()
+    s.flush()
+    s.refresh(org)
+    audit.record(
+        s,
+        "settings.logo_changed",
+        user_id=actor.user_id,
+        entity_type="organization",
+        entity_id=org.id,
+        data={"bytes": len(logo)},
+    )
+    return _org_out(org)
+
+
+def remove_logo(s: Session, actor: Actor) -> OrganizationOut:
+    org = _org(s)
+    org.logo = None
+    org.logo_sha256 = None
+    org.updated_by = actor.user_id
+    org.updated_at = utcnow()
+    s.flush()
+    s.refresh(org)
+    audit.record(
+        s,
+        "settings.logo_changed",
+        user_id=actor.user_id,
+        entity_type="organization",
+        entity_id=org.id,
+        data={"removed": True},
+    )
+    return _org_out(org)
+
+
+def logo(s: Session) -> tuple[bytes, str] | None:
+    """(PNG bytes, sha256) of the logo, or None."""
+    row = s.execute(
+        select(Organization.logo, Organization.logo_sha256).where(Organization.logo.is_not(None))
+    ).first()
+    if row is None or row[0] is None or row[1] is None:
+        return None
+    return bytes(row[0]), row[1]
 
 
 def get_organization(s: Session) -> OrganizationOut:

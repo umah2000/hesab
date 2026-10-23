@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from flask import Blueprint
+from flask import Blueprint, request
 from flask.typing import ResponseReturnValue
 
 from app.core.db import new_session, unit_of_work
+from app.core.errors import DomainError
 from app.core.http import if_match, parse_body, parse_uuid, to_json
 from app.core.idempotency import idempotent
+from app.core.images import MAX_UPLOAD
 from app.core.openapi import doc
 from app.modules.iam.guard import current_actor, login_required, require
 from app.modules.organization import services
@@ -42,6 +44,27 @@ def update_settings() -> ResponseReturnValue:
     version = if_match()
     with unit_of_work() as s:
         return to_json(services.update_organization(s, current_actor(), data, version))
+
+
+@bp.post("/logo")
+@require("settings.manage")
+@doc("بارگذاری لوگوی سازمان (multipart، فیلد file؛ JPEG/PNG/WebP)", response=OrganizationOut)
+def upload_logo() -> ResponseReturnValue:
+    request.max_content_length = MAX_UPLOAD + 64 * 1024
+    f = request.files.get("file")
+    if f is None:
+        raise DomainError("فایل لوگو را انتخاب کنید", code="file_required")
+    data = f.read()
+    with unit_of_work() as s:
+        return to_json(services.set_logo(s, current_actor(), data))
+
+
+@bp.delete("/logo")
+@require("settings.manage")
+@doc("حذف لوگوی سازمان", response=OrganizationOut)
+def delete_logo() -> ResponseReturnValue:
+    with unit_of_work() as s:
+        return to_json(services.remove_logo(s, current_actor()))
 
 
 @bp.get("/branches")

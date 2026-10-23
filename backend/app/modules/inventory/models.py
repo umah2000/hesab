@@ -16,6 +16,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     PrimaryKeyConstraint,
     String,
@@ -117,6 +118,28 @@ class ItemBarcode(EntityMixin, Base):
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("unit.id"))
 
     item: Mapped[Item] = relationship(back_populates="barcodes")
+
+
+class ItemImage(EntityMixin, ActorMixin, Base):
+    """A product photo, re-encoded by the server (ADR-0022). Never edited: a new upload is a
+    new id, so clients cache an image by id forever. The bytes are deferred: lists never
+    read them."""
+
+    __tablename__ = "item_image"
+    __table_args__ = (
+        UniqueConstraint("item_id", "sha256"),
+        CheckConstraint("position >= 0", name="position"),
+    )
+
+    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("item.id"), index=True)
+    # 0 = the main image.
+    position: Mapped[int] = mapped_column(Integer)
+    width: Mapped[int] = mapped_column(Integer)
+    height: Mapped[int] = mapped_column(Integer)
+    # Of the large JPEG; the ETag.
+    sha256: Mapped[str] = mapped_column(String(64))
+    large: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
+    thumb: Mapped[bytes] = mapped_column(LargeBinary, deferred=True)
 
 
 class ScaleBarcodeRule(EntityMixin, ActorMixin, VersionedMixin, Base):

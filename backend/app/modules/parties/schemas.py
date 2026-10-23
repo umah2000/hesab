@@ -49,8 +49,9 @@ class PartyFields(_In):
     city: str | None = Field(default=None, max_length=60)
     address: str | None = Field(default=None, max_length=500)
     payment_terms_days: int | None = Field(default=None, ge=0, le=365)
-    # Customers only; empty = no credit sales.
+    # Customers only; empty = no credit sales, unless credit_unlimited (no limit at all).
     credit_limit: Money | None = Field(default=None, ge=0)
+    credit_unlimited: bool = False
 
     @field_validator(
         "national_id", "economic_code", "registration_no", "phone", "mobile", "postal_code"
@@ -85,6 +86,12 @@ class PartyFields(_In):
         if v is not None and not re.fullmatch(r"\d{10,14}", v):
             raise ValueError("کد اقتصادی ۱۰ تا ۱۴ رقم است")
         return v
+
+    @model_validator(mode="after")
+    def _credit(self) -> PartyFields:
+        if self.credit_unlimited and self.credit_limit is not None:
+            raise ValueError("اعتبار نامحدود سقف ندارد؛ یا سقف بگذارید یا نامحدود")
+        return self
 
     @model_validator(mode="after")
     def _identity(self) -> PartyFields:
@@ -128,6 +135,7 @@ class PartyOut(BaseModel):
     address: str | None
     payment_terms_days: int | None
     credit_limit: Money | None
+    credit_unlimited: bool
     balance: Money
     is_active: bool
     # Identity and contact fields are masked for users without parties.manage.
@@ -146,6 +154,7 @@ class PartySummary(BaseModel):
     group_name: str | None
     mobile: str | None
     credit_limit: Money | None
+    credit_unlimited: bool
     balance: Money
     is_active: bool
 

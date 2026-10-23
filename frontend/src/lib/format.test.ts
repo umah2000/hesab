@@ -1,4 +1,4 @@
-import { formatMoney, toEnDigits, toFaDigits } from "./format";
+import { formatCredit, formatMoney, toEnDigits, toFaDigits } from "./format";
 
 describe("formatMoney", () => {
   it("converts rials to tomans with string math", () => {
@@ -24,5 +24,13 @@ describe("digits", () => {
     expect(toFaDigits("2026")).toBe("۲۰۲۶");
     expect(toEnDigits("۱۴۰۵")).toBe("1405");
     expect(toEnDigits("٣٤")).toBe("34");
+  });
+});
+
+describe("formatCredit", () => {
+  it("names unlimited and missing credit instead of showing an amount", () => {
+    expect(formatCredit({ credit_unlimited: true, credit_limit: null }, "IRT")).toBe("نامحدود");
+    expect(formatCredit({ credit_limit: null }, "IRT", "ندارد")).toBe("ندارد");
+    expect(formatCredit({ credit_limit: "50000000.0000" }, "IRT")).toBe(formatMoney("50000000.0000", "IRT"));
   });
 });

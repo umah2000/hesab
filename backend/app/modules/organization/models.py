@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Unicode,
@@ -46,6 +47,14 @@ class Organization(EntityMixin, ActorMixin, VersionedMixin, Base):
     backup_warning_days: Mapped[int] = mapped_column(Integer, default=3)
     receipt_header: Mapped[str | None] = mapped_column(Unicode(500))
     receipt_footer: Mapped[str | None] = mapped_column(Unicode(500))
+    # «درباره ما»: shown on the About page to every user.
+    about: Mapped[str | None] = mapped_column(Unicode(2000))
+    phone: Mapped[str | None] = mapped_column(String(40))
+    address: Mapped[str | None] = mapped_column(Unicode(300))
+    website: Mapped[str | None] = mapped_column(String(200))
+    # The logo as the server re-encoded it (PNG, ADR-0022); never read by a plain query.
+    logo: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    logo_sha256: Mapped[str | None] = mapped_column(String(64))
 
 
 class Branch(EntityMixin, ActorMixin, VersionedMixin, Base):

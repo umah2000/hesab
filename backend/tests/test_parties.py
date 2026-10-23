@@ -97,6 +97,20 @@ def test_update_with_version_and_credit_limit(acc: Api) -> None:
     assert sup["credit_limit"] is None
 
 
+def test_unlimited_credit(acc: Api) -> None:
+    p = create(acc, "U1", credit_unlimited=True).get_json()
+    assert (p["credit_unlimited"], p["credit_limit"]) == (True, None)
+    both = create(acc, "U2", credit_unlimited=True, credit_limit="1000")
+    assert both.status_code == 400
+    # Back to a limit: the flag goes off in the same edit.
+    body = {"name": p["name"], "is_customer": True, "credit_limit": "5000", "is_active": True}
+    upd = acc.put(f"/api/v1/parties/{p['id']}", body, p["row_version"]).get_json()
+    assert (upd["credit_unlimited"], upd["credit_limit"]) == (False, "5000.0000")
+    # A supplier-only party never gets credit.
+    sup = create(acc, "S2", is_customer=False, is_supplier=True, credit_unlimited=True).get_json()
+    assert sup["credit_unlimited"] is False
+
+
 def xlsx(rows: list[list[object]]) -> bytes:
     wb = Workbook()
     ws = wb.active

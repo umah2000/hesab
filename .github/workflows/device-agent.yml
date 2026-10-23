@@ -6,6 +6,12 @@ on:
     paths: ["device-agent/**", "packages/**", ".github/workflows/device-agent.yml"]
   pull_request:
     paths: ["device-agent/**", "packages/**", ".github/workflows/device-agent.yml"]
+  workflow_dispatch:
+
+# A new push to the same PR cancels its unfinished run; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -13,8 +19,9 @@ jobs:
       fail-fast: false
       matrix:
         # The registers run Windows: token encryption (DPAPI) and the service wrapper
-        # are only exercised on the Windows runner.
-        os: [ubuntu-24.04, windows-2022]
+        # are only exercised on the Windows runner. Windows minutes count double, so a
+        # PR runs Linux only; main and a manual run (workflow_dispatch) add Windows.
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-24.04"]') || fromJSON('["ubuntu-24.04","windows-2022"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:

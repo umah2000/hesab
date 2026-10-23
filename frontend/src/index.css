@@ -141,22 +141,83 @@ body {
   }
 }
 
-/* Printing: only the element marked .print-area is printed (labels, later receipts). */
+/*
+ * Printing / "Save as PDF". A page prints as itself without the app frame (menu, top bar,
+ * buttons): light colours, no glass, tables not clipped by their scroll boxes.
+ * A page that holds a .print-area (receipt, labels, shift report) prints only that element.
+ */
 @media print {
-  body * {
-    visibility: hidden;
+  @page {
+    margin: 12mm;
   }
-  .print-area,
-  .print-area * {
-    visibility: visible;
+  :root,
+  :root[data-theme] {
+    color-scheme: light;
+    --surface: white;
+    --surface-muted: #f4f4f5;
+    --line: #d4d4d8;
+    --glass-bg: white;
+    --glass-bg-strong: white;
+    --glass-border: #d4d4d8;
+    --color-ink: black;
+    --color-ink-soft: #3f3f46;
+    --color-ink-faint: #52525b;
   }
-  .print-area {
-    position: absolute;
-    inset: 0;
+  html,
+  body,
+  #root {
+    height: auto;
+  }
+  body {
     background: white;
   }
+  .glass,
+  .glass-strong {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+  .overflow-auto,
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-hidden {
+    overflow: visible !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  /* Navigation (module tabs) and buttons have no use on paper. */
+  nav,
+  button,
   .no-print {
     display: none !important;
+  }
+  /* Wide report tables fit the page instead of being cut at its edge. */
+  table {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 10px;
+  }
+  th,
+  td {
+    padding: 3px 4px !important;
+  }
+
+  body:has(.print-area) * {
+    visibility: hidden;
+  }
+  body:has(.print-area) .print-area,
+  body:has(.print-area) .print-area * {
+    visibility: visible;
+  }
+  body:has(.print-area) .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    background: white;
   }
 }
 

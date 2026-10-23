@@ -66,3 +66,13 @@ export function formatMoney(rials: string, currency: DisplayCurrency = "IRT"): s
 export function formatNumber(n: number): string {
   return new Intl.NumberFormat("fa-IR").format(n);
 }
+
+/** A customer's credit sales: up to a limit, with no limit, or none (`none` text). */
+export function formatCredit(
+  c: { credit_limit?: string | null; credit_unlimited?: boolean },
+  currency: DisplayCurrency,
+  none = "—",
+): string {
+  if (c.credit_unlimited) return "نامحدود";
+  return c.credit_limit ? formatMoney(c.credit_limit, currency) : none;
+}

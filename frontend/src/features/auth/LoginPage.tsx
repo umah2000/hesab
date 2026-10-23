@@ -4,7 +4,7 @@ import { Eye, EyeOff, LockKeyhole, UserRound } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Logo } from "@/components/layout/Logo";
+import { BrandMark, useBranding } from "@/components/layout/branding";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/form-controls";
 import { ApiError, api } from "@/lib/api";
@@ -18,6 +18,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
+  const brand = useBranding();
   const qc = useQueryClient();
   const [showPassword, setShowPassword] = React.useState(false);
   const [serverError, setServerError] = React.useState<string | null>(null);
@@ -46,10 +47,10 @@ export function LoginPage() {
 
       <div className="glass-strong relative w-full max-w-md rounded-3xl p-8 sm:p-10">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <Logo size={56} />
+          <BrandMark size={brand.data?.logo_version ? 88 : 56} />
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-ink">NEXTCAM ERP</h1>
-            <p className="mt-1 text-sm text-ink-faint">حسابداری، فروش و انبارداری</p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-ink">{brand.data?.organization_name || "NEXTCAM ERP"}</h1>
+            <p className="mt-1 text-sm text-ink-faint">{brand.data?.organization_name ? "NEXTCAM ERP · " : ""}حسابداری، فروش و انبارداری</p>
           </div>
         </div>
 

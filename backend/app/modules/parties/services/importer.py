@@ -47,6 +47,10 @@ COLUMNS = [
 ]
 
 
+# Typed in the credit-limit column instead of an amount: credit sales with no limit.
+UNLIMITED = ("نامحدود", "unlimited")
+
+
 def template(currency: str) -> bytes:
     unit = "تومان" if currency == "IRT" else "ریال"
     cols = [f"{c} ({unit})" if c.startswith(("سقف", "مانده")) else c for c in COLUMNS]
@@ -119,7 +123,8 @@ def _parse(s: Session, file_bytes: bytes, currency: str) -> tuple[list[_Row], li
             continue
         money: list[Decimal] = []
         bad = False
-        for col in (11, 12, 13):
+        unlimited = excel.text(v[11]) in UNLIMITED
+        for col in (12, 13) if unlimited else (11, 12, 13):
             try:
                 money.append(excel.to_rials(v[col], currency) if excel.text(v[col]) else ZERO)
             except ValueError as e:
@@ -127,7 +132,7 @@ def _parse(s: Session, file_bytes: bytes, currency: str) -> tuple[list[_Row], li
                 bad = True
         if bad:
             continue
-        limit, debit, credit = money
+        limit, debit, credit = [ZERO, *money] if unlimited else money
         if debit and credit:
             err(12, "فقط یکی از مانده بدهکار یا بستانکار")
             continue
@@ -143,6 +148,7 @@ def _parse(s: Session, file_bytes: bytes, currency: str) -> tuple[list[_Row], li
             "postal_code": excel.text(v[9]) or None,
             "address": excel.text(v[10]) or None,
             "credit_limit": limit if limit else None,
+            "credit_unlimited": unlimited,
         }
         try:
             if code in existing:

@@ -98,6 +98,8 @@ function Filters({
   );
 }
 
+const TAB_TITLES = { tb: "تراز آزمایشی", ledger: "دفتر کل / معین", journal: "دفتر روزنامه" } as const;
+
 function TrialBalance({ fy, from, to }: { fy: string; from: string | null; to: string | null }) {
   const currency = useCurrency();
   const [level, setLevel] = React.useState<Level>("subsidiary");
@@ -350,11 +352,7 @@ export function ReportsPage() {
   return (
     <Card>
       <div className="flex gap-1 px-4 pt-4 print:hidden" role="tablist">
-        {[
-          ["tb", "تراز آزمایشی"],
-          ["ledger", "دفتر کل / معین"],
-          ["journal", "دفتر روزنامه"],
-        ].map(([k, label]) => (
+        {Object.entries(TAB_TITLES).map(([k, label]) => (
           <button
             key={k}
             type="button"
@@ -366,6 +364,10 @@ export function ReportsPage() {
             {label}
           </button>
         ))}
+      </div>
+      <div className="hidden px-4 pt-2 text-sm print:block">
+        <b className="text-base">{TAB_TITLES[tab]}</b> · {years.data?.find((y) => y.id === fyId)?.title ?? ""}
+        {from || to ? ` · از ${from ? isoToJalaliFa(from) : "ابتدای سال"} تا ${to ? isoToJalaliFa(to) : "پایان سال"}` : ""}
       </div>
       <Filters years={years.data ?? []} fy={fyId} setFy={setFy} from={from} setFrom={setFrom} to={to} setTo={setTo} />
       {tab === "tb" ? <TrialBalance fy={fyId} from={from} to={to} /> : tab === "ledger" ? <LedgerReport fy={fyId} from={from} to={to} /> : <Journal fy={fyId} from={from} to={to} />}

@@ -87,7 +87,7 @@ function PosFrame({ state, children }: { state?: RegisterState; children: React.
         {state ? (
           <StatusChip
             ok
-            label={state.terminal ? `${state.terminal.label}${state.terminal.verified ? "" : " (آزمایش‌نشده)"}` : "کارت‌خوان: ثبت دستی شماره پیگیری"}
+            label={terminalLabel(state)}
           />
         ) : null}
         <span className="rounded-full bg-black/5 px-3 py-1 text-xs text-ink-soft dark:bg-white/10">
@@ -869,4 +869,12 @@ function DrawerDialog({ register, onClose }: { register: string; onClose: () => 
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The register's card reader in the header: its default reader, else how cards are taken. */
+function terminalLabel(state: RegisterState): string {
+  const t = state.terminals?.find((x) => x.is_default) ?? state.terminals?.[0];
+  if (t) return `کارت‌خوان: ${t.name}${t.ready ? "" : " (ثبت دستی شماره پیگیری)"}`;
+  if (state.terminal) return `${state.terminal.label}${state.terminal.verified ? "" : " (آزمایش‌نشده)"}`;
+  return "کارت‌خوان: ثبت دستی شماره پیگیری";
 }

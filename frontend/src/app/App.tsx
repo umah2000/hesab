@@ -23,6 +23,7 @@ import { InventorySettingsPage } from "@/features/inventory/InventorySettingsPag
 import { ItemsPage } from "@/features/inventory/ItemsPage";
 import { LabelsPage } from "@/features/inventory/LabelsPage";
 import { StockDocEditorPage, StockDocsPage } from "@/features/inventory/StockDocsPage";
+import { AboutPage } from "@/features/about/AboutPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { DevicesPage } from "@/features/devices/DevicesPage";
 import {
@@ -118,6 +119,7 @@ const router = createBrowserRouter([
       { path: "reports", element: <ReportsHome /> },
       { path: "reports/:key", element: <ReportPage /> },
       { path: "account", element: <AccountPage /> },
+      { path: "about", element: <AboutPage /> },
       {
         path: "accounting",
         element: <AccountingLayout />,

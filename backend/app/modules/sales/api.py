@@ -19,6 +19,8 @@ from app.modules.organization.models import Branch
 from app.modules.sales.schemas import (
     ApprovalIn,
     ApprovalOut,
+    CardTerminalIn,
+    CardTerminalOut,
     CartIn,
     CheckoutIn,
     CustomerOut,
@@ -92,6 +94,7 @@ def register_state(register_id: str) -> ResponseReturnValue:
                 receipt_footer=org.receipt_footer,
                 organization_name=org.name,
                 terminal=terminal.info(),
+                terminals=terminal.choices(s, reg),
                 permissions=sorted(
                     p for p in actor.permissions if p.startswith(("sales.", "payments."))
                 ),
@@ -358,13 +361,47 @@ def daily() -> ResponseReturnValue:
 # --- card reader (/api/v1/payments) -----------------------------------------
 
 
+@payments_bp.get("/terminals")
+@require_any("devices.manage", "settings.manage")
+@doc("کارت‌خوان‌های تعریف‌شده", response=[CardTerminalOut])
+def card_terminals() -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(list(terminal.list_card_terminals(s)))
+    finally:
+        s.close()
+
+
+@payments_bp.post("/terminals")
+@require("devices.manage")
+@doc("تعریف کارت‌خوان", body=CardTerminalIn, response=CardTerminalOut)
+def card_terminal_create() -> ResponseReturnValue:
+    data = parse_body(CardTerminalIn)
+    with unit_of_work() as s:
+        return to_json(terminal.create_card_terminal(s, current_actor(), data), 201)
+
+
+@payments_bp.put("/terminals/<terminal_id>")
+@require("devices.manage")
+@doc("ویرایش کارت‌خوان", body=CardTerminalIn, response=CardTerminalOut, versioned=True)
+def card_terminal_update(terminal_id: str) -> ResponseReturnValue:
+    data = parse_body(CardTerminalIn)
+    version = if_match()
+    with unit_of_work() as s:
+        return to_json(
+            terminal.update_card_terminal(
+                s, current_actor(), parse_uuid(terminal_id), data, version
+            )
+        )
+
+
 @payments_bp.post("/terminal-transactions")
 @require("sales.payment.card")
 @doc("ارسال مبلغ به کارت‌خوان", body=TerminalStartIn, response=TerminalTxOut)
 def terminal_start() -> ResponseReturnValue:
     data = parse_body(TerminalStartIn)
-    with unit_of_work() as s:
-        return to_json(terminal.start(s, current_actor(), data), 201)
+    # Its own units of work: a reader that waits for the customer answers later (poll).
+    return to_json(terminal.start(current_actor(), data), 201)
 
 
 @payments_bp.get("/terminal-transactions")
@@ -395,6 +432,14 @@ def terminal_get(tx_id: str) -> ResponseReturnValue:
 def terminal_inquire(tx_id: str) -> ResponseReturnValue:
     with unit_of_work() as s:
         return to_json(terminal.inquire(s, current_actor(), parse_uuid(tx_id)))
+
+
+@payments_bp.post("/terminal-transactions/<tx_id>/cancel")
+@require("sales.payment.card")
+@doc("لغو ارسال به کارت‌خوان (پیش از کشیدن کارت)", response=TerminalTxOut)
+def terminal_cancel(tx_id: str) -> ResponseReturnValue:
+    with unit_of_work() as s:
+        return to_json(terminal.cancel(s, current_actor(), parse_uuid(tx_id)))
 
 
 @payments_bp.post("/terminal-transactions/<tx_id>/resolve")

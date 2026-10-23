@@ -206,14 +206,19 @@ def detail_out(d: DetailAccount) -> DetailAccountOut:
         kind=d.kind,  # type: ignore[arg-type]
         is_active=d.is_active,
         credit_limit=d.credit_limit,
+        credit_unlimited=d.credit_unlimited,
         row_version=version_to_str(d.row_version),
     )
 
 
-def _check_credit(kind: str, limit: Decimal | None) -> None:
-    if limit is not None and (kind != "person" or limit < 0):
+def _check_credit(kind: str, limit: Decimal | None, unlimited: bool = False) -> None:
+    if (limit is not None or unlimited) and kind != "person" or (limit is not None and limit < 0):
         raise DomainError(
             "سقف اعتبار فقط برای اشخاص و به‌صورت مبلغ مثبت تعریف می‌شود", code="invalid_credit_limit"
+        )
+    if unlimited and limit is not None:
+        raise DomainError(
+            "اعتبار نامحدود سقف ندارد؛ یا سقف بگذارید یا نامحدود", code="invalid_credit_limit"
         )
 
 
@@ -227,12 +232,13 @@ def list_details(s: Session, q: str | None = None) -> list[DetailAccountOut]:
 def create_detail(s: Session, actor: Actor, data: DetailAccountCreateIn) -> DetailAccountOut:
     if s.scalar(select(DetailAccount.id).where(DetailAccount.code == data.code)):
         raise ConflictError("کد تفصیلی تکراری است", code="detail_code_taken")
-    _check_credit(data.kind, data.credit_limit)
+    _check_credit(data.kind, data.credit_limit, data.credit_unlimited)
     d = DetailAccount(
         code=data.code,
         name=data.name,
         kind=data.kind,
         credit_limit=data.credit_limit,
+        credit_unlimited=data.credit_unlimited,
         is_active=True,
         created_by=actor.user_id,
         updated_by=actor.user_id,
@@ -259,8 +265,13 @@ def update_detail(
     check_version(d.row_version, version, "این حساب تفصیلی")
     changes = data.model_dump(exclude_none=True)
     if "credit_limit" in data.model_fields_set:
-        _check_credit(d.kind, data.credit_limit)
         changes["credit_limit"] = data.credit_limit
+    if {"credit_limit", "credit_unlimited"} & data.model_fields_set:
+        _check_credit(
+            d.kind,
+            changes.get("credit_limit", d.credit_limit),
+            changes.get("credit_unlimited", d.credit_unlimited),
+        )
     for k, v in changes.items():
         setattr(d, k, v)
     d.updated_by = actor.user_id

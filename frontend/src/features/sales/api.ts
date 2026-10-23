@@ -38,6 +38,19 @@ export type ShiftReport = {
 
 export type TerminalInfo = { adapter_id: string; label: string; verified: boolean; simulated: boolean; scenarios: string[] };
 
+/** A card reader the register may send to (ADR-0023); `reason` says why it cannot yet. */
+export type TerminalChoice = {
+  id: string;
+  name: string;
+  provider_label: string;
+  is_default: boolean;
+  ready: boolean;
+  reason: string | null;
+  simulated: boolean;
+  scenarios: string[];
+  can_cancel?: boolean;
+};
+
 export type RegisterState = {
   cash_register_id: string;
   register_name: string;
@@ -52,6 +65,7 @@ export type RegisterState = {
   receipt_footer: string | null;
   organization_name: string;
   terminal: TerminalInfo | null;
+  terminals: TerminalChoice[];
   permissions: string[];
 };
 
@@ -163,7 +177,15 @@ export type InvoiceSummary = {
   created_at: string;
 };
 
-export type Customer = { id: string; code: string; name: string; credit_limit: string | null; balance: string; available: string | null };
+export type Customer = {
+  id: string;
+  code: string;
+  name: string;
+  credit_limit: string | null;
+  credit_unlimited: boolean;
+  balance: string;
+  available: string | null;
+};
 
 export type TerminalTx = {
   id: string;
@@ -177,6 +199,8 @@ export type TerminalTx = {
   trace_no: string | null;
   masked_pan: string | null;
   response_code: string | null;
+  /** The provider's text for response_code (SEP), when known. */
+  message?: string | null;
   is_simulated: boolean;
   created_at: string;
   row_version: string;
@@ -184,7 +208,7 @@ export type TerminalTx = {
 
 export const TX_LABEL: Record<TerminalTx["status"], string> = {
   Created: "ایجاد شد",
-  Pending: "در انتظار دستگاه",
+  Pending: "در انتظار کارت مشتری روی دستگاه",
   Approved: "تأیید شد",
   Declined: "رد شد",
   Unknown: "نامشخص — استعلام لازم است",

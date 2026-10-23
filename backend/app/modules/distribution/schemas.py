@@ -71,7 +71,7 @@ class AssignmentIn(_In):
 
 
 class AssignmentsIn(_In):
-    customers: list[AssignmentIn] = Field(max_length=2000)
+    customers: list[AssignmentIn] = Field(max_length=20000)
 
 
 class AssignedCustomerOut(BaseModel):
@@ -82,8 +82,10 @@ class AssignedCustomerOut(BaseModel):
     address: str | None
     visit_weekday: int | None
     credit_limit: Money | None
+    # Credit sales with no limit (available is then None too).
+    credit_unlimited: bool = False
     balance: Money
-    # Credit still available (None = no credit sales for this customer).
+    # Credit still available (None = no credit sales, or unlimited).
     available: Money | None
 
 
@@ -139,6 +141,7 @@ class QuoteOut(BaseModel):
     grand_total: Money
     warnings: list[str]
     credit_limit: Money | None
+    credit_unlimited: bool = False
     balance: Money
     available_after: Money | None
 
@@ -256,6 +259,8 @@ class AppItem(BaseModel):
     units: list[AppUnit]
     stock: Qty | None
     vat_exempt: bool
+    # Photo ids, main first (ADR-0022): /distribution/mobile/images/<id>?size=thumb|large.
+    image_ids: list[uuid.UUID] = []
 
 
 class AppSettings(BaseModel):

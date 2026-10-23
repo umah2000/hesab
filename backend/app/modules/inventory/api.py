@@ -24,6 +24,8 @@ from app.modules.inventory.schemas import (
     BalanceRow,
     GroupIn,
     GroupOut,
+    ImageOrderIn,
+    ItemImageOut,
     ItemIn,
     ItemOut,
     ItemQuery,
@@ -40,7 +42,7 @@ from app.modules.inventory.schemas import (
     WarehouseIn,
     WarehouseOut,
 )
-from app.modules.inventory.services import catalog, importer, stock
+from app.modules.inventory.services import catalog, images, importer, stock
 from app.modules.organization.models import Organization
 
 P = ParamSpec("P")
@@ -176,6 +178,69 @@ def update_item(item_id: str) -> ResponseReturnValue:
 class LookupQuery(BaseModel):
     barcode: str = Field(min_length=1, max_length=64)
     price_list_id: uuid.UUID | None = None
+
+
+@bp.get("/items/<item_id>/images")
+@_read
+@doc("عکس‌های کالا (اولی عکس اصلی)", response=[ItemImageOut])
+def list_item_images(item_id: str) -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(list(images.list_images(s, parse_uuid(item_id))))
+    finally:
+        s.close()
+
+
+@bp.post("/items/<item_id>/images")
+@require("inventory.item.manage")
+@doc("افزودن عکس کالا (multipart، فیلد file؛ JPEG/PNG/WebP تا ۱۵MB)", response=ItemImageOut)
+def add_item_image(item_id: str) -> ResponseReturnValue:
+    request.max_content_length = images.MAX_UPLOAD + 64 * 1024
+    f = request.files.get("file")
+    if f is None:
+        raise DomainError("فایل عکس را انتخاب کنید", code="file_required")
+    data = f.read()
+    with unit_of_work() as s:
+        return to_json(images.add(s, current_actor(), parse_uuid(item_id), data)), 201
+
+
+@bp.put("/items/<item_id>/images/order")
+@require("inventory.item.manage")
+@doc("ترتیب عکس‌های کالا؛ اولی عکس اصلی می‌شود", body=ImageOrderIn, response=[ItemImageOut])
+def order_item_images(item_id: str) -> ResponseReturnValue:
+    data = parse_body(ImageOrderIn)
+    with unit_of_work() as s:
+        return to_json(list(images.reorder(s, current_actor(), parse_uuid(item_id), data.ids)))
+
+
+@bp.delete("/items/<item_id>/images/<image_id>")
+@require("inventory.item.manage")
+@doc("حذف عکس کالا")
+def delete_item_image(item_id: str, image_id: str) -> ResponseReturnValue:
+    with unit_of_work() as s:
+        images.remove(s, current_actor(), parse_uuid(item_id), parse_uuid(image_id))
+    return "", 204
+
+
+@bp.get("/images/<image_id>")
+@_read
+@doc("فایل عکس کالا (size=thumb|large؛ JPEG)")
+def item_image_file(image_id: str) -> ResponseReturnValue:
+    return image_response(parse_uuid(image_id), request.args.get("size", "thumb"))
+
+
+def image_response(image_id: uuid.UUID, size: str) -> Response:
+    """JPEG with a long private cache: an image id never changes content (ADR-0022)."""
+    s = new_session()
+    try:
+        data, etag = images.content(s, image_id, size)
+    finally:
+        s.close()
+    resp = Response(data, mimetype="image/jpeg")
+    resp.set_etag(etag)
+    resp.headers["Cache-Control"] = "private, max-age=31536000, immutable"
+    resp.make_conditional(request)
+    return resp
 
 
 @bp.get("/items/lookup")

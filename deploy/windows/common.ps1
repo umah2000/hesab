@@ -127,3 +127,13 @@ function Remove-OldReleases([string]$Root, [int]$Keep = 3) {
         Select-Object -Skip $Keep | Where-Object { $_.FullName -ne $current } |
         ForEach-Object { Write-Host "removing old release $($_.Name)"; Remove-Item -Recurse -Force $_.FullName }
 }
+
+function Get-ConfiguredPort([string]$Root) {
+    # NEXTCAM_PORT from the installation's .env; 8080 when it is not set there.
+    $envFile = Join-Path $Root "config\.env"
+    if (Test-Path $envFile) {
+        $line = Get-Content $envFile | Where-Object { $_ -match '^NEXTCAM_PORT=(\d+)\s*$' } | Select-Object -First 1
+        if ($line -match '^NEXTCAM_PORT=(\d+)') { return [int]$Matches[1] }
+    }
+    return 8080
+}

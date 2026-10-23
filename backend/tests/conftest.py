@@ -30,6 +30,9 @@ from app.modules.organization.services import ensure_organization
 
 # Points at a throwaway SQL Server database. Never a production database.
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+# SQL Server's own backup folder (a path on the database server, not here). The default is
+# the Linux image used by CI; on Windows e.g. C:\Program Files\Microsoft SQL Server\...\Backup.
+TEST_BACKUP_DIR = os.environ.get("TEST_BACKUP_DIR", "/var/opt/mssql/backup")
 UNREACHABLE_URL = (
     "mssql+pyodbc://nobody:nothing@127.0.0.1:1/none"
     "?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes&Connection+Timeout=1"
@@ -65,6 +68,7 @@ _TABLES = [
     "sales_invoice_line",
     "sales_invoice",
     "terminal_transaction",
+    "card_terminal",
     "sales_approval",
     "promotion",
     "cash_shift",
@@ -76,6 +80,7 @@ _TABLES = [
     "stock_document",
     "item_price",
     "item_barcode",
+    "item_image",
     "item_unit",
     "item",
     "item_group",

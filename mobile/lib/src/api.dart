@@ -8,6 +8,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -73,6 +74,19 @@ class ApiClient {
 
   Future<Session?> restore() async => session = await store.load();
 
+  Future<http.StreamedResponse> _raw(http.Request req) async {
+    try {
+      return await _http.send(req).timeout(timeout);
+    } on TimeoutException {
+      throw NetworkException('timeout');
+    } on http.ClientException catch (e) {
+      throw NetworkException(e.message);
+    } catch (e) {
+      // SocketException, HandshakeException … (dart:io is not imported here).
+      throw NetworkException(e.toString());
+    }
+  }
+
   Future<ApiResponse> _send(
     String method,
     String url, {
@@ -85,18 +99,13 @@ class ApiClient {
       req.headers['Content-Type'] = 'application/json';
       req.body = jsonEncode(body);
     }
-    http.StreamedResponse resp;
+    final resp = await _raw(req);
+    final String text;
     try {
-      resp = await _http.send(req).timeout(timeout);
-    } on TimeoutException {
-      throw NetworkException('timeout');
-    } on http.ClientException catch (e) {
-      throw NetworkException(e.message);
+      text = await resp.stream.bytesToString();
     } catch (e) {
-      // SocketException, HandshakeException … (dart:io is not imported here).
       throw NetworkException(e.toString());
     }
-    final text = await resp.stream.bytesToString();
     dynamic data;
     if (text.isNotEmpty) {
       try {
@@ -193,13 +202,8 @@ class ApiClient {
     await store.clear();
   }
 
-  /// An authenticated call to the visitor API; refreshes once on an expired token.
-  Future<ApiResponse> call(
-    String method,
-    String path, {
-    Object? body,
-    Map<String, String>? headers,
-  }) async {
+  /// Runs [send] with a fresh access token; refreshes once on an expired token.
+  Future<T> _authorized<T>(Future<T> Function(Session s) send) async {
     var s = session;
     if (s == null) throw ApiException(401, 'signed_out', 'ابتدا وارد شوید');
     if (s.accessExpiresAt.isBefore(
@@ -208,23 +212,54 @@ class ApiClient {
       s = await _refresh();
     }
     try {
-      return await _send(
-        method,
-        '${s.server}/api/v1$path',
-        body: body,
-        headers: {'Authorization': 'Bearer ${s.access}', ...?headers},
-      );
+      return await send(s);
     } on ApiException catch (e) {
       if (!e.signedOut) rethrow;
-      s = await _refresh();
-      return _send(
-        method,
-        '${s.server}/api/v1$path',
-        body: body,
-        headers: {'Authorization': 'Bearer ${s.access}', ...?headers},
-      );
+      return send(await _refresh());
     }
   }
+
+  /// An authenticated call to the visitor API; refreshes once on an expired token.
+  Future<ApiResponse> call(
+    String method,
+    String path, {
+    Object? body,
+    Map<String, String>? headers,
+  }) => _authorized(
+    (s) => _send(
+      method,
+      '${s.server}/api/v1$path',
+      body: body,
+      headers: {'Authorization': 'Bearer ${s.access}', ...?headers},
+    ),
+  );
+
+  /// A product photo (JPEG bytes); [large] for showing to the buyer.
+  Future<Uint8List> image(String id, {bool large = false}) =>
+      _authorized((s) async {
+        final req = http.Request(
+          'GET',
+          Uri.parse(
+            '${s.server}/api/v1/distribution/mobile/images/$id'
+            '?size=${large ? 'large' : 'thumb'}',
+          ),
+        )..headers['Authorization'] = 'Bearer ${s.access}';
+        final resp = await _raw(req);
+        final Uint8List bytes;
+        try {
+          bytes = await resp.stream.toBytes();
+        } catch (e) {
+          throw NetworkException(e.toString());
+        }
+        if (resp.statusCode >= 400) {
+          throw ApiException(
+            resp.statusCode,
+            resp.statusCode == 401 ? 'not_authenticated' : 'image',
+            'عکس دریافت نشد (${resp.statusCode})',
+          );
+        }
+        return bytes;
+      });
 
   Future<ApiResponse> bootstrap(String? etag) => call(
     'GET',

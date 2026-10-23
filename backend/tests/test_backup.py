@@ -12,7 +12,7 @@ from pydantic import SecretStr, ValidationError
 
 from app.core.config import Settings
 from app.modules.system.backup_crypto import decrypt_file, generate_key, parse_key, sha256_file
-from tests.conftest import Api, Seed, make_user
+from tests.conftest import TEST_BACKUP_DIR, Api, Seed, make_user
 
 pytestmark = pytest.mark.db
 
@@ -28,7 +28,7 @@ def test_backup_restore_test_and_warnings(app: Flask, seed: Seed) -> None:
     st = boss.get("/api/v1/system/backups").get_json()
     assert st["last_backup"] is None and len(st["warnings"]) == 3
 
-    app.config["SETTINGS"].backup_dir = "/var/opt/mssql/backup"
+    app.config["SETTINGS"].backup_dir = TEST_BACKUP_DIR
     try:
         out = run(app, "backup")
         assert out.exit_code == 0, out.output
@@ -36,7 +36,7 @@ def test_backup_restore_test_and_warnings(app: Flask, seed: Seed) -> None:
         rt = run(app, "backup-restore-test")
         assert rt.exit_code == 0, rt.output
         assert "'organizations': 1" in rt.output
-        bad = run(app, "backup-restore-test", "--file", "/var/opt/mssql/backup/missing.bak")
+        bad = run(app, "backup-restore-test", "--file", f"{TEST_BACKUP_DIR}/missing.bak")
         assert bad.exit_code != 0
     finally:
         app.config["SETTINGS"].backup_dir = None
@@ -61,7 +61,7 @@ def test_encrypted_copy_and_restore_from_copy(app: Flask, seed: Seed, tmp_path: 
     settings = app.config["SETTINGS"]
     read_dir = Path(os.environ["TEST_BACKUP_READ_DIR"])
     usb = tmp_path / "usb"
-    settings.backup_dir = "/var/opt/mssql/backup"
+    settings.backup_dir = TEST_BACKUP_DIR
     settings.backup_read_dir = str(read_dir)
     settings.backup_key = SecretStr(generate_key())
     settings.backup_copy_dir = str(usb)

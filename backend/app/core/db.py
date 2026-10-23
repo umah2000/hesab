@@ -12,6 +12,7 @@ from flask import Flask, current_app
 from sqlalchemy import DateTime, FetchedValue, MetaData, create_engine, func
 from sqlalchemy.dialects.mssql import ROWVERSION, UNIQUEIDENTIFIER
 from sqlalchemy.engine import Engine
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -20,6 +21,7 @@ from sqlalchemy.orm import (
     mapped_column,
     sessionmaker,
 )
+from sqlalchemy.sql.selectable import Select
 
 from app.core.config import Settings
 
@@ -31,6 +33,21 @@ NAMING_CONVENTION = {
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s",
 }
+
+
+@compiles(Select, "mssql")
+def _mssql_row_lock(select: Select[Any], compiler: Any, **kw: Any) -> str:
+    """``with_for_update()`` as SQL Server's ``WITH (UPDLOCK, ROWLOCK)`` table hint.
+
+    SQLAlchemy's SQL Server dialect drops FOR UPDATE without a word, so without this
+    every ``with_for_update`` (and ``Session.get(..., with_for_update=True)``) read the
+    row without locking it. An update lock is held to the end of the transaction and
+    reads the latest committed row, also under RCSI. Lock only by key (rule 22).
+    """
+    if select._for_update_arg is not None:
+        for table in select.get_final_froms():
+            select = select.with_hint(table, "WITH (UPDLOCK, ROWLOCK)", "mssql")
+    return str(compiler.visit_select(select, **kw))
 
 
 def utcnow() -> datetime:

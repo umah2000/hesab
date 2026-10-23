@@ -20,6 +20,7 @@ import 'package:nextcam_visitor/src/state.dart';
 import 'package:nextcam_visitor/src/tokens.dart';
 import 'package:nextcam_visitor/src/ui/app.dart';
 import 'package:nextcam_visitor/src/ui/customer.dart';
+import 'package:nextcam_visitor/src/ui/gallery.dart';
 import 'package:nextcam_visitor/src/ui/home.dart';
 import 'package:nextcam_visitor/src/ui/login.dart';
 import 'package:nextcam_visitor/src/ui/order.dart';
@@ -90,6 +91,7 @@ final bootstrap = {
       ],
       'stock': '240.000',
       'vat_exempt': false,
+      'image_ids': ['pm1', 'pm2'],
     },
     {
       'id': 'water',
@@ -103,6 +105,7 @@ final bootstrap = {
       ],
       'stock': '600.000',
       'vat_exempt': false,
+      'image_ids': ['pw1'],
     },
     {
       'id': 'rice',
@@ -201,6 +204,15 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
     final db = await LocalDb.open(databaseFactoryFfi, inMemoryDatabasePath);
     await db.put('bootstrap', jsonEncode(bootstrap));
     await db.put('synced_at', now.toIso8601String());
+    for (final (id, file) in [
+      ('pm1', 'milk'),
+      ('pm2', 'milk-box'),
+      ('pw1', 'water'),
+    ]) {
+      final bytes = File('test/fixtures/$file.jpg').readAsBytesSync();
+      await db.putImage(id, 'thumb', bytes);
+      await db.putImage(id, 'large', bytes);
+    }
     await db.saveOrders('u1', orders);
     final store = MemoryTokenStore()..session = session();
     final client = MockClient((req) async {
@@ -275,6 +287,20 @@ void main() {
         FocusHighlightStrategy.alwaysTouch;
   });
 
+  /// Lets the photos load from the phone's store and decode before a screenshot.
+  Future<void> settleImages(WidgetTester tester) async {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 150)),
+    );
+    await tester.pump();
+    await tester.runAsync(() async {
+      for (final e in find.byType(Image).evaluate()) {
+        await precacheImage((e.widget as Image).image, e);
+      }
+    });
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
   Future<void> shot(WidgetTester tester, Widget w, String? name) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
@@ -285,6 +311,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(frame(w));
     await tester.pump(const Duration(milliseconds: 300));
+    await settleImages(tester);
     if (name == null) return;
     await expectLater(
       find.byType(MaterialApp),
@@ -345,6 +372,48 @@ void main() {
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/107-app-order-quote.png'),
     );
+  });
+
+  screenTest('choosing items by photo, and showing one large', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    final cat = state.catalog!;
+    await shot(
+      tester,
+      OrderScreen(state: state, customer: cat.customers.first),
+      null,
+    );
+    await tester.tap(find.text('افزودن کالا'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await settleImages(tester);
+    expect(find.byType(GridView), findsOneWidget);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/120-app-item-photos.png'),
+    );
+
+    await tester.tap(find.text('شیر پرچرب ۱ لیتری'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    await settleImages(tester);
+    expect(find.text('افزودن به سفارش'), findsOneWidget);
+    await tester.tap(find.byTooltip('زیاد'));
+    await tester.pump();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/121-app-item-photo-large.png'),
+    );
+
+    // Added from the photo: 2 pieces of milk in the order.
+    await tester.tap(find.text('افزودن به سفارش'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+    await settleImages(tester);
+    expect(find.byType(ItemGalleryScreen), findsNothing);
+    expect(find.text('شیر پرچرب ۱ لیتری'), findsOneWidget);
+    expect(find.text('۲'), findsOneWidget);
   });
 
   screenTest('orders and their status', (tester) async {

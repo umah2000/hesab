@@ -44,6 +44,7 @@ from app.modules.distribution.schemas import (
 from app.modules.distribution.services import app as app_data
 from app.modules.distribution.services import orders, visitors
 from app.modules.iam.guard import current_actor, require
+from app.modules.inventory.api import image_response
 
 bp = Blueprint("distribution", __name__)
 APP = "distribution.visitor"
@@ -68,6 +69,13 @@ def mobile_bootstrap() -> ResponseReturnValue:
     resp = to_json(out)
     resp.headers["ETag"] = etag
     return resp
+
+
+@bp.get("/mobile/images/<image_id>")
+@require(APP)
+@doc("عکس کالا برای اپ (size=thumb|large؛ JPEG، تغییرناپذیر)")
+def mobile_image(image_id: str) -> ResponseReturnValue:
+    return image_response(parse_uuid(image_id), request.args.get("size", "thumb"))
 
 
 @bp.post("/mobile/quote")
@@ -217,6 +225,14 @@ def assign_customers(visitor_id: str) -> ResponseReturnValue:
     data = parse_body(AssignmentsIn)
     with unit_of_work() as s:
         return to_json(list(visitors.assign(s, current_actor(), parse_uuid(visitor_id), data)))
+
+
+@bp.post("/visitors/<visitor_id>/customers/all")
+@require(MANAGE)
+@doc("افزودن همه‌ی مشتریان فعال به فهرست ویزیتور", response=[AssignedCustomerOut])
+def assign_all_customers(visitor_id: str) -> ResponseReturnValue:
+    with unit_of_work() as s:
+        return to_json(list(visitors.assign_all(s, current_actor(), parse_uuid(visitor_id))))
 
 
 @bp.get("/orders")
