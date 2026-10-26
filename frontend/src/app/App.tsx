@@ -13,6 +13,7 @@ import { PostingRulesPage } from "@/features/accounting/PostingRulesPage";
 import { ReportsPage } from "@/features/accounting/ReportsPage";
 import { VoucherEditorPage } from "@/features/accounting/VoucherEditor";
 import { VouchersPage } from "@/features/accounting/VouchersPage";
+import { WeighbridgePage } from "@/features/accounting/WeighbridgePage";
 import { AuditPage } from "@/features/audit/AuditPage";
 import { AccountPage, ForcePasswordChange } from "@/features/auth/AccountPage";
 import { useMe, useUnauthorizedListener } from "@/features/auth/auth";
@@ -133,6 +134,7 @@ const router = createBrowserRouter([
           { path: "details", element: <DetailsPage /> },
           { path: "fiscal-years", element: <FiscalPage /> },
           { path: "posting-rules", element: <PostingRulesPage /> },
+          { path: "weighbridge", element: <WeighbridgePage /> },
         ],
       },
       {

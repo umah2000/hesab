@@ -29,6 +29,7 @@ from app.modules.iam.models import (
     UserScope,
     UserSession,
 )
+from app.modules.integrations.models import IntegrationDocument, IntegrationEvent
 from app.modules.inventory.models import (
     Item,
     ItemBarcode,
@@ -127,6 +128,8 @@ __all__ = [
     "Branch",
     "CashRegister",
     "IdempotencyRecord",
+    "IntegrationDocument",
+    "IntegrationEvent",
     "Organization",
     "Permission",
     "Role",

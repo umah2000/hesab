@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # How long to wait for the device's answer (the customer swipes and types the PIN).
     sep_pcpos_timeout_seconds: int = 100
 
+    # Weighbridge platform (VA) → accounting (ADR-0025). Both set = the webhook is on.
+    va_webhook_secret: SecretStr | None = None
+    va_tenant_id: str | None = None  # the VA organisation whose statements are posted here
+    va_branch_code: str | None = None  # NEXTCAM branch of its vouchers; empty = none
+
     # Production server (python -m app.serve). static_dir = built frontend (frontend/dist),
     # so the shop LAN needs only this one service on one port.
     host: str = "0.0.0.0"  # noqa: S104 - a LAN server by design; firewall per install guide

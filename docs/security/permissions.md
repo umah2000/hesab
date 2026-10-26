@@ -17,6 +17,7 @@
 | `accounting.voucher.reverse` | | ✓ | ✓* | | | | | |
 | `accounting.fiscal.close` | | ✓ | | | | | | |
 | `accounting.report.view` | | ✓ | ✓ | | | | | ✓ |
+| `accounting.integration.manage` (ثبت دوباره‌ی اسناد سامانه باسکول) | | | ✓ | | | | | |
 | `inventory.item.manage` | | ✓ | | | | ✓ | ✓ | |
 | `inventory.price.manage` | | ✓ | | | | | | |
 | `inventory.stock.create` | | | | | | ✓ | | |
