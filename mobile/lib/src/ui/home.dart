@@ -8,6 +8,7 @@ import '../format.dart';
 import '../models.dart';
 import '../state.dart';
 import 'customer.dart';
+import 'glass.dart';
 import 'widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -28,49 +29,98 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final s = widget.state;
     final cat = s.catalog;
+    final t = Theme.of(context);
+    final name = cat?.visitorName ?? s.session?.fullName ?? '';
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              cat?.visitorName ?? s.session?.fullName ?? '',
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(80),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+            child: GlassPanel(
+              radius: const BorderRadius.all(Radius.circular(22)),
+              padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 4, 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: const LinearGradient(colors: [brand, brand2]),
+                    ),
+                    child: Text(
+                      name.isEmpty ? '؟' : name.characters.first,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        if (cat != null)
+                          Text(
+                            '${cat.organization} · ${cat.branchName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: t.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  SyncBadge(state: s),
+                  IconButton(
+                    tooltip: 'ارسال و به‌روزرسانی',
+                    onPressed: s.syncing ? null : s.syncNow,
+                    icon: const Icon(Icons.sync_rounded),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'بیشتر',
+                    onSelected: (v) async {
+                      if (v == 'logout') await _confirmLogout(context);
+                      if (v == 'lite') await s.setLite(!s.lite);
+                      if (v == 'photos' && context.mounted) {
+                        await _downloadPhotos(context);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'photos',
+                        child: Text('دریافت عکس‌ها برای کار بدون اینترنت'),
+                      ),
+                      CheckedPopupMenuItem(
+                        value: 'lite',
+                        checked: s.lite,
+                        child: const Text('حالت سبک (بدون جلوه‌ی شیشه)'),
+                      ),
+                      const PopupMenuItem(value: 'logout', child: Text('خروج')),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            if (cat != null)
-              Text(
-                '${cat.organization} · ${cat.branchName}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-          ],
+          ),
         ),
-        actions: [
-          SyncBadge(state: s),
-          IconButton(
-            tooltip: 'ارسال و به‌روزرسانی',
-            onPressed: s.syncing ? null : s.syncNow,
-            icon: const Icon(Icons.sync_rounded),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              if (v == 'logout') await _confirmLogout(context);
-              if (v == 'photos' && context.mounted) {
-                await _downloadPhotos(context);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'photos',
-                child: Text('دریافت عکس‌ها برای کار بدون اینترنت'),
-              ),
-              PopupMenuItem(value: 'logout', child: Text('خروج')),
-            ],
-          ),
-        ],
       ),
       body: cat == null
           ? EmptyView(
@@ -93,27 +143,35 @@ class _HomeScreenState extends State<HomeScreen> {
               1 => _OrdersTab(state: s, catalog: cat),
               _ => _OutboxTab(state: s, catalog: cat),
             },
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.people_alt_rounded),
-            label: 'مشتریان',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.receipt_long_rounded),
-            label: 'سفارش‌ها',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: s.pending + s.failed > 0,
-              label: Text(faDigits(s.pending + s.failed)),
-              child: const Icon(Icons.outbox_rounded),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+          child: GlassPanel(
+            child: NavigationBar(
+              selectedIndex: _tab,
+              onDestinationSelected: (i) => setState(() => _tab = i),
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.people_alt_rounded),
+                  label: 'مشتریان',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.receipt_long_rounded),
+                  label: 'سفارش‌ها',
+                ),
+                NavigationDestination(
+                  icon: Badge(
+                    isLabelVisible: s.pending + s.failed > 0,
+                    label: Text(faDigits(s.pending + s.failed)),
+                    child: const Icon(Icons.outbox_rounded),
+                  ),
+                  label: 'صف ارسال',
+                ),
+              ],
             ),
-            label: 'صف ارسال',
           ),
-        ],
+        ),
       ),
     );
   }
@@ -307,9 +365,21 @@ class _CustomerCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Text(c.name.characters.first),
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  c.name.characters.first,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

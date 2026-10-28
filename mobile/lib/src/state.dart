@@ -38,6 +38,13 @@ class AppState extends ChangeNotifier {
   bool online = false;
   bool syncing = false;
   bool signedOut = false;
+
+  /// What «تنظیمات اتصال» holds (address, port, user; the password if remembered).
+  ConnectionSettings? settings;
+
+  /// «حالت سبک»: no blur, for slow phones (kept on the phone).
+  final liteMode = ValueNotifier<bool>(false);
+  bool get lite => liteMode.value;
   DateTime? syncedAt;
   String? syncError;
   Timer? _timer;
@@ -49,6 +56,19 @@ class AppState extends ChangeNotifier {
 
   Future<void> start() async {
     await api.restore();
+    settings = await api.store.loadSettings();
+    liteMode.value = await db.get('lite') == '1';
+    // Signed out while offline (or an old session): the saved password signs in again.
+    final c = settings;
+    if (!signedIn && c != null && c.canSignIn) {
+      try {
+        await login(c);
+      } on ApiException {
+        // Shown on the sign-in screen when the visitor tries themself.
+      } on NetworkException {
+        // Offline: the sign-in screen; the queue stays on the phone.
+      }
+    }
     await reload();
     if (signedIn) unawaited(syncNow());
     _timer ??= Timer.periodic(const Duration(minutes: 1), (_) {
@@ -75,8 +95,19 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String server, String username, String password) async {
-    await api.login(server, username, password, deviceName);
+  /// The server address for [c]; release builds accept HTTPS only (mobile data).
+  String serverOf(ConnectionSettings c) =>
+      normalizeServer(c.host, allowHttp: kDebugMode, port: c.port);
+
+  /// Is the server in [c] answering? For «آزمایش اتصال».
+  Future<void> testConnection(ConnectionSettings c) => api.ping(serverOf(c));
+
+  /// Sign in with [c] and keep it (the password only if [ConnectionSettings.remember]).
+  Future<void> login(ConnectionSettings c) async {
+    final server = serverOf(c);
+    await api.login(server, c.username.trim(), c.password ?? '', deviceName);
+    await api.store.saveSettings(c);
+    settings = await api.store.loadSettings();
     signedOut = false;
     await reload();
     await syncNow();
@@ -85,7 +116,14 @@ class AppState extends ChangeNotifier {
   /// Signing out keeps the queue: it is sent when the same visitor signs in again.
   Future<void> logout() async {
     await api.logout();
+    await api.store.forgetPassword();
+    settings = await api.store.loadSettings();
     await reload();
+  }
+
+  Future<void> setLite(bool on) async {
+    liteMode.value = on;
+    await db.put('lite', on ? '1' : '0');
   }
 
   Future<void> syncNow() async {

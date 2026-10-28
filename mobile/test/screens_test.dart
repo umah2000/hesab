@@ -214,7 +214,14 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
       await db.putImage(id, 'large', bytes);
     }
     await db.saveOrders('u1', orders);
-    final store = MemoryTokenStore()..session = session();
+    final store = MemoryTokenStore()
+      ..session = session()
+      ..settings = const ConnectionSettings(
+        host: 'erp.example.ir',
+        port: 8443,
+        username: 'visitor1',
+        password: 'Visitor-Pass-1',
+      );
     final client = MockClient((req) async {
       if (req.url.path.endsWith('/quote')) {
         return http.Response(
@@ -228,6 +235,7 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
     final api = ApiClient(store, client: client);
     await api.restore();
     state = AppState(api: api, db: db);
+    state.settings = await store.loadSettings();
     if (!online) {
       await db.addOutbox('p1', 'u1', 'order', {
         'id': 'p1',
@@ -257,14 +265,15 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
   return state;
 }
 
-Widget frame(Widget child) => MaterialApp(
-  debugShowCheckedModeBanner: false,
-  locale: const Locale('fa', 'IR'),
-  supportedLocales: const [Locale('fa', 'IR')],
-  localizationsDelegates: GlobalMaterialLocalizations.delegates,
-  theme: visitorTheme(),
-  home: child,
-);
+Widget frame(Widget child, {Brightness brightness = Brightness.light}) =>
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      locale: const Locale('fa', 'IR'),
+      supportedLocales: const [Locale('fa', 'IR')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      theme: visitorTheme(brightness: brightness),
+      home: child,
+    );
 
 /// Real shadows for the pictures; Flutter checks the flag is restored by the test's end.
 void screenTest(String name, Future<void> Function(WidgetTester) body) {
@@ -301,7 +310,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  Future<void> shot(WidgetTester tester, Widget w, String? name) async {
+  Future<void> shot(
+    WidgetTester tester,
+    Widget w,
+    String? name, {
+    Brightness brightness = Brightness.light,
+  }) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.75;
     FocusManager.instance.highlightStrategy =
@@ -309,7 +323,7 @@ void main() {
     // Tests draw shadows as solid outlines unless told otherwise.
     debugDisableShadows = false;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(frame(w));
+    await tester.pumpWidget(frame(w, brightness: brightness));
     await tester.pump(const Duration(milliseconds: 300));
     await settleImages(tester);
     if (name == null) return;
@@ -323,6 +337,43 @@ void main() {
     await loadFonts();
     final state = await makeState(tester);
     await shot(tester, LoginScreen(state: state), '103-app-login');
+    expect(find.text('erp.example.ir : 8443'), findsOneWidget);
+    expect(find.text('ذخیره شده'), findsOneWidget);
+  });
+
+  screenTest('connection settings', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(tester, LoginScreen(state: state), null);
+    await tester.tap(find.text('تنظیمات اتصال'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.text('ذخیره و ورود'), findsOneWidget);
+    expect(find.text('8443'), findsOneWidget);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/122-app-connection-settings.png'),
+    );
+  });
+
+  screenTest('first start: nothing set yet', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    state.settings = null;
+    await shot(tester, LoginScreen(state: state), null);
+    expect(find.text('تنظیم نشده'), findsOneWidget);
+  });
+
+  screenTest('dark mode', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(
+      tester,
+      HomeScreen(state: state, now: now),
+      '123-app-customers-dark',
+      brightness: Brightness.dark,
+    );
   });
 
   screenTest('today\'s route of customers', (tester) async {

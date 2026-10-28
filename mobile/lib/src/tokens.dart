@@ -54,13 +54,47 @@ class Session {
   }
 }
 
+/// What the visitor typed in «تنظیمات اتصال». The password is kept only when they
+/// chose to be remembered, so the app signs in again by itself when the session ends.
+class ConnectionSettings {
+  const ConnectionSettings({
+    required this.host,
+    this.port,
+    required this.username,
+    this.password,
+    this.remember = true,
+  });
+
+  final String host;
+  final int? port;
+  final String username;
+  final String? password;
+  final bool remember;
+
+  bool get canSignIn =>
+      host.isNotEmpty && username.isNotEmpty && (password ?? '').isNotEmpty;
+
+  /// `erp.shop.ir : 8443` for showing; the default HTTPS port is left out.
+  String get label => port == null ? host : '$host : $port';
+
+  ConnectionSettings withoutPassword() => ConnectionSettings(
+    host: host,
+    port: port,
+    username: username,
+    remember: remember,
+  );
+}
+
 abstract class TokenStore {
   Future<Session?> load();
   Future<void> save(Session s);
   Future<void> clear();
 
-  /// The last server address typed in (kept after sign-out, it is not a secret).
-  Future<String?> lastServer();
+  Future<ConnectionSettings?> loadSettings();
+  Future<void> saveSettings(ConnectionSettings c);
+
+  /// Signing out forgets the password; the address and user name stay.
+  Future<void> forgetPassword();
 }
 
 class SecureTokenStore implements TokenStore {
@@ -102,26 +136,71 @@ class SecureTokenStore implements TokenStore {
   }
 
   @override
-  Future<String?> lastServer() => _s.read(key: 'last_server');
+  Future<ConnectionSettings?> loadSettings() async {
+    final all = await _s.readAll();
+    final host = all['cfg_host'];
+    if (host == null) {
+      // Installs from before the settings sheet kept only the last address.
+      final last = Uri.tryParse(all['last_server'] ?? '');
+      if (last == null || last.host.isEmpty) return null;
+      return ConnectionSettings(
+        host: last.host,
+        port: last.hasPort ? last.port : null,
+        username: all['username'] ?? '',
+      );
+    }
+    return ConnectionSettings(
+      host: host,
+      port: int.tryParse(all['cfg_port'] ?? ''),
+      username: all['cfg_user'] ?? '',
+      password: all['cfg_pass'],
+      remember: all['cfg_remember'] != '0',
+    );
+  }
+
+  @override
+  Future<void> saveSettings(ConnectionSettings c) async {
+    await _s.write(key: 'cfg_host', value: c.host);
+    if (c.port == null) {
+      await _s.delete(key: 'cfg_port');
+    } else {
+      await _s.write(key: 'cfg_port', value: '${c.port}');
+    }
+    await _s.write(key: 'cfg_user', value: c.username);
+    await _s.write(key: 'cfg_remember', value: c.remember ? '1' : '0');
+    final pass = c.remember ? c.password : null;
+    if (pass == null || pass.isEmpty) {
+      await _s.delete(key: 'cfg_pass');
+    } else {
+      await _s.write(key: 'cfg_pass', value: pass);
+    }
+  }
+
+  @override
+  Future<void> forgetPassword() => _s.delete(key: 'cfg_pass');
 }
 
 /// For tests and the screenshot harness.
 class MemoryTokenStore implements TokenStore {
   Session? session;
-  String? last;
+  ConnectionSettings? settings;
 
   @override
   Future<Session?> load() async => session;
 
   @override
-  Future<void> save(Session s) async {
-    session = s;
-    last = s.server;
-  }
+  Future<void> save(Session s) async => session = s;
 
   @override
   Future<void> clear() async => session = null;
 
   @override
-  Future<String?> lastServer() async => last;
+  Future<ConnectionSettings?> loadSettings() async => settings;
+
+  @override
+  Future<void> saveSettings(ConnectionSettings c) async =>
+      settings = c.remember ? c : c.withoutPassword();
+
+  @override
+  Future<void> forgetPassword() async => settings = settings?.withoutPassword();
 }
