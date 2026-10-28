@@ -326,6 +326,28 @@ EVENTS: tuple[EventDef, ...] = (
             RoleDef("fee", "کارمزد بانکی", "7105"),
         ),
     ),
+    # Weighbridge platform statements (ADR-0025). The retail chart has no haulage
+    # accounts: the defaults are general ones for the accountant to replace.
+    EventDef(
+        "va.haulage",
+        "صورت‌وضعیت حمل (سامانه باسکول)",
+        (
+            RoleDef("expense", "هزینه حمل", "7199"),
+            RoleDef("vat_receivable", "مالیات خرید", "1402"),
+            RoleDef("adjustments", "کسورات و اضافات صورت‌وضعیت", "7199"),
+            RoleDef("payable", "بدهی به پیمانکار حمل", "3101"),
+        ),
+    ),
+    EventDef(
+        "va.sales",
+        "صورت‌حساب فروش (سامانه باسکول)",
+        (
+            RoleDef("receivable", "طلب از مشتری", "1201"),
+            RoleDef("revenue", "درآمد فروش", "5101"),
+            RoleDef("adjustments", "تخفیف و اضافات فروش", "5103"),
+            RoleDef("vat_payable", "مالیات و عوارض فروش", "3201"),
+        ),
+    ),
     EventDef(
         "fiscal.year.closed",
         "بستن سال مالی",

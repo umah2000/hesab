@@ -10,6 +10,7 @@ const TABS = [
   { to: "/accounting/details", label: "حساب‌های تفصیلی" },
   { to: "/accounting/fiscal-years", label: "سال و دوره مالی" },
   { to: "/accounting/posting-rules", label: "قواعد ثبت خودکار", perm: "accounting.account.manage" },
+  { to: "/accounting/weighbridge", label: "سامانه باسکول", perm: ["accounting.integration.manage", "accounting.report.view"] },
 ];
 
 export function AccountingLayout() {

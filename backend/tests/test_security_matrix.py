@@ -57,6 +57,8 @@ def test_every_api_route_requires_session_except_public(app: Flask, seed: Seed) 
         # The login page shows the shop's name and logo (nothing else, ADR-0022).
         "/api/v1/system/branding",
         "/api/v1/system/logo",
+        # The weighbridge platform signs each request (HMAC); tested in test_integrations.
+        "/api/v1/integrations/va/webhook",
     }
     c = app.test_client()
     for rule in app.url_map.iter_rules():

@@ -29,6 +29,9 @@ CATALOG: tuple[PermissionDef, ...] = (
     PermissionDef("accounting.voucher.reverse", "حسابداری", "برگشت سند"),
     PermissionDef("accounting.fiscal.close", "حسابداری", "بستن دوره مالی"),
     PermissionDef("accounting.report.view", "حسابداری", "گزارش‌های حسابداری"),
+    PermissionDef(
+        "accounting.integration.manage", "حسابداری", "رسیدگی به اسناد رسیده از سامانه باسکول"
+    ),
     PermissionDef("inventory.item.manage", "انبار", "مدیریت کالاها"),
     PermissionDef("inventory.price.manage", "انبار", "مدیریت قیمت‌ها"),
     PermissionDef("inventory.stock.create", "انبار", "ثبت رسید و حواله"),

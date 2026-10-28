@@ -36,6 +36,9 @@
 | ۲ ✅ | POST | `/accounting/vouchers/{id}/reverse` | `accounting.voucher.reverse` | If-Match |
 | ۲ ✅ | GET/PUT | `/accounting/posting-rules` | خواندن / `accounting.account.manage` | |
 | ۲ ✅ | GET | `/accounting/reports/trial-balance` · `/ledger` · `/journal` | `accounting.report.view` | |
+| ✅ | POST | `/integrations/va/webhook` | بدون نشست؛ امضای HMAC (ADR-0025) | ۲۰۰ ثبت/تکراری، ۲۰۲ نگه‌داشته، ۴۰۴ اگر پیکربندی نشده |
+| ✅ | GET | `/integrations/va/status` · `/integrations/va/documents` | `accounting.integration.manage` یا `accounting.report.view` | |
+| ✅ | POST | `/integrations/va/documents/{id}/retry` | `accounting.integration.manage` | |
 | ۳ | GET | `/inventory/units` · `/groups` · `/price-lists` · `/warehouses` | هر مجوز انبار | `POST /groups` با `inventory.item.manage`؛ `POST /warehouses` با `branches.manage` |
 | ۳ | GET/POST/PUT | `/inventory/items` · `/items/{id}` | `inventory.item.manage` (قیمت: `inventory.price.manage`) | جست‌وجو در کد، نام و بارکد؛ فیلتر گروه و زیر حداقل |
 | ۳ | GET | `/inventory/items/lookup?barcode=` | `sales.pos.use` · `inventory.item.manage` · `inventory.stock.create` | **مسیر داغ صندوق**: بارکد ← بارکد بسته ← برچسب ترازو ← کد کالا |

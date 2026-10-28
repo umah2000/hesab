@@ -376,7 +376,20 @@ def reverse(
         raise DomainError("سند برگشتی را نمی‌توان دوباره برگشت زد", code="is_reversal")
     if original.source_type in ("opening", "closing"):
         raise DomainError("سند افتتاحیه/اختتامیه برگشت‌پذیر نیست", code="not_reversible")
-    when = document_date or original.document_date
+    rev = reverse_voucher(
+        s, original, actor.user_id, document_date or original.document_date, description
+    )
+    return voucher_out(s, rev)
+
+
+def reverse_voucher(
+    s: Session,
+    original: Voucher,
+    actor_id: uuid.UUID | None,
+    when: date,
+    description: str | None,
+) -> Voucher:
+    """The mirror voucher of a final one, finalised; the caller has checked it may be."""
     lines = [
         LineSpec(
             account_id=ln.account_id,
@@ -389,7 +402,7 @@ def reverse(
     ]
     rev = build_draft(
         s,
-        actor_id=actor.user_id,
+        actor_id=actor_id,
         branch_id=original.branch_id,
         document_date=when,
         description=description or f"برگشت سند شماره {original.number}",
@@ -398,7 +411,7 @@ def reverse(
         source_id=original.id,
     )
     rev.reversal_of_id = original.id
-    finalize_voucher(s, rev, actor.user_id)
+    finalize_voucher(s, rev, actor_id)
     original.reversed_by_id = rev.id
     original.updated_at = utcnow()
     s.flush()
@@ -406,13 +419,13 @@ def reverse(
     audit.record(
         s,
         "accounting.voucher_reversed",
-        user_id=actor.user_id,
+        user_id=actor_id,
         entity_type="voucher",
         entity_id=original.id,
         branch_id=original.branch_id,
         data={"number": original.number, "reversal_number": rev.number},
     )
-    return voucher_out(s, rev)
+    return rev
 
 
 def list_vouchers(s: Session, actor: Actor, q: VoucherQuery) -> Page[VoucherSummaryOut]:
