@@ -39,6 +39,9 @@ GO
 USE nextcam;      CREATE USER nextcam_app FOR LOGIN nextcam_app; ALTER ROLE db_owner ADD MEMBER nextcam_app;
 USE nextcam_test; CREATE USER nextcam_app FOR LOGIN nextcam_app; ALTER ROLE db_owner ADD MEMBER nextcam_app;
 GO
+-- پشتیبان پیش از flask upgrade با RESTORE VERIFYONLY بررسی می‌شود و آن مجوز CREATE DATABASE می‌خواهد
+ALTER SERVER ROLE dbcreator ADD MEMBER nextcam_app;
+GO
 ALTER DATABASE nextcam      SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
 ALTER DATABASE nextcam_test SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
 ```
