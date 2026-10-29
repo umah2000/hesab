@@ -337,4 +337,78 @@ class ApiClient {
   Future<Map<String, dynamic>> cancelOrder(String id) async =>
       (await call('POST', '/distribution/mobile/orders/$id/cancel')).body
           as Map<String, dynamic>;
+
+  // --- visitor app v2 (ADR-0026) -------------------------------------------------
+
+  /// Every final invoice of the customer, whoever sold it (view only).
+  Future<Map<String, dynamic>> customerHistory(String customerId) async =>
+      (await call(
+            'GET',
+            '/distribution/mobile/customers/$customerId/history',
+          )).body
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> customerAccount(String customerId) async =>
+      (await call(
+            'GET',
+            '/distribution/mobile/customers/$customerId/account',
+          )).body
+          as Map<String, dynamic>;
+
+  Future<void> setCustomerLocation(
+    String customerId,
+    String latitude,
+    String longitude,
+  ) => call(
+    'PUT',
+    '/distribution/mobile/customers/$customerId/location',
+    body: {'latitude': latitude, 'longitude': longitude},
+  );
+
+  Future<Map<String, dynamic>> invoice(String id) async =>
+      (await call('GET', '/distribution/mobile/invoices/$id')).body
+          as Map<String, dynamic>;
+
+  /// [period]: day / week / month; [date]: any day in it (yyyy-mm-dd), default today.
+  Future<Map<String, dynamic>> report(String period, {String? date}) async =>
+      (await call(
+            'GET',
+            '/distribution/mobile/report?period=$period'
+                '${date == null ? '' : '&date=$date'}',
+          )).body
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> submitCollection(
+    Map<String, dynamic> body,
+  ) async =>
+      (await call('POST', '/distribution/mobile/collections', body: body)).body
+          as Map<String, dynamic>;
+
+  Future<List<dynamic>> myCollections() async =>
+      (await call('GET', '/distribution/mobile/collections')).body
+          as List<dynamic>;
+
+  Future<Map<String, dynamic>> submitCustomerRequest(
+    Map<String, dynamic> body,
+  ) async =>
+      (await call(
+            'POST',
+            '/distribution/mobile/customer-requests',
+            body: body,
+          )).body
+          as Map<String, dynamic>;
+
+  Future<List<dynamic>> myCustomerRequests() async =>
+      (await call('GET', '/distribution/mobile/customer-requests')).body
+          as List<dynamic>;
+
+  Future<List<dynamic>> notifications() async =>
+      (await call('GET', '/distribution/mobile/notifications')).body
+          as List<dynamic>;
+
+  Future<void> markNotificationsRead() => call(
+    'POST',
+    '/distribution/mobile/notifications/read',
+    body: {'all': true},
+  );
 }

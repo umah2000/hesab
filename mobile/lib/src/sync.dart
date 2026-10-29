@@ -1,6 +1,6 @@
 /// Sends what the visitor wrote on the phone, in order, and refreshes the catalogue.
 ///
-/// * Each order and visit carries its own id, so sending it again after a lost answer
+/// * Each order, visit, collection and new-customer request carries its own id, so sending it again after a lost answer
 ///   returns the same record from the server, never a second one.
 /// * No answer (offline) → stop and try again later; the entry stays `pending`.
 /// * The server refused it (e.g. the customer is no longer assigned) → `failed`, with
@@ -32,9 +32,12 @@ class SyncService {
     for (final e in await db.outbox(userId: user, status: 'pending')) {
       try {
         await db.bumpAttempts(e.id);
-        final result = e.kind == 'order'
-            ? await api.submitOrder(e.payload)
-            : await api.submitVisit(e.payload);
+        final result = switch (e.kind) {
+          'order' => await api.submitOrder(e.payload),
+          'collection' => await api.submitCollection(e.payload),
+          'customer_request' => await api.submitCustomerRequest(e.payload),
+          _ => await api.submitVisit(e.payload),
+        };
         await db.markSent(e.id, result);
         sent++;
       } on NetworkException {
@@ -68,6 +71,27 @@ class SyncService {
     await db.saveOrders(user, await api.myOrders());
   }
 
+  /// What the visitor reads offline later: collections, new-customer requests,
+  /// notifications (ADR-0026). Kept per user in the phone's key-value table.
+  Future<void> pullField() async {
+    final user = api.session?.userId;
+    if (user == null) return;
+    try {
+      await db.put('collections:$user', jsonEncode(await api.myCollections()));
+      await db.put(
+        'customer_requests:$user',
+        jsonEncode(await api.myCustomerRequests()),
+      );
+      await db.put(
+        'notifications:$user',
+        jsonEncode(await api.notifications()),
+      );
+    } on ApiException catch (e) {
+      // A server not updated yet has none of these: the rest of the app still works.
+      if (e.status != 404) rethrow;
+    }
+  }
+
   /// Everything, in the safe order: send first, then read the server's view.
   Future<SyncResult> run() async {
     final pushed = await push();
@@ -75,6 +99,7 @@ class SyncService {
     try {
       await pull();
       await pullOrders();
+      await pullField();
       await db.put('synced_at', DateTime.now().toUtc().toIso8601String());
     } on NetworkException {
       return SyncResult(

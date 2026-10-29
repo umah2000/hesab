@@ -99,6 +99,14 @@
 | ۹ | POST | `/distribution/mobile/quote` | `distribution.visitor` | قیمت قطعی سرور و اعتبار پس از سفارش |
 | ۹ | POST · GET | `/distribution/mobile/orders` (id از گوشی؛ ارسال دوباره ← همان سفارش، 200) | `distribution.visitor` | سفارش‌های ۶۰ روز اخیر با وضعیت |
 | ۹ | POST | `/distribution/mobile/orders/{id}/cancel` · `/distribution/mobile/visits` | `distribution.visitor` | لغو فقط پیش از بررسی؛ بازدید با id گوشی |
+| ۹ | GET | `/distribution/mobile/customers/{id}/history` · `/account` · `GET /distribution/mobile/invoices/{id}` | `distribution.visitor` | فقط مشتری تخصیص‌یافته؛ کانال mine/visitor/shop، فقط مشاهده (ADR-0026) |
+| ۹ | PUT | `/distribution/mobile/customers/{id}/location` | `distribution.visitor` | 204 |
+| ۹ | GET | `/distribution/mobile/report?period=day\|week\|month&date` | `distribution.visitor` | فقط سفارش‌های خود ویزیتور |
+| ۹ | POST · GET | `/distribution/mobile/collections` · `/distribution/mobile/customer-requests` (id از گوشی) | `distribution.visitor` | درخواست؛ اثر مالی فقط پس از تأیید |
+| ۹ | GET · POST | `/distribution/mobile/notifications?since` · `/distribution/mobile/notifications/read` | `distribution.visitor` | |
+| ۹ | GET · POST | `/distribution/collections` · `/{id}/approve\|reject` (If-Match) | فهرست: `distribution.manage` یا `treasury.manage`؛ تأیید و رد: `treasury.manage` | تأیید ← سند دریافت خزانه |
+| ۹ | GET · POST | `/distribution/customer-requests` · `/{id}/approve\|reject` (If-Match) | `distribution.manage` | تأیید ← طرف‌حساب + تخصیص |
+| ۹ | GET · PUT | `/distribution/targets?year&month` · `/distribution/visitors/{id}/targets/{year}/{month}` (If-Match برای تغییر) | `distribution.manage` | |
 | ۹ | GET/POST · GET/PUT | `/distribution/visitors` · `/{id}` · `GET /distribution/candidates` | `distribution.manage` | ویزیتور از کاربر دارای نقش ویزیتور |
 | ۹ | GET · PUT | `/distribution/visitors/{id}/customers` | `distribution.manage` | جایگزینی کامل فهرست مشتریان و روز بازدید |
 | ۹ | GET | `/distribution/orders?status=open\|…&visitor_id&date_from&date_to` · `/{id}` | `distribution.manage` | محدوده‌ی شعبه |

@@ -19,11 +19,16 @@ import 'package:nextcam_visitor/src/models.dart';
 import 'package:nextcam_visitor/src/state.dart';
 import 'package:nextcam_visitor/src/tokens.dart';
 import 'package:nextcam_visitor/src/ui/app.dart';
+import 'package:nextcam_visitor/src/ui/collection.dart';
 import 'package:nextcam_visitor/src/ui/customer.dart';
 import 'package:nextcam_visitor/src/ui/gallery.dart';
 import 'package:nextcam_visitor/src/ui/home.dart';
 import 'package:nextcam_visitor/src/ui/login.dart';
+import 'package:nextcam_visitor/src/ui/new_customer.dart';
+import 'package:nextcam_visitor/src/ui/notifications.dart';
+import 'package:nextcam_visitor/src/ui/order_detail.dart';
 import 'package:nextcam_visitor/src/ui/order.dart';
+import 'package:nextcam_visitor/src/ui/search.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 final now = DateTime.utc(2026, 10, 17, 6, 30); // Saturday morning in Tehran
@@ -136,7 +141,37 @@ final orders = [
     'id': 'o2',
     'number': 2,
     'status': 'delivered',
+    'customer_id': 'c0',
     'customer_name': 'رستوران آفتاب',
+    'decided_at': now.subtract(const Duration(days: 2)).toIso8601String(),
+    'delivered_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+    'subtotal': '3460000.0000',
+    'discount_total': '50000.0000',
+    'tax_total': '0.0000',
+    'lines': [
+      {
+        'item_id': 'milk',
+        'item_name': 'شیر پرچرب ۱ لیتری',
+        'unit_id': 'box',
+        'unit_name': 'کارتن',
+        'qty': '2.000',
+        'unit_price': '1320000.0000',
+        'promotion_discount': '0.0000',
+        'tax': '0.0000',
+        'line_total': '2640000.0000',
+      },
+      {
+        'item_id': 'water',
+        'item_name': 'آب معدنی ۱٫۵ لیتری',
+        'unit_id': 'pack',
+        'unit_name': 'بسته',
+        'qty': '10.000',
+        'unit_price': '90000.0000',
+        'promotion_discount': '50000.0000',
+        'tax': '0.0000',
+        'line_total': '850000.0000',
+      },
+    ],
     'ordered_at': now.subtract(const Duration(days: 2)).toIso8601String(),
     'received_at': now.toIso8601String(),
     'grand_total': '3410000.0000',
@@ -153,6 +188,197 @@ final orders = [
     'grand_total': '5200000.0000',
     'invoice_number': null,
     'decision_note': 'سقف اعتبار کافی نیست',
+  },
+];
+
+Map<String, dynamic> figures(
+  String ordered,
+  int count,
+  String invoiced,
+  int inv,
+  int customers,
+) => {
+  'ordered_amount': ordered,
+  'ordered_count': count,
+  'invoiced_amount': invoiced,
+  'invoiced_count': inv,
+  'customers': customers,
+  'average_order': count == 0
+      ? '0'
+      : (Decimal.parse(ordered) / Decimal.fromInt(count))
+            .toDecimal(scaleOnInfinitePrecision: 0)
+            .toString(),
+  'rejected_count': 1,
+  'pending_count': 2,
+  'visits': 21,
+  'no_order_reasons': {'closed': 3, 'stocked': 2, 'price': 1},
+};
+
+final reportBody = {
+  'period': 'month',
+  'start': '2026-10-23',
+  'end': '2026-11-21',
+  'label': 'آبان 1405',
+  'current': figures('148200000', 12, '126400000', 10, 9),
+  'previous': figures('132300000', 11, '117000000', 9, 10),
+  'top_customers': [
+    {'id': 'c0', 'name': 'رستوران آفتاب', 'amount': '62000000', 'count': 5},
+    {'id': 'c2', 'name': 'کافه نارنج', 'amount': '41000000', 'count': 4},
+    {'id': 'c1', 'name': 'بقالی محله', 'amount': '23000000', 'count': 2},
+  ],
+  'top_items': [
+    {
+      'id': 'milk',
+      'name': 'شیر پرچرب ۱ لیتری',
+      'amount': '58000000',
+      'count': 9,
+    },
+    {'id': 'rice', 'name': 'برنج ایرانی', 'amount': '39000000', 'count': 6},
+    {
+      'id': 'water',
+      'name': 'آب معدنی ۱٫۵ لیتری',
+      'amount': '17000000',
+      'count': 7,
+    },
+  ],
+  'target': '200000000',
+  'target_progress': '126400000',
+};
+
+final historyBody = {
+  'invoices': [
+    {
+      'id': 'i58',
+      'number': 58,
+      'kind': 'sale',
+      'document_date': '2026-10-24',
+      'grand_total': '4200000',
+      'line_count': 7,
+      'channel': 'shop',
+      'visitor_name': null,
+    },
+    {
+      'id': 'i51',
+      'number': 51,
+      'kind': 'sale',
+      'document_date': '2026-10-20',
+      'grand_total': '2100000',
+      'line_count': 4,
+      'channel': 'visitor',
+      'visitor_name': 'مریم احمدی',
+    },
+    {
+      'id': 'i41',
+      'number': 41,
+      'kind': 'sale',
+      'document_date': '2026-10-15',
+      'grand_total': '3410000',
+      'line_count': 2,
+      'channel': 'mine',
+      'visitor_name': null,
+    },
+  ],
+  'frequent_items': [
+    {
+      'item_id': 'milk',
+      'item_name': 'شیر پرچرب ۱ لیتری',
+      'times': 9,
+      'last_date': '2026-10-24',
+    },
+    {
+      'item_id': 'water',
+      'item_name': 'آب معدنی ۱٫۵ لیتری',
+      'times': 7,
+      'last_date': '2026-10-20',
+    },
+  ],
+};
+
+final accountBody = {
+  'balance': '3150000',
+  'credit_limit': '10000000',
+  'credit_unlimited': false,
+  'available': '6850000',
+  'open_cheques': [
+    {
+      'number': '452100',
+      'amount': '1500000',
+      'due_date': '2026-11-11',
+      'status': 'in_hand',
+      'bank_name': 'ملت',
+    },
+  ],
+  'pending_collections': '1000000',
+  'statement': <dynamic>[],
+};
+
+final notificationsBody = [
+  {
+    'id': 'n1',
+    'kind': 'order_approved',
+    'title': 'سفارش ۳ تأیید شد',
+    'body': 'کافه نارنج',
+    'ref_type': 'order',
+    'ref_id': 'o3',
+    'created_at': now.subtract(const Duration(minutes: 10)).toIso8601String(),
+    'read_at': null,
+  },
+  {
+    'id': 'n2',
+    'kind': 'order_rejected',
+    'title': 'سفارش ۱ رد شد',
+    'body': 'فروشگاه بهار · علت: سقف اعتبار کافی نیست',
+    'ref_type': 'order',
+    'ref_id': 'o1',
+    'created_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+    'read_at': null,
+  },
+  {
+    'id': 'n3',
+    'kind': 'collection_approved',
+    'title': 'وصول ۱۵۰٬۰۰۰ تومان ثبت شد',
+    'body': 'سند دریافت ۷۸۱',
+    'ref_type': 'collection',
+    'ref_id': 'k1',
+    'created_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+    'read_at': now.toIso8601String(),
+  },
+  {
+    'id': 'n4',
+    'kind': 'target_set',
+    'title': 'هدف آبان ۱۴۰۵ تعیین شد',
+    'body': '۲۰۰٬۰۰۰٬۰۰۰ تومان',
+    'ref_type': 'target',
+    'ref_id': 't1',
+    'created_at': now.subtract(const Duration(days: 2)).toIso8601String(),
+    'read_at': now.toIso8601String(),
+  },
+];
+
+final collectionsBody = [
+  {
+    'id': 'k1',
+    'customer_id': 'c0',
+    'customer_name': 'رستوران آفتاب',
+    'method': 'cheque',
+    'amount': '1500000',
+    'collected_at': now.subtract(const Duration(days: 1)).toIso8601String(),
+    'cheque_number': '452100',
+    'status': 'approved',
+    'decision_note': null,
+    'treasury_document_number': 781,
+  },
+  {
+    'id': 'k2',
+    'customer_id': 'c0',
+    'customer_name': 'رستوران آفتاب',
+    'method': 'cash',
+    'amount': '1000000',
+    'collected_at': now.toIso8601String(),
+    'cheque_number': null,
+    'status': 'pending',
+    'decision_note': null,
+    'treasury_document_number': null,
   },
 ];
 
@@ -223,13 +449,16 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
         password: 'Visitor-Pass-1',
       );
     final client = MockClient((req) async {
-      if (req.url.path.endsWith('/quote')) {
-        return http.Response(
-          jsonEncode(quoteBody),
-          200,
-          headers: {'content-type': 'application/json; charset=utf-8'},
-        );
-      }
+      http.Response ok(Object body) => http.Response(
+        jsonEncode(body),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+      final p = req.url.path;
+      if (p.endsWith('/quote')) return ok(quoteBody);
+      if (p.endsWith('/report')) return ok(reportBody);
+      if (p.endsWith('/history')) return ok(historyBody);
+      if (p.endsWith('/account')) return ok(accountBody);
       throw http.ClientException('offline');
     });
     final api = ApiClient(store, client: client);
@@ -259,6 +488,8 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
       }, at: now);
       await db.markFailed('p3', 'این مشتری به شما تخصیص داده نشده است');
     }
+    await db.put('notifications:u1', jsonEncode(notificationsBody));
+    await db.put('collections:u1', jsonEncode(collectionsBody));
     await state.reload();
     state.online = online;
   });
@@ -483,12 +714,126 @@ void main() {
     await loadFonts();
     final state = await makeState(tester, online: false);
     await shot(tester, HomeScreen(state: state, now: now), null);
-    await tester.tap(find.text('صف ارسال'));
+    await tester.tap(find.text('صف'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('ارسال دوباره'), findsOneWidget);
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/109-app-offline-queue.png'),
     );
+  });
+
+  screenTest('search across customers, items and orders', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(
+      tester,
+      SearchScreen(state: state, initial: 'شیر'),
+      '124-app-search',
+    );
+    expect(find.text('کالاها'), findsOneWidget);
+    expect(find.text('سفارش‌ها'), findsOneWidget); // milk is in order 2
+  });
+
+  screenTest('order detail with repeat and share', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(
+      tester,
+      OrderDetailScreen(
+        state: state,
+        order: state.orders.firstWhere((o) => o['id'] == 'o2'),
+      ),
+      '125-app-order-detail',
+    );
+    expect(find.text('تکرار این سفارش'), findsOneWidget);
+  });
+
+  screenTest('my report for the month', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(tester, HomeScreen(state: state, now: now), null);
+    await tester.tap(find.text('گزارش من'));
+    for (var i = 0; i < 3; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(find.text('آبان ۱۴۰۵'), findsOneWidget);
+    expect(find.text('۶۳٪'), findsOneWidget);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/127-app-report.png'),
+    );
+  });
+
+  screenTest('a cheque collection', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(
+      tester,
+      CollectionScreen(state: state, customer: state.catalog!.customers.first),
+      null,
+    );
+    await tester.tap(find.text('چک'));
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    await tester.enterText(
+      find.widgetWithText(TextField, 'مبلغ (تومان)'),
+      '150000',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'شماره‌ی چک'),
+      '452100',
+    );
+    // Let the labels finish floating above the typed text.
+    FocusManager.instance.primaryFocus?.unfocus();
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/128-app-collection.png'),
+    );
+  });
+
+  screenTest('a new customer request', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(tester, NewCustomerScreen(state: state), null);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'نام فروشگاه'),
+      'سوپر ستاره',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'نام مالک'),
+      'حسن رضایی',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'موبایل'),
+      '09123456789',
+    );
+    // Let the labels finish floating above the typed text.
+    FocusManager.instance.primaryFocus?.unfocus();
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/129-app-new-customer.png'),
+    );
+  });
+
+  screenTest('notifications', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester);
+    await shot(
+      tester,
+      NotificationsScreen(state: state),
+      '130-app-notifications',
+    );
+    expect(find.text('تازه'), findsNWidgets(2));
   });
 }
