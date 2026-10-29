@@ -399,12 +399,14 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    // Above the phone's navigation bar (gesture or buttons), not under it.
+    final safe = MediaQuery.paddingOf(context).bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: GlassPanel(
         strong: true,
         radius: const BorderRadius.vertical(top: Radius.circular(30)),
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
+        padding: EdgeInsets.fromLTRB(20, 10, 20, 22 + safe),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
