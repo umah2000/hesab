@@ -10,6 +10,7 @@ import 'package:nextcam_visitor/src/api.dart';
 import 'package:nextcam_visitor/src/db.dart';
 import 'package:nextcam_visitor/src/state.dart';
 import 'package:nextcam_visitor/src/tokens.dart';
+import 'package:nextcam_visitor/src/ui/login.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'sync_test.dart' show FakeServer, json, server, tokens;
@@ -60,6 +61,28 @@ void main() {
     );
     expect(c.label, 'erp.shop.ir : 8443');
     expect(c.canSignIn, isFalse);
+  });
+
+  test('typed address: http:// kept only when written, port taken from it', () {
+    expect(splitServerInput('192.168.1.10'), ('192.168.1.10', null));
+    expect(splitServerInput('http://192.168.1.10:5000/'), (
+      'http://192.168.1.10',
+      5000,
+    ));
+    expect(splitServerInput('https://erp.shop.ir'), ('erp.shop.ir', null));
+    final (host, port) = splitServerInput('http://192.168.1.10');
+    expect(
+      normalizeServer(host, allowHttp: true, port: port ?? 5000),
+      'http://192.168.1.10:5000',
+    );
+    expect(
+      () => normalizeServer(host, allowHttp: false, port: 5000),
+      throwsA(isA<ApiException>()),
+    );
+    expect(
+      normalizeServer('192.168.1.10', allowHttp: true, port: 5000),
+      'https://192.168.1.10:5000',
+    );
   });
 
   test('the password is kept only when the visitor asked for it', () async {

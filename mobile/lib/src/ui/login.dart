@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
@@ -5,8 +6,19 @@ import '../state.dart';
 import '../tokens.dart';
 import 'glass.dart';
 
-String _networkMessage() =>
-    'سرور در دسترس نیست؛ اینترنت، نشانی و پورت سرور را بررسی کنید';
+String _networkMessage() => kDebugMode
+    ? 'سرور در دسترس نیست؛ نشانی و پورت را بررسی کنید. سرور بدون HTTPS را با http:// بنویسید'
+    : 'سرور در دسترس نیست؛ اینترنت، نشانی و پورت سرور را بررسی کنید';
+
+/// What was typed as «نشانی سرور»: the host, with `http://` kept only when typed
+/// (the default is HTTPS), and a port written into the address.
+(String, int?) splitServerInput(String raw) {
+  final t = raw.trim();
+  final uri = Uri.tryParse(t.contains('://') ? t : 'https://$t');
+  if (uri == null || uri.host.isEmpty) return (t, null);
+  final host = uri.scheme == 'http' ? 'http://${uri.host}' : uri.host;
+  return (host, uri.hasPort ? uri.port : null);
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, required this.state});
@@ -339,15 +351,10 @@ class _ConnectionSheetState extends State<ConnectionSheet> {
   }
 
   ConnectionSettings _read() {
-    var host = _host.text.trim();
-    // An address typed with its scheme or path keeps only the host part here.
-    final uri = Uri.tryParse(host.contains('://') ? host : 'https://$host');
-    if (uri != null && uri.host.isNotEmpty) host = uri.host;
-    final port =
-        parsePort(_port.text) ?? (uri != null && uri.hasPort ? uri.port : null);
+    final (host, typedPort) = splitServerInput(_host.text);
     return ConnectionSettings(
       host: host,
-      port: port,
+      port: parsePort(_port.text) ?? typedPort,
       username: _user.text.trim(),
       password: _pass.text,
       remember: _remember,
