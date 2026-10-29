@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
@@ -18,6 +19,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Unicode,
     func,
@@ -68,6 +70,9 @@ class Party(ActorMixin, VersionedMixin, Base):
     address: Mapped[str | None] = mapped_column(Unicode(500))
     # Suppliers: default days until a purchase invoice is due.
     payment_terms_days: Mapped[int | None] = mapped_column(Integer)
+    # Where the shop is (WGS84), for the visitor's navigation (ADR-0026).
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(9, 6))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.sysutcdatetime(), nullable=False
     )

@@ -14,11 +14,15 @@ from app.modules.accounting.models import (
 from app.modules.audit.models import AuditEvent
 from app.modules.devices.models import Device, DeviceJob
 from app.modules.distribution.models import (
+    CustomerRequest,
     SalesOrder,
     SalesOrderLine,
     Visit,
     Visitor,
+    VisitorCollection,
     VisitorCustomer,
+    VisitorNotification,
+    VisitorTarget,
 )
 from app.modules.iam.models import (
     AppUser,
@@ -142,4 +146,8 @@ __all__ = [
     "Visit",
     "Visitor",
     "VisitorCustomer",
+    "VisitorCollection",
+    "VisitorNotification",
+    "VisitorTarget",
+    "CustomerRequest",
 ]

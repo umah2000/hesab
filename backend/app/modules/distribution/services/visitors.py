@@ -182,6 +182,8 @@ def assigned(s: Session, visitor_id: uuid.UUID) -> list[AssignedCustomerOut]:
                 credit_unlimited=acc.credit_unlimited,
                 balance=balance,
                 available=acc.credit_limit - balance if acc.credit_limit is not None else None,
+                latitude=party.latitude if party else None,
+                longitude=party.longitude if party else None,
             )
         )
     return out

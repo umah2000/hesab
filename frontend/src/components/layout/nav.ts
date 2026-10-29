@@ -77,8 +77,8 @@ export const NAV_MAIN: NavItem[] = [
     to: "/distribution",
     label: "ویزیتور و توزیع",
     icon: Truck,
-    permission: "distribution.manage",
-    keywords: "ویزیتور سفارش توزیع مسیر بازدید visitor order",
+    permission: ["distribution.manage", "treasury.manage"],
+    keywords: "ویزیتور سفارش توزیع مسیر بازدید وصول هدف مشتری جدید visitor order",
   },
   {
     to: "/reports",

@@ -14,7 +14,7 @@ from datetime import date
 
 from flask import Blueprint, Response, request
 from flask.typing import ResponseReturnValue
-from pydantic import BaseModel
+from pydantic import AwareDatetime, BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,15 +26,32 @@ from app.modules.distribution.schemas import (
     AssignmentsIn,
     BootstrapOut,
     CandidateOut,
+    CollectionApproveIn,
+    CollectionIn,
+    CollectionOut,
+    CustomerAccountOut,
+    CustomerHistoryOut,
+    CustomerRequestApproveIn,
+    CustomerRequestIn,
+    CustomerRequestOut,
     DecisionIn,
+    InvoiceDetailOut,
     InvoiceOrderIn,
+    LocationIn,
+    NotificationOut,
     OrderIn,
     OrderOut,
     OrderQuery,
     OrderSummaryOut,
+    Period,
     QuoteIn,
     QuoteOut,
+    ReadIn,
     RejectIn,
+    ReportOut,
+    RequestQuery,
+    TargetIn,
+    TargetOut,
     VisitIn,
     VisitorIn,
     VisitorOut,
@@ -42,8 +59,8 @@ from app.modules.distribution.schemas import (
     VisitOut,
 )
 from app.modules.distribution.services import app as app_data
-from app.modules.distribution.services import orders, visitors
-from app.modules.iam.guard import current_actor, require
+from app.modules.distribution.services import field, insights, notify, orders, visitors
+from app.modules.iam.guard import current_actor, require, require_any
 from app.modules.inventory.api import image_response
 
 bp = Blueprint("distribution", __name__)
@@ -322,3 +339,221 @@ def list_visits() -> ResponseReturnValue:
         return to_json(rows)
     finally:
         s.close()
+
+
+# --- visitor app v2 (ADR-0026) -----------------------------------------------------------
+
+TREASURY = "treasury.manage"
+
+
+def _read(fn: Callable[[Session], object]) -> Response:
+    s = new_session()
+    try:
+        return to_json(fn(s))  # type: ignore[arg-type]
+    finally:
+        s.close()
+
+
+class ReportQuery(BaseModel):
+    period: Period = "day"
+    day: date | None = Field(default=None, alias="date")
+
+
+class NotificationQuery(BaseModel):
+    since: AwareDatetime | None = None
+
+
+class TargetQuery(BaseModel):
+    year: int = Field(ge=1390, le=1500)
+    month: int = Field(ge=1, le=12)
+
+
+@bp.get("/mobile/customers/<customer_id>/history")
+@require(APP)
+@doc("همه‌ی فاکتورهای قطعی مشتری با مبدأ (خودتان، ویزیتور دیگر، حضوری)؛ فقط نمایش",
+     response=CustomerHistoryOut)  # fmt: skip
+def mobile_history(customer_id: str) -> ResponseReturnValue:
+    return _read(lambda s: insights.history(s, current_actor(), parse_uuid(customer_id)))
+
+
+@bp.get("/mobile/customers/<customer_id>/account")
+@require(APP)
+@doc("مانده، اعتبار، چک‌های وصول‌نشده و گردش ۶۰ روزه‌ی مشتری", response=CustomerAccountOut)
+def mobile_account(customer_id: str) -> ResponseReturnValue:
+    return _read(lambda s: insights.account(s, current_actor(), parse_uuid(customer_id)))
+
+
+@bp.put("/mobile/customers/<customer_id>/location")
+@require(APP)
+@doc("ثبت مکان مشتری تخصیص‌یافته برای مسیریابی (ممیزی می‌شود)", body=LocationIn)
+def mobile_location(customer_id: str) -> ResponseReturnValue:
+    data = parse_body(LocationIn)
+    with unit_of_work() as s:
+        field.set_location(s, current_actor(), parse_uuid(customer_id), data)
+    return Response(status=204)
+
+
+@bp.get("/mobile/invoices/<invoice_id>")
+@require(APP)
+@doc("اقلام یک فاکتور مشتری تخصیص‌یافته (فقط نمایش)", response=InvoiceDetailOut)
+def mobile_invoice(invoice_id: str) -> ResponseReturnValue:
+    return _read(lambda s: insights.invoice_detail(s, current_actor(), parse_uuid(invoice_id)))
+
+
+@bp.get("/mobile/report")
+@require(APP)
+@doc("گزارش ویزیتور برای روز، هفته یا ماه شمسی (فقط سفارش‌های خودش)",
+     query=ReportQuery, response=ReportOut)  # fmt: skip
+def mobile_report() -> ResponseReturnValue:
+    q = parse_query(ReportQuery)
+    return _read(lambda s: insights.report(s, current_actor(), q.period, q.day))
+
+
+@bp.post("/mobile/collections")
+@require(APP)
+@doc("ثبت وصول وجه (درخواست؛ با تأیید خزانه سند می‌شود)", body=CollectionIn,
+     response=CollectionOut)  # fmt: skip
+def mobile_collection() -> ResponseReturnValue:
+    data = parse_body(CollectionIn)
+    actor = current_actor()
+    return _resend_safe(
+        lambda s: field.submit_collection(s, actor, data),
+        lambda s: field.submit_collection(s, actor, data)[0],
+    )
+
+
+@bp.get("/mobile/collections")
+@require(APP)
+@doc("وصول‌های ویزیتور با وضعیت", response=[CollectionOut])
+def mobile_collections() -> ResponseReturnValue:
+    return _read(lambda s: list(field.my_collections(s, current_actor())))
+
+
+@bp.post("/mobile/customer-requests")
+@require(APP)
+@doc("درخواست مشتری جدید (با تأیید مدیر)", body=CustomerRequestIn,
+     response=CustomerRequestOut)  # fmt: skip
+def mobile_customer_request() -> ResponseReturnValue:
+    data = parse_body(CustomerRequestIn)
+    actor = current_actor()
+    return _resend_safe(
+        lambda s: field.submit_request(s, actor, data),
+        lambda s: field.submit_request(s, actor, data)[0],
+    )
+
+
+@bp.get("/mobile/customer-requests")
+@require(APP)
+@doc("درخواست‌های مشتری جدید ویزیتور", response=[CustomerRequestOut])
+def mobile_customer_requests() -> ResponseReturnValue:
+    return _read(lambda s: list(field.my_requests(s, current_actor())))
+
+
+@bp.get("/mobile/notifications")
+@require(APP)
+@doc("اعلان‌های ویزیتور (since: فقط تازه‌ها)", query=NotificationQuery,
+     response=[NotificationOut])  # fmt: skip
+def mobile_notifications() -> ResponseReturnValue:
+    q = parse_query(NotificationQuery)
+    return _read(lambda s: list(notify.mine(s, current_actor(), q.since)))
+
+
+@bp.post("/mobile/notifications/read")
+@require(APP)
+@doc("علامت خوانده‌شدن اعلان‌ها", body=ReadIn)
+def mobile_notifications_read() -> ResponseReturnValue:
+    data = parse_body(ReadIn)
+    with unit_of_work() as s:
+        n = notify.mark_read(s, current_actor(), data)
+    return to_json({"updated": n})
+
+
+@bp.get("/collections")
+@require_any(MANAGE, TREASURY)
+@doc("وصول‌های ویزیتورها", query=RequestQuery, response=[CollectionOut])
+def list_collections() -> ResponseReturnValue:
+    q = parse_query(RequestQuery)
+    return _read(lambda s: field.list_collections(s, current_actor(), q))
+
+
+@bp.post("/collections/<collection_id>/approve")
+@require(TREASURY)
+@doc("تأیید وصول: سند دریافت خزانه ساخته می‌شود", body=CollectionApproveIn,
+     response=CollectionOut, versioned=True)  # fmt: skip
+def approve_collection(collection_id: str) -> ResponseReturnValue:
+    data = parse_body(CollectionApproveIn)
+    version = if_match()
+    with unit_of_work() as s:
+        return to_json(
+            field.approve_collection(s, current_actor(), parse_uuid(collection_id), data, version)
+        )
+
+
+@bp.post("/collections/<collection_id>/reject")
+@require(TREASURY)
+@doc("رد وصول با علت", body=RejectIn, response=CollectionOut, versioned=True)
+def reject_collection(collection_id: str) -> ResponseReturnValue:
+    data = parse_body(RejectIn)
+    version = if_match()
+    with unit_of_work() as s:
+        return to_json(
+            field.reject_collection(s, current_actor(), parse_uuid(collection_id), data, version)
+        )
+
+
+@bp.get("/customer-requests")
+@require(MANAGE)
+@doc("درخواست‌های مشتری جدید", query=RequestQuery, response=[CustomerRequestOut])
+def list_customer_requests() -> ResponseReturnValue:
+    q = parse_query(RequestQuery)
+    return _read(lambda s: field.list_requests(s, current_actor(), q))
+
+
+@bp.post("/customer-requests/<request_id>/approve")
+@require(MANAGE)
+@doc("تأیید مشتری جدید: طرف‌حساب ساخته و به ویزیتور تخصیص داده می‌شود",
+     body=CustomerRequestApproveIn, response=CustomerRequestOut, versioned=True)  # fmt: skip
+def approve_customer_request(request_id: str) -> ResponseReturnValue:
+    data = parse_body(CustomerRequestApproveIn)
+    version = if_match()
+    with unit_of_work() as s:
+        return to_json(
+            field.approve_request(s, current_actor(), parse_uuid(request_id), data, version)
+        )
+
+
+@bp.post("/customer-requests/<request_id>/reject")
+@require(MANAGE)
+@doc("رد درخواست مشتری جدید با علت", body=RejectIn, response=CustomerRequestOut, versioned=True)
+def reject_customer_request(request_id: str) -> ResponseReturnValue:
+    data = parse_body(RejectIn)
+    version = if_match()
+    with unit_of_work() as s:
+        return to_json(
+            field.reject_request(s, current_actor(), parse_uuid(request_id), data, version)
+        )
+
+
+@bp.get("/targets")
+@require(MANAGE)
+@doc("هدف فروش ماهانه‌ی ویزیتورها و فروش فاکتورشده‌ی همان ماه", query=TargetQuery,
+     response=[TargetOut])  # fmt: skip
+def list_targets() -> ResponseReturnValue:
+    q = parse_query(TargetQuery)
+    return _read(lambda s: list(field.targets(s, current_actor(), q.year, q.month)))
+
+
+@bp.put("/visitors/<visitor_id>/targets/<year>/<month>")
+@require(MANAGE)
+@doc("تعیین هدف فروش یک ماه شمسی (سال و ماه شمسی در مسیر)", body=TargetIn, response=TargetOut)
+def set_target(visitor_id: str, year: str, month: str) -> ResponseReturnValue:
+    when = TargetQuery.model_validate({"year": year, "month": month})
+    data = parse_body(TargetIn)
+    # A new month's target has no version yet; changing one needs its If-Match.
+    version = request.headers.get("If-Match", "").strip('"') or None
+    with unit_of_work() as s:
+        return to_json(
+            field.set_target(
+                s, current_actor(), parse_uuid(visitor_id), when.year, when.month, data, version
+            )
+        )

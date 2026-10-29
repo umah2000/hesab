@@ -18,6 +18,9 @@ export const OUTCOME_LABEL: Record<string, string> = {
   no_order: "بدون سفارش",
   closed: "مغازه بسته بود",
   absent: "مسئول خرید نبود",
+  stocked: "موجودی داشت",
+  price: "قیمت یا شرایط",
+  credit: "اعتبار کافی نبود",
 };
 
 export type Visitor = {
@@ -111,4 +114,85 @@ export type Visit = {
   outcome: string;
   note: string | null;
   order_id: string | null;
+  latitude: string | null;
+  longitude: string | null;
 };
+
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export const REQUEST_STATUS: Record<RequestStatus, { label: string; tone: Tone }> = {
+  pending: { label: "در انتظار بررسی", tone: "warning" },
+  approved: { label: "تأییدشده", tone: "success" },
+  rejected: { label: "ردشده", tone: "danger" },
+};
+
+export const METHOD_LABEL = { cash: "نقد", cheque: "چک", transfer: "کارت‌به‌کارت" } as const;
+
+export type Collection = {
+  id: string;
+  visitor_id: string;
+  visitor_name: string;
+  customer_id: string;
+  customer_name: string;
+  method: keyof typeof METHOD_LABEL;
+  amount: string;
+  collected_at: string;
+  received_at: string;
+  reference: string | null;
+  cheque_number: string | null;
+  cheque_sayad_id: string | null;
+  cheque_bank: string | null;
+  cheque_drawer: string | null;
+  cheque_due_date: string | null;
+  note: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  status: RequestStatus;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  treasury_document_id: string | null;
+  treasury_document_number: number | null;
+  row_version: string;
+};
+
+export type CustomerRequest = {
+  id: string;
+  visitor_id: string;
+  visitor_name: string;
+  name: string;
+  owner_name: string | null;
+  mobile: string | null;
+  phone: string | null;
+  city: string | null;
+  address: string | null;
+  national_id: string | null;
+  economic_code: string | null;
+  visit_weekday: number | null;
+  note: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  status: RequestStatus;
+  created_at: string;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  party_id: string | null;
+  party_code: string | null;
+  row_version: string;
+};
+
+export type Target = {
+  visitor_id: string;
+  visitor_name: string;
+  jalali_year: number;
+  jalali_month: number;
+  amount: string | null;
+  invoiced: string;
+  row_version: string | null;
+};
+
+/** A map link for a position (opens the phone's or browser's map). */
+export function mapLink(lat: string, lon: string): string {
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
+}

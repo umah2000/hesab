@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import utcnow
 from app.modules.distribution.schemas import (
+    AppBarcode,
     AppItem,
     AppSettings,
     AppUnit,
@@ -25,7 +26,15 @@ from app.modules.distribution.services import visitors
 from app.modules.distribution.services.orders import branch_warehouse
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
-from app.modules.inventory.models import Item, ItemGroup, ItemPrice, ItemUnit, StockBalance, Unit
+from app.modules.inventory.models import (
+    Item,
+    ItemBarcode,
+    ItemGroup,
+    ItemPrice,
+    ItemUnit,
+    StockBalance,
+    Unit,
+)
 from app.modules.inventory.services import images
 from app.modules.organization.models import Branch
 from app.modules.sales.services import pricing
@@ -53,6 +62,9 @@ def bootstrap(s: Session, actor: Actor) -> BootstrapOut:
         for b in s.scalars(select(StockBalance).where(StockBalance.warehouse_id == wh))
     }
 
+    codes: dict[object, list[AppBarcode]] = {}
+    for b in s.scalars(select(ItemBarcode).order_by(ItemBarcode.barcode)):
+        codes.setdefault(b.item_id, []).append(AppBarcode(barcode=b.barcode, unit_id=b.unit_id))
     photos = images.image_ids(s)
     items = []
     for i in s.scalars(select(Item).where(Item.is_active == true()).order_by(Item.name)):
@@ -92,6 +104,7 @@ def bootstrap(s: Session, actor: Actor) -> BootstrapOut:
                 stock=stock.get(i.id) if i.item_type == "goods" else None,
                 vat_exempt=i.vat_exempt,
                 image_ids=photos.get(i.id, []),
+                barcodes=codes.get(i.id, []),
             )
         )
 

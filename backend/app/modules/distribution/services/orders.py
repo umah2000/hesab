@@ -42,7 +42,7 @@ from app.modules.distribution.schemas import (
     VisitIn,
     VisitOut,
 )
-from app.modules.distribution.services import visitors
+from app.modules.distribution.services import notify, visitors
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
 from app.modules.inventory.models import Item, Unit, Warehouse
@@ -368,6 +368,9 @@ def record_visit(s: Session, actor: Actor, data: VisitIn) -> tuple[VisitOut, boo
         outcome=data.outcome,
         note=data.note,
         order_id=data.order_id,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        accuracy_m=data.accuracy_m,
     )
     s.add(visit)
     s.flush()
@@ -387,6 +390,8 @@ def _visit_out(s: Session, visit: Visit) -> VisitOut:
         outcome=visit.outcome,  # type: ignore[arg-type]
         note=visit.note,
         order_id=visit.order_id,
+        latitude=visit.latitude,
+        longitude=visit.longitude,
     )
 
 
@@ -456,6 +461,31 @@ def _audit(s: Session, actor: Actor, o: SalesOrder, action: str, **data: object)
         entity_type="sales_order",
         entity_id=o.id,
         data={"number": o.number, "total": str(o.grand_total), **data},
+    )
+    _tell(s, o, action, data)
+
+
+_TOLD = {
+    "approved": ("سفارش {n} تأیید شد", "✓"),
+    "rejected": ("سفارش {n} رد شد", "✕"),
+    "invoiced": ("سفارش {n} فاکتور شد", "🧾"),
+    "delivered": ("سفارش {n} تحویل شد", "🚚"),
+}
+
+
+def _tell(s: Session, o: SalesOrder, action: str, data: dict[str, object]) -> None:
+    """The visitor hears about every decision on their order (ADR-0026)."""
+    if action not in _TOLD:
+        return
+    customer = s.get(DetailAccount, o.customer_id)
+    title = _TOLD[action][0].format(n=o.number or "")
+    parts = [customer.name if customer else ""]
+    if action == "rejected" and data.get("note"):
+        parts.append(f"علت: {data['note']}")
+    if action == "invoiced" and data.get("invoice"):
+        parts.append(f"فاکتور {data['invoice']}")
+    notify.notify(
+        s, o.visitor_id, f"order_{action}", title, " · ".join(p for p in parts if p), "order", o.id
     )
 
 
