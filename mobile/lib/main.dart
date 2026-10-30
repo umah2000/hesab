@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 
 import 'src/api.dart';
 import 'src/db.dart';
+import 'src/device.dart';
 import 'src/state.dart';
 import 'src/tokens.dart';
 import 'src/ui/app.dart';
@@ -14,7 +15,11 @@ Future<void> main() async {
     databaseFactory,
     p.join(await getDatabasesPath(), 'nextcam_visitor.db'),
   );
-  final state = AppState(api: ApiClient(SecureTokenStore()), db: db);
+  final state = AppState(
+    api: ApiClient(SecureTokenStore()),
+    db: db,
+    device: PhoneServices(),
+  );
   await state.start();
   runApp(VisitorApp(state: state));
 }

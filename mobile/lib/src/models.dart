@@ -16,7 +16,9 @@ class Customer {
       creditLimit = _d(j['credit_limit']),
       creditUnlimited = (j['credit_unlimited'] as bool?) ?? false,
       balance = Decimal.parse(j['balance'] as String),
-      available = _d(j['available']);
+      available = _d(j['available']),
+      latitude = _d(j['latitude']),
+      longitude = _d(j['longitude']);
 
   final String id;
   final String code;
@@ -30,6 +32,12 @@ class Customer {
   final bool creditUnlimited;
   final Decimal balance;
   final Decimal? available;
+
+  /// Where the shop is, for navigation (ADR-0026); null until someone records it.
+  final Decimal? latitude;
+  final Decimal? longitude;
+
+  bool get located => latitude != null && longitude != null;
 }
 
 class ItemUnit {
@@ -61,7 +69,11 @@ class Item {
       vatExempt = j['vat_exempt'] as bool,
       imageIds = ((j['image_ids'] as List?) ?? const [])
           .cast<String>()
-          .toList();
+          .toList(),
+      barcodes = {
+        for (final b in (j['barcodes'] as List?) ?? const [])
+          (b as Map)['barcode'] as String: b['unit_id'] as String?,
+      };
 
   final String id;
   final String code;
@@ -74,6 +86,9 @@ class Item {
 
   /// Product photos, main first (ADR-0022).
   final List<String> imageIds;
+
+  /// Barcode → unit (null = base unit), for the camera scanner.
+  final Map<String, String?> barcodes;
 
   ItemUnit unit(String id) =>
       units.firstWhere((u) => u.unitId == id, orElse: () => units.first);
@@ -88,6 +103,7 @@ class Catalog {
       currency = (j['settings'] as Map)['display_currency'] as String,
       pricesIncludeVat = (j['settings'] as Map)['prices_include_vat'] as bool,
       generatedAt = DateTime.parse(j['generated_at'] as String),
+      apiLevel = (j['api_level'] as num?)?.toInt() ?? 1,
       customers = (j['customers'] as List)
           .map((c) => Customer.fromJson(c as Map<String, dynamic>))
           .toList(),
@@ -96,6 +112,9 @@ class Catalog {
           .toList();
 
   final String visitorName;
+
+  /// 2 from a server with the v2 endpoints (ADR-0026); a server not yet updated sends none.
+  final int apiLevel;
   final String visitorCode;
   final String branchName;
   final String organization;
@@ -119,14 +138,28 @@ class Catalog {
     return null;
   }
 
+  /// The item (and unit) a scanned barcode or typed code belongs to.
+  (Item, String)? byBarcode(String code) {
+    final c = code.trim();
+    if (c.isEmpty) return null;
+    for (final i in items) {
+      if (i.barcodes.containsKey(c)) return (i, i.barcodes[c] ?? i.baseUnitId);
+    }
+    for (final i in items) {
+      if (i.code == c) return (i, i.baseUnitId);
+    }
+    return null;
+  }
+
   List<Item> search(String text, {int limit = 30}) {
-    final q = text.trim().toLowerCase();
+    final q = searchKey(text);
     if (q.isEmpty) return items.take(limit).toList();
     return items
         .where(
           (i) =>
-              i.name.toLowerCase().contains(q) ||
-              i.code.toLowerCase().startsWith(q),
+              searchKey(i.name).contains(q) ||
+              searchKey(i.code).startsWith(q) ||
+              i.barcodes.keys.any((b) => b == text.trim()),
         )
         .take(limit)
         .toList();
@@ -168,7 +201,51 @@ const orderStatusLabel = {
 
 const visitOutcomeLabel = {
   'order': 'سفارش گرفت',
-  'no_order': 'بدون سفارش',
+  'no_order': 'نیاز نداشت',
   'closed': 'مغازه بسته بود',
   'absent': 'مسئول خرید نبود',
+  'stocked': 'موجودی داشت',
+  'price': 'قیمت یا شرایط',
+  'credit': 'اعتبار کافی نبود',
 };
+
+/// Reasons a visitor can give for a visit without an order.
+const noOrderOutcomes = [
+  'no_order',
+  'stocked',
+  'price',
+  'credit',
+  'closed',
+  'absent',
+];
+
+const collectionMethodLabel = {
+  'cash': 'نقد',
+  'cheque': 'چک',
+  'transfer': 'کارت‌به‌کارت',
+};
+
+const requestStatusLabel = {
+  'pending': 'در انتظار تأیید',
+  'approved': 'تأیید شد',
+  'rejected': 'رد شد',
+};
+
+/// Persian letters and digits made comparable (ي/ك → ی/ک, digits to Latin, no ZWNJ).
+String searchKey(String s) {
+  const fa = '۰۱۲۳۴۵۶۷۸۹';
+  const ar = '٠١٢٣٤٥٦٧٨٩';
+  final b = StringBuffer();
+  for (final ch in s.toLowerCase().runes) {
+    var c = String.fromCharCode(ch);
+    final i = fa.indexOf(c);
+    final j = ar.indexOf(c);
+    if (i >= 0) c = '$i';
+    if (j >= 0) c = '$j';
+    if (c == 'ي') c = 'ی';
+    if (c == 'ك') c = 'ک';
+    if (c == '\u200c' || c == ' ') continue;
+    b.write(c);
+  }
+  return b.toString();
+}

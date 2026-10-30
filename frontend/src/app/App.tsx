@@ -36,6 +36,7 @@ import {
   VisitorsPage,
   VisitsPage,
 } from "@/features/distribution/DistributionPages";
+import { CollectionsPage, CustomerRequestsPage, DistributionHome, TargetsPage } from "@/features/distribution/FieldPages";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import {
   FollowUpsPage,
@@ -170,12 +171,15 @@ const router = createBrowserRouter([
         path: "distribution",
         element: <DistributionLayout />,
         children: [
-          { index: true, element: <Navigate to="orders" replace /> },
+          { index: true, element: <DistributionHome /> },
           { path: "orders", element: <DistributionOrdersPage /> },
           { path: "orders/:id", element: <OrderPage /> },
           { path: "visitors", element: <VisitorsPage /> },
           { path: "visitors/:id", element: <VisitorPage /> },
           { path: "visits", element: <VisitsPage /> },
+          { path: "collections", element: <CollectionsPage /> },
+          { path: "customer-requests", element: <CustomerRequestsPage /> },
+          { path: "targets", element: <TargetsPage /> },
         ],
       },
       {

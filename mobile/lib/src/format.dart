@@ -100,6 +100,64 @@ String qty(String q) {
   return (jy, jm, jd);
 }
 
+/// Jalali → Gregorian (the inverse of [toJalali]); a UTC date at midnight.
+DateTime fromJalali(int jy, int jm, int jd) {
+  final jy2 = jy + 1595;
+  var days =
+      -355668 +
+      365 * jy2 +
+      (jy2 ~/ 33) * 8 +
+      ((jy2 % 33) + 3) ~/ 4 +
+      jd +
+      (jm < 7 ? (jm - 1) * 31 : (jm - 7) * 30 + 186);
+  var gy = 400 * (days ~/ 146097);
+  days %= 146097;
+  if (days > 36524) {
+    days--;
+    gy += 100 * (days ~/ 36524);
+    days %= 36524;
+    if (days >= 365) days++;
+  }
+  gy += 4 * (days ~/ 1461);
+  days %= 1461;
+  if (days > 365) {
+    gy += (days - 1) ~/ 365;
+    days = (days - 1) % 365;
+  }
+  var gd = days + 1;
+  final leap = (gy % 4 == 0 && gy % 100 != 0) || gy % 400 == 0;
+  final months = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  var gm = 0;
+  while (gm < 12 && gd > months[gm]) {
+    gd -= months[gm];
+    gm++;
+  }
+  return DateTime.utc(gy, gm + 1, gd);
+}
+
+/// Days in a Jalali month (Esfand: 29, or 30 in a leap year).
+int jalaliMonthDays(int jy, int jm) {
+  if (jm <= 6) return 31;
+  if (jm <= 11) return 30;
+  final next = fromJalali(jy + 1, 1, 1);
+  return next.difference(fromJalali(jy, 12, 1)).inDays;
+}
+
+const jalaliMonths = [
+  'فروردین',
+  'اردیبهشت',
+  'خرداد',
+  'تیر',
+  'مرداد',
+  'شهریور',
+  'مهر',
+  'آبان',
+  'آذر',
+  'دی',
+  'بهمن',
+  'اسفند',
+];
+
 /// Iran has kept UTC+03:30 all year since 2022.
 DateTime tehran(DateTime t) =>
     t.toUtc().add(const Duration(hours: 3, minutes: 30));
@@ -130,3 +188,17 @@ const weekdayNames = [
   'پنجشنبه',
   'جمعه',
 ];
+
+/// An amount typed in the display currency (toman or rial) → rials; null if invalid.
+Decimal? rialsFromInput(String raw, String currency) {
+  final t = enDigits(raw)
+      .replaceAll(RegExp(r'[٬,\s]'), '')
+      .replaceAll('٫', '.');
+  final v = Decimal.tryParse(t);
+  if (v == null || v <= Decimal.zero) return null;
+  return currency == 'IRT' ? (v * _ten).round() : v.round();
+}
+
+/// A server date (yyyy-mm-dd) in Jalali.
+String jalaliDay(String isoDate) =>
+    jalaliDate(DateTime.parse('${isoDate}T12:00:00Z'));

@@ -44,6 +44,10 @@ PASSWORD = "Test-Passw0rd"
 _TABLES = [
     "integration_event",
     "integration_document",
+    "visitor_notification",
+    "visitor_collection",
+    "customer_request",
+    "visitor_target",
     "visit",
     "sales_order_line",
     "sales_order",

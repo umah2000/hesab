@@ -6,6 +6,7 @@ import '../format.dart';
 import '../models.dart';
 import '../state.dart';
 import 'gallery.dart';
+import 'scan.dart';
 import 'widgets.dart';
 
 /// Writing an order. Offline the phone shows list prices only; the final price
@@ -70,6 +71,35 @@ class _OrderScreenState extends State<OrderScreen> {
     _changed();
   }
 
+  /// A scanned barcode adds one of that item (a pack barcode adds one pack).
+  Future<void> _scan() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final code = await scanBarcode(context);
+    if (code == null) return;
+    final found = _cat.byBarcode(code);
+    if (found == null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('کالایی با بارکد ${faDigits(code)} پیدا نشد')),
+      );
+      return;
+    }
+    final (item, unitId) = found;
+    final existing = _lines.where(
+      (l) => l.item.id == item.id && l.unitId == unitId,
+    );
+    if (existing.isNotEmpty) {
+      existing.first.qty += Decimal.one;
+    } else {
+      _lines.add(DraftLine(item, unitId, Decimal.one));
+    }
+    _changed();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('${item.name} (${item.unit(unitId).name}) اضافه شد'),
+      ),
+    );
+  }
+
   Future<void> _getQuote() async {
     setState(() {
       _busy = true;
@@ -119,7 +149,16 @@ class _OrderScreenState extends State<OrderScreen> {
     final outline = Theme.of(context).colorScheme.outline;
     final list = _listTotal;
     return Scaffold(
-      appBar: AppBar(title: Text('سفارش ${widget.customer.name}')),
+      appBar: AppBar(
+        title: Text('سفارش ${widget.customer.name}'),
+        actions: [
+          IconButton(
+            tooltip: 'اسکن بارکد کالا',
+            onPressed: _scan,
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addItem,
         icon: const Icon(Icons.add_rounded),

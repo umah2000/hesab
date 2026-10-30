@@ -10,11 +10,14 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:decimal/decimal.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:nextcam_visitor/src/api.dart';
 import 'package:nextcam_visitor/src/db.dart';
+import 'package:nextcam_visitor/src/device.dart';
 import 'package:nextcam_visitor/src/models.dart';
+import 'package:nextcam_visitor/src/state.dart';
 import 'package:nextcam_visitor/src/sync.dart';
 import 'package:nextcam_visitor/src/tokens.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -132,6 +135,70 @@ void main() {
       // …and the reuse closed the whole session, as a stolen token should.
       await expectLater(api.myOrders(), throwsA(isA<ApiException>()));
       expect(store.session, isNull);
+      await db.db.close();
+    },
+    skip: server == null ? 'NEXTCAM_TEST_SERVER not set' : false,
+  );
+
+  // ADR-0026: everything the v2 screens queue is accepted by the real server, with the
+  // position a real phone gives (fractional accuracy) and the new visit outcomes.
+  test(
+    'v2: visits with position, collections, new customers and reads',
+    () async {
+      final db = await LocalDb.open(databaseFactoryFfi, inMemoryDatabasePath);
+      final api = ApiClient(MemoryTokenStore(), client: http.Client());
+      await api.login(
+        server!,
+        env['NEXTCAM_TEST_USER']!,
+        env['NEXTCAM_TEST_PASSWORD']!,
+        'test-vm',
+      );
+      final device = FakeDevice()
+        ..here = const GeoPoint(36.29013, 59.60702, 8.4);
+      final s = AppState(api: api, db: db, device: device);
+      await s.syncNow();
+      await s.setGps(true);
+      final c = s.catalog!.customers.first;
+      final item = s.catalog!.items.firstWhere(
+        (i) => i.units.first.price != null,
+      );
+
+      await s.placeOrder(c, [
+        DraftLine(item, item.units.first.unitId, Decimal.fromInt(2)),
+      ]);
+      await s.logVisit(c, 'stocked', 'آزمون');
+      await s.addCollection({
+        'customer_id': c.id,
+        'method': 'cash',
+        'amount': '250000',
+      });
+      await s.addCustomerRequest({
+        'name': 'فروشگاه آزمون ${DateTime.now().millisecondsSinceEpoch}',
+        'mobile': '09123456789',
+        'visit_weekday': 2,
+      }, at: device.here);
+      await s.setCustomerLocation(c, device.here!);
+      while (s.syncing) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      await s.syncNow();
+
+      final failed = s.outbox.where((e) => e.status == 'failed').toList();
+      expect(failed.map((e) => '${e.kind}: ${e.error}'), isEmpty);
+      expect(s.pending, 0);
+      expect(s.collections, isNotEmpty);
+      expect(s.customerRequests, isNotEmpty);
+
+      final (history, _) = await s.customerHistory(c.id);
+      expect(history, isNotNull);
+      final (account, _) = await s.customerAccount(c.id);
+      expect(account, isNotNull);
+      for (final period in ['day', 'week', 'month']) {
+        final (r, fresh) = await s.report(period);
+        expect((r!['current']['ordered_count'] as num) >= 1, isTrue);
+        expect(fresh, isTrue);
+      }
+      s.dispose();
       await db.db.close();
     },
     skip: server == null ? 'NEXTCAM_TEST_SERVER not set' : false,

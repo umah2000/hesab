@@ -28,15 +28,21 @@ import {
   type Visit,
   type Visitor,
   WEEKDAYS,
+  mapLink,
 } from "./api";
 
 const MANAGE = "distribution.manage";
 const onError = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "خطا");
 
+const TREASURY = "treasury.manage";
+
 const TABS = [
-  { to: "/distribution/orders", label: "سفارش‌ها" },
-  { to: "/distribution/visitors", label: "ویزیتورها و مسیر" },
-  { to: "/distribution/visits", label: "بازدیدها" },
+  { to: "/distribution/orders", label: "سفارش‌ها", perms: [MANAGE] },
+  { to: "/distribution/collections", label: "وصول وجه", perms: [MANAGE, TREASURY] },
+  { to: "/distribution/customer-requests", label: "مشتری جدید", perms: [MANAGE] },
+  { to: "/distribution/targets", label: "هدف فروش", perms: [MANAGE] },
+  { to: "/distribution/visitors", label: "ویزیتورها و مسیر", perms: [MANAGE] },
+  { to: "/distribution/visits", label: "بازدیدها", perms: [MANAGE] },
 ];
 
 export function DistributionLayout() {
@@ -54,10 +60,10 @@ export function DistributionLayout() {
           ) : null
         }
       />
-      {can(MANAGE) ? (
+      {can(MANAGE) || can(TREASURY) ? (
         <>
           <nav className="no-print glass mb-4 flex gap-1 overflow-x-auto rounded-2xl p-1.5" aria-label="بخش‌های توزیع">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t.perms.some((p) => can(p))).map((t) => (
               <NavLink
                 key={t.to}
                 to={t.to}
@@ -76,7 +82,7 @@ export function DistributionLayout() {
         </>
       ) : (
         <Card>
-          <EmptyState icon={ShieldAlert} title="دسترسی ندارید" description="برای این بخش مجوز «distribution.manage» لازم است." />
+          <EmptyState icon={ShieldAlert} title="دسترسی ندارید" description="برای این بخش مجوز «distribution.manage» (یا برای وصول‌ها «treasury.manage») لازم است." />
         </Card>
       )}
     </>
@@ -596,6 +602,7 @@ export function VisitsPage() {
                 <Th>مشتری</Th>
                 <Th>نتیجه</Th>
                 <Th>توضیح</Th>
+                <Th>مکان</Th>
               </tr>
             </thead>
             <tbody>
@@ -615,6 +622,15 @@ export function VisitsPage() {
                     ) : null}
                   </Td>
                   <Td className="text-ink-soft">{v.note ?? "—"}</Td>
+                  <Td>
+                    {v.latitude && v.longitude ? (
+                      <a className="text-xs text-brand-600 underline" href={mapLink(v.latitude, v.longitude)} target="_blank" rel="noreferrer">
+                        نقشه
+                      </a>
+                    ) : (
+                      <span className="text-xs text-ink-faint">—</span>
+                    )}
+                  </Td>
                 </Tr>
               ))}
             </tbody>

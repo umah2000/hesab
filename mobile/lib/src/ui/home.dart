@@ -7,7 +7,16 @@ import '../db.dart';
 import '../format.dart';
 import '../models.dart';
 import '../state.dart';
+import 'collection.dart';
 import 'customer.dart';
+import 'glass.dart';
+import 'new_customer.dart';
+import 'notifications.dart';
+import 'order_detail.dart';
+import 'parts.dart';
+import 'report.dart';
+import 'scan.dart';
+import 'search.dart';
 import 'widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -28,49 +37,116 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final s = widget.state;
     final cat = s.catalog;
+    final t = Theme.of(context);
+    final name = cat?.visitorName ?? s.session?.fullName ?? '';
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 16,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              cat?.visitorName ?? s.session?.fullName ?? '',
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(80),
+        child: SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+            child: GlassPanel(
+              radius: const BorderRadius.all(Radius.circular(22)),
+              padding: const EdgeInsetsDirectional.fromSTEB(12, 8, 4, 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: const LinearGradient(colors: [brand, brand2]),
+                    ),
+                    child: Text(
+                      name.isEmpty ? '؟' : name.characters.first,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        if (cat != null)
+                          Text(
+                            '${cat.organization} · ${cat.branchName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: t.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(99),
+                    onTap: s.syncing ? null : s.syncNow,
+                    child: SyncBadge(state: s),
+                  ),
+                  IconButton(
+                    tooltip: 'اعلان‌ها',
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => NotificationsScreen(state: s),
+                      ),
+                    ),
+                    icon: Badge(
+                      isLabelVisible: s.unread > 0,
+                      label: Text(faDigits(s.unread)),
+                      child: const Icon(Icons.notifications_rounded),
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'بیشتر',
+                    onSelected: (v) async {
+                      if (v == 'logout') await _confirmLogout(context);
+                      if (v == 'lite') await s.setLite(!s.lite);
+                      if (v == 'gps') await s.setGps(!s.gps);
+                      if (v == 'photos' && context.mounted) {
+                        await _downloadPhotos(context);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'photos',
+                        child: Text('دریافت عکس‌ها برای کار بدون اینترنت'),
+                      ),
+                      CheckedPopupMenuItem(
+                        value: 'gps',
+                        checked: s.gps,
+                        child: const Text('ثبت مکان بازدید و وصول'),
+                      ),
+                      CheckedPopupMenuItem(
+                        value: 'lite',
+                        checked: s.lite,
+                        child: const Text('حالت سبک (بدون جلوه‌ی شیشه)'),
+                      ),
+                      const PopupMenuItem(value: 'logout', child: Text('خروج')),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            if (cat != null)
-              Text(
-                '${cat.organization} · ${cat.branchName}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-              ),
-          ],
+          ),
         ),
-        actions: [
-          SyncBadge(state: s),
-          IconButton(
-            tooltip: 'ارسال و به‌روزرسانی',
-            onPressed: s.syncing ? null : s.syncNow,
-            icon: const Icon(Icons.sync_rounded),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              if (v == 'logout') await _confirmLogout(context);
-              if (v == 'photos' && context.mounted) {
-                await _downloadPhotos(context);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'photos',
-                child: Text('دریافت عکس‌ها برای کار بدون اینترنت'),
-              ),
-              PopupMenuItem(value: 'logout', child: Text('خروج')),
-            ],
-          ),
-        ],
       ),
       body: cat == null
           ? EmptyView(
@@ -91,29 +167,42 @@ class _HomeScreenState extends State<HomeScreen> {
                 now: widget.now ?? DateTime.now(),
               ),
               1 => _OrdersTab(state: s, catalog: cat),
+              2 => ReportTab(state: s, today: widget.now),
               _ => _OutboxTab(state: s, catalog: cat),
             },
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.people_alt_rounded),
-            label: 'مشتریان',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.receipt_long_rounded),
-            label: 'سفارش‌ها',
-          ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: s.pending + s.failed > 0,
-              label: Text(faDigits(s.pending + s.failed)),
-              child: const Icon(Icons.outbox_rounded),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+          child: GlassPanel(
+            child: NavigationBar(
+              selectedIndex: _tab,
+              onDestinationSelected: (i) => setState(() => _tab = i),
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.people_alt_rounded),
+                  label: 'مشتریان',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.receipt_long_rounded),
+                  label: 'سفارش‌ها',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.insights_rounded),
+                  label: 'گزارش من',
+                ),
+                NavigationDestination(
+                  icon: Badge(
+                    isLabelVisible: s.pending + s.failed > 0,
+                    label: Text(faDigits(s.pending + s.failed)),
+                    child: const Icon(Icons.outbox_rounded),
+                  ),
+                  label: 'صف',
+                ),
+              ],
             ),
-            label: 'صف ارسال',
           ),
-        ],
+        ),
       ),
     );
   }
@@ -211,7 +300,6 @@ class _CustomersTab extends StatefulWidget {
 
 class _CustomersTabState extends State<_CustomersTab> {
   bool _today = true;
-  String _q = '';
 
   @override
   Widget build(BuildContext context) {
@@ -221,15 +309,29 @@ class _CustomersTabState extends State<_CustomersTab> {
       if (_today && c.visitWeekday != null && c.visitWeekday != day) {
         return false;
       }
-      final q = _q.trim();
-      return q.isEmpty ||
-          c.name.contains(q) ||
-          c.code.toLowerCase().contains(q.toLowerCase());
+      return true;
     }).toList();
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: SearchBarButton(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SearchScreen(state: widget.state),
+              ),
+            ),
+          ),
+        ),
+        if (widget.state.serverOld)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: ServerOutdatedNote(state: widget.state),
+          ),
+        _TargetCard(state: widget.state, today: widget.now),
+        _QuickActions(state: widget.state, today: list),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
           child: SegmentedButton<bool>(
             segments: [
               ButtonSegment(
@@ -243,17 +345,6 @@ class _CustomersTabState extends State<_CustomersTab> {
             ],
             selected: {_today},
             onSelectionChanged: (v) => setState(() => _today = v.first),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: TextField(
-            onChanged: (v) => setState(() => _q = v),
-            decoration: const InputDecoration(
-              hintText: 'جست‌وجوی مشتری',
-              prefixIcon: Icon(Icons.search_rounded),
-              isDense: true,
-            ),
           ),
         ),
         Expanded(
@@ -307,9 +398,21 @@ class _CustomerCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Text(c.name.characters.first),
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  c.name.characters.first,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -407,6 +510,11 @@ class _OrdersTab extends StatelessWidget {
               onCancel: o['status'] == 'submitted'
                   ? () => _cancel(context, o['id'] as String)
                   : null,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => OrderDetailScreen(state: state, order: o),
+                ),
+              ),
             ),
             const SizedBox(height: 8),
           ],
@@ -439,7 +547,9 @@ class _OrderTile extends StatelessWidget {
     required this.currency,
     this.note,
     this.onCancel,
+    this.onTap,
   });
+  final VoidCallback? onTap;
   final String title;
   final String subtitle;
   final dynamic amount;
@@ -452,45 +562,49 @@ class _OrderTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final outline = Theme.of(context).colorScheme.outline;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  StatusChip(status),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(subtitle, style: TextStyle(fontSize: 12, color: outline)),
+              if (amount != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  money(amount, currency, unit: true),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+              if (note != null) ...[
+                const SizedBox(height: 4),
+                Text('علت: $note', style: const TextStyle(fontSize: 12)),
+              ],
+              if (onCancel != null)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    onPressed: onCancel,
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                    label: const Text('لغو سفارش'),
                   ),
                 ),
-                StatusChip(status),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(fontSize: 12, color: outline)),
-            if (amount != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                money(amount, currency, unit: true),
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
             ],
-            if (note != null) ...[
-              const SizedBox(height: 4),
-              Text('علت: $note', style: const TextStyle(fontSize: 12)),
-            ],
-            if (onCancel != null)
-              Align(
-                alignment: AlignmentDirectional.centerEnd,
-                child: TextButton.icon(
-                  onPressed: onCancel,
-                  icon: const Icon(Icons.close_rounded, size: 18),
-                  label: const Text('لغو سفارش'),
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -509,6 +623,7 @@ class _OutboxTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ServerOutdatedNote(state: state),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -557,10 +672,14 @@ class _OutboxTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = entry;
     final customer =
-        catalog.customer(e.payload['customer_id'] as String)?.name ?? '';
-    final what = e.kind == 'order'
-        ? 'سفارش ${faDigits((e.payload['lines'] as List).length)} قلمی'
-        : 'بازدید: ${visitOutcomeLabel[e.payload['outcome']] ?? ''}';
+        catalog.customer(e.payload['customer_id'] as String? ?? '')?.name ?? '';
+    final what = switch (e.kind) {
+      'order' => 'سفارش ${faDigits((e.payload['lines'] as List).length)} قلمی',
+      'collection' =>
+        'وصول ${collectionMethodLabel[e.payload['method']] ?? ''} ${money(dec(e.payload['amount'] as String), catalog.currency)}',
+      'customer_request' => 'مشتری جدید: ${e.payload['name']}',
+      _ => 'بازدید: ${visitOutcomeLabel[e.payload['outcome']] ?? ''}',
+    };
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -571,7 +690,7 @@ class _OutboxTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '$what — $customer',
+                    customer.isEmpty ? what : '$what — $customer',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -603,6 +722,193 @@ class _OutboxTile extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// This month's target and progress (the invoiced amount), from the last report the
+/// phone fetched; hidden when the manager set none.
+class _TargetCard extends StatefulWidget {
+  const _TargetCard({required this.state, required this.today});
+  final AppState state;
+  final DateTime today;
+
+  @override
+  State<_TargetCard> createState() => _TargetCardState();
+}
+
+class _TargetCardState extends State<_TargetCard> {
+  late final Future<(Map<String, dynamic>?, bool)> _load = widget.state.report(
+    'month',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _load,
+      builder: (context, snap) {
+        final r = snap.data?.$1;
+        if (r == null || r['target'] == null) return const SizedBox(height: 6);
+        final target = dec(r['target'] as String);
+        final done = dec(r['target_progress'] as String? ?? '0');
+        final frac = target == dec('0') ? 0.0 : (done / target).toDouble();
+        final (jy, jm, jd) = toJalali(tehran(widget.today));
+        final left = jalaliMonthDays(jy, jm) - jd;
+        final cur = widget.state.catalog?.currency ?? 'IRT';
+        final soft = Theme.of(context).colorScheme.onSurfaceVariant;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'هدف فروش ${jalaliMonths[jm - 1]}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      Text(
+                        '${faDigits(left)} روز مانده',
+                        style: TextStyle(fontSize: 11, color: soft),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${money(done, cur)} از ${money(target, cur, unit: true)}',
+                          style: TextStyle(fontSize: 12, color: soft),
+                        ),
+                      ),
+                      Text(
+                        '${faDigits((frac * 100).round())}٪',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: frac.clamp(0, 1),
+                      minHeight: 8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({required this.state, required this.today});
+  final AppState state;
+  final List<Customer> today;
+
+  Future<void> _route(BuildContext context) async {
+    final located = today.where((c) => c.located).toList();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => located.isEmpty
+          ? const SizedBox(
+              height: 160,
+              child: EmptyView(
+                icon: Icons.location_off_rounded,
+                title: 'مکان مشتریان امروز ثبت نشده',
+                detail: 'در صفحه‌ی هر مشتری، کنار مغازه «ثبت مکان» را بزنید.',
+              ),
+            )
+          : ListView(
+              shrinkWrap: true,
+              children: [
+                for (final c in located)
+                  ListTile(
+                    leading: const Icon(Icons.storefront_rounded),
+                    title: Text(c.name),
+                    subtitle: c.address == null ? null : Text(c.address!),
+                    trailing: const Icon(Icons.directions_rounded),
+                    onTap: () => state.device.openMap(
+                      c.latitude!.toDouble(),
+                      c.longitude!.toDouble(),
+                      c.name,
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Theme.of(context).colorScheme.primary;
+    Widget action(IconData icon, String label, VoidCallback onTap) => Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              child: Column(
+                children: [
+                  Icon(icon, color: p, size: 22),
+                  const SizedBox(height: 3),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: p,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    void open(Widget screen) =>
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(13, 8, 13, 4),
+      child: Row(
+        children: [
+          action(
+            Icons.payments_rounded,
+            'وصول وجه',
+            () => open(CollectionScreen(state: state)),
+          ),
+          action(
+            Icons.person_add_alt_1_rounded,
+            'مشتری جدید',
+            () => open(NewCustomerScreen(state: state)),
+          ),
+          action(Icons.qr_code_scanner_rounded, 'اسکن کالا', () async {
+            final code = await scanBarcode(context);
+            if (code != null && context.mounted) {
+              open(SearchScreen(state: state, initial: code));
+            }
+          }),
+          action(Icons.route_rounded, 'مسیر امروز', () => _route(context)),
+        ],
       ),
     );
   }
