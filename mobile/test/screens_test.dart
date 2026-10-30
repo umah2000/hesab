@@ -49,6 +49,7 @@ Map<String, dynamic> unit(
 
 final bootstrap = {
   'version': 'v1',
+  'api_level': 2,
   'generated_at': now.toIso8601String(),
   'visitor': {
     'id': 'v1',
@@ -720,6 +721,23 @@ void main() {
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/109-app-offline-queue.png'),
+    );
+  });
+
+  screenTest('a server not yet updated to v2', (tester) async {
+    await loadFonts();
+    final state = await makeState(tester, online: false);
+    await tester.runAsync(() async {
+      await state.db.put('server_api_level', '1');
+      await state.reload();
+    });
+    await shot(tester, HomeScreen(state: state, now: now), null);
+    await tester.tap(find.text('صف'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.textContaining('نسخه‌ی سرور قدیمی است'), findsOneWidget);
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('goldens/131-app-server-outdated.png'),
     );
   });
 

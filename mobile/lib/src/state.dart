@@ -69,6 +69,9 @@ class AppState extends ChangeNotifier {
   Session? get session => api.session;
   bool get signedIn => api.session != null;
   int get pending => outbox.where((e) => e.status == 'pending').length;
+
+  /// The server lacks the v2 endpoints: visits, collections and requests wait (ADR-0026).
+  bool serverOld = false;
   int get failed => outbox.where((e) => e.status == 'failed').length;
   int get unread => notifications.where((n) => n['read_at'] == null).length;
 
@@ -114,6 +117,7 @@ class AppState extends ChangeNotifier {
     customerRequests = await _list('customer_requests', user);
     notifications = await _list('notifications', user);
     gps = await db.get('gps') == '1';
+    serverOld = await sync.serverIsOld();
     notifyListeners();
   }
 

@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../format.dart';
+import '../state.dart';
 import 'glass.dart';
 
 class SectionTitle extends StatelessWidget {
@@ -171,6 +172,40 @@ class OfflineNote extends StatelessWidget {
           icon: Icons.cloud_off_rounded,
           label: 'بدون اینترنت: آخرین داده‌ی ذخیره‌شده',
           color: StatusPill.warning,
+        ),
+      ),
+    );
+  }
+}
+
+/// The server has not been updated to v2 (ADR-0026): its work waits in the queue.
+class ServerOutdatedNote extends StatelessWidget {
+  const ServerOutdatedNote({super.key, required this.state});
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!state.serverOld) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        color: StatusPill.warning.withValues(alpha: .10),
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.system_update_rounded, color: StatusPill.warning),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'نسخه‌ی سرور قدیمی است. سفارش‌ها ارسال می‌شوند، ولی بازدید، وصول و مشتری جدید '
+                  'تا به‌روزرسانی سرور در صف می‌مانند و بعد خودکار ارسال می‌شوند.',
+                  style: TextStyle(fontSize: 13, height: 1.6),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

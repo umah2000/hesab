@@ -13,6 +13,7 @@ import 'glass.dart';
 import 'new_customer.dart';
 import 'notifications.dart';
 import 'order_detail.dart';
+import 'parts.dart';
 import 'report.dart';
 import 'scan.dart';
 import 'search.dart';
@@ -322,6 +323,11 @@ class _CustomersTabState extends State<_CustomersTab> {
             ),
           ),
         ),
+        if (widget.state.serverOld)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: ServerOutdatedNote(state: widget.state),
+          ),
         _TargetCard(state: widget.state, today: widget.now),
         _QuickActions(state: widget.state, today: list),
         Padding(
@@ -617,6 +623,7 @@ class _OutboxTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        ServerOutdatedNote(state: state),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(14),

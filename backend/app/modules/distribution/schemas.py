@@ -315,10 +315,16 @@ class AppVisitor(BaseModel):
     branch_name: str
 
 
+# What this server offers the app: 2 = visitor app v2 (ADR-0026). An older server sends none,
+# and the app then keeps v2 work (visits with position, collections, new customers) queued.
+APP_API_LEVEL = 2
+
+
 class BootstrapOut(BaseModel):
     """What the phone keeps for working without a connection (prices are an estimate)."""
 
     version: str
+    api_level: int = APP_API_LEVEL
     generated_at: datetime
     visitor: AppVisitor
     settings: AppSettings

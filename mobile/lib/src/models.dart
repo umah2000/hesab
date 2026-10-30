@@ -103,6 +103,7 @@ class Catalog {
       currency = (j['settings'] as Map)['display_currency'] as String,
       pricesIncludeVat = (j['settings'] as Map)['prices_include_vat'] as bool,
       generatedAt = DateTime.parse(j['generated_at'] as String),
+      apiLevel = (j['api_level'] as num?)?.toInt() ?? 1,
       customers = (j['customers'] as List)
           .map((c) => Customer.fromJson(c as Map<String, dynamic>))
           .toList(),
@@ -111,6 +112,9 @@ class Catalog {
           .toList();
 
   final String visitorName;
+
+  /// 2 from a server with the v2 endpoints (ADR-0026); a server not yet updated sends none.
+  final int apiLevel;
   final String visitorCode;
   final String branchName;
   final String organization;

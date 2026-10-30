@@ -42,6 +42,7 @@ Map<String, dynamic> note(String id, String kind, String title) => {
 
 final bootstrap = {
   'version': 'v1',
+  'api_level': 2,
   'generated_at': DateTime.now().toUtc().toIso8601String(),
   'visitor': {'id': 'v1', 'code': 'V01', 'name': 'رضا', 'branch_name': 'مرکزی'},
   'settings': {
@@ -196,6 +197,82 @@ void main() {
       s.dispose();
     },
   );
+
+  test('a server not yet updated: orders go, the rest waits and goes after the update', () async {
+    final v1 = {...bootstrap}..remove('api_level');
+    var level = <String, dynamic>{}; // v1: no api_level at all
+    final posted = <String>[];
+    final srv = FakeServer((req) {
+      final p = req.url.path;
+      if (p.endsWith('/bootstrap')) {
+        return json({...v1, ...level});
+      }
+      if (req.method == 'POST') {
+        final kind = p.split('/').last;
+        // A v1 server has neither the endpoints nor the new visit fields.
+        if (level.isEmpty && kind != 'orders') {
+          return kind == 'visits'
+              ? json({
+                  'error': {'message': 'ورودی نامعتبر است'},
+                }, 400)
+              : json({
+                  'error': {'message': 'مسیر یافت نشد'},
+                }, 404);
+        }
+        posted.add(kind);
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        return json({...body, 'status': 'pending', 'number': 1}, 201);
+      }
+      if (level.isEmpty && !p.endsWith('/orders')) {
+        return json({
+          'error': {'message': 'مسیر یافت نشد'},
+        }, 404);
+      }
+      return json(<dynamic>[]);
+    });
+    // An app updated over an older one: catalogue and ETag kept, no level yet.
+    await db.put('bootstrap', jsonEncode(v1));
+    await db.put('bootstrap_etag', '"1"');
+    final api = ApiClient(
+      MemoryTokenStore()..session = session(),
+      client: srv.client,
+    );
+    await api.restore();
+    final s = AppState(api: api, db: db, device: FakeDevice());
+    await s.reload();
+    await s.setGps(true);
+    final c = s.catalog!.customers.single;
+    final item = s.catalog!.items.single;
+    await s.placeOrder(c, [DraftLine(item, 'pcs', Decimal.one)]);
+    await s.addCollection({
+      'customer_id': 'c1',
+      'method': 'cash',
+      'amount': '5',
+    });
+    await settle(s);
+    await s.syncNow();
+    // The level was learnt (the ETag was not used for that), the order went, nothing failed.
+    expect(
+      srv.calls.any(
+        (r) =>
+            r.url.path.endsWith('/bootstrap') &&
+            !r.headers.containsKey('If-None-Match'),
+      ),
+      isTrue,
+    );
+    expect(s.serverOld, isTrue);
+    expect(posted, ['orders']);
+    expect(s.failed, 0);
+    expect(s.pending, 2); // the order's visit and the collection
+
+    // The server is updated: the held entries go out by themselves.
+    level = {'api_level': 2};
+    await s.syncNow();
+    expect(s.serverOld, isFalse);
+    expect(posted, ['orders', 'visits', 'collections']);
+    expect((s.pending, s.failed), (0, 0));
+    s.dispose();
+  });
 
   test(
     'the position goes with visits and collections only when allowed',
