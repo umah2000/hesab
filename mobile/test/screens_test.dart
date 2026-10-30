@@ -429,6 +429,9 @@ Future<AppState> makeState(WidgetTester tester, {bool online = true}) async {
   late AppState state;
   await tester.runAsync(() async {
     final db = await LocalDb.open(databaseFactoryFfi, inMemoryDatabasePath);
+    // The same in-memory path returns the same open database: close it, or the next
+    // screen starts with this one's queue and settings.
+    addTearDown(() => tester.runAsync(db.db.close));
     await db.put('bootstrap', jsonEncode(bootstrap));
     await db.put('synced_at', now.toIso8601String());
     for (final (id, file) in [
