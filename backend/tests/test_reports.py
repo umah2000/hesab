@@ -132,6 +132,15 @@ def test_sales_dashboard_and_shortages(app: Flask, pos: Pos, story: dict) -> Non
     assert [r["key"] for r in by_day["rows"]] == [tehran_today().isoformat()]
     cashiers = boss.get("/api/v1/reports/sales?group_by=cashier").get_json()
     assert len(cashiers["rows"]) == 2
+    # «همه» (ADR-0028): whole history, past the one-year limit of a chosen range.
+    everything = boss.get("/api/v1/reports/sales?group_by=item&all_time=true").get_json()
+    assert everything["totals"]["net_sales"] == "250000.0000"
+    too_long = boss.get("/api/v1/reports/sales?date_from=2024-01-01&date_to=2026-01-01")
+    assert too_long.get_json()["error"]["code"] == "range_too_long"
+    one_day = boss.get(
+        f"/api/v1/reports/sales?group_by=item&date_from={tehran_today()}&date_to={tehran_today()}"
+    ).get_json()
+    assert one_day["totals"]["net_sales"] == "250000.0000"
 
     dash = boss.get("/api/v1/reports/dashboard").get_json()
     cur = dash["current"]

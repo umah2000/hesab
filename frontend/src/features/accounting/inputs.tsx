@@ -1,6 +1,7 @@
-import { ChevronDown } from "lucide-react";
+import { CalendarDays, ChevronDown } from "lucide-react";
 import * as React from "react";
 import { Input } from "@/components/ui/form-controls";
+import { JalaliCalendar, Popover } from "@/components/ui/jalali-calendar";
 import { toEnDigits, toFaDigits } from "@/lib/format";
 import { isoToJalali, jalaliToIso } from "@/lib/jalali";
 import { groupDigits } from "@/lib/money";
@@ -8,7 +9,8 @@ import { amountHint } from "@/lib/words";
 import { cn } from "@/lib/utils";
 import { type Account, type DetailAccount, useCurrency } from "./api";
 
-/** Jalali date typed as 1405/07/19; emits ISO (Gregorian) or null while invalid. */
+/** Jalali date typed as 1405/07/19 or picked from the calendar that opens under the field;
+ * emits ISO (Gregorian) or null while invalid. */
 export function JalaliDateInput({
   value,
   onChange,
@@ -16,6 +18,8 @@ export function JalaliDateInput({
   id,
   invalid,
   placeholder = "سال/ماه/روز",
+  disabled,
+  "aria-label": ariaLabel,
 }: {
   value: string | null;
   onChange: (iso: string | null) => void;
@@ -23,28 +27,70 @@ export function JalaliDateInput({
   id?: string;
   invalid?: boolean;
   placeholder?: string;
+  disabled?: boolean;
+  "aria-label"?: string;
 }) {
   const [text, setText] = React.useState(value ? isoToJalali(value) : "");
+  const [open, setOpen] = React.useState(false);
+  const wrap = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (value && jalaliToIso(text) !== value) setText(isoToJalali(value));
+    if (!value && jalaliToIso(text) !== null) setText("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   const bad = invalid || (text !== "" && jalaliToIso(text) === null);
+  const close = React.useCallback(() => setOpen(false), []);
   return (
-    <Input
-      id={id}
-      dir="ltr"
-      inputMode="numeric"
-      placeholder={placeholder}
-      value={text}
-      aria-invalid={bad || undefined}
-      className={cn("tabular text-center", className)}
-      onChange={(e) => {
-        const t = toEnDigits(e.target.value).replace(/[^\d/-]/g, "").slice(0, 10);
-        setText(t);
-        onChange(jalaliToIso(t));
-      }}
-    />
+    <div ref={wrap} className={cn("relative", className)}>
+      <Input
+        id={id}
+        dir="ltr"
+        inputMode="numeric"
+        placeholder={placeholder}
+        value={text}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-invalid={bad || undefined}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        className={cn("tabular w-full pe-9 text-center", className)}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Tab") setOpen(false);
+        }}
+        onChange={(e) => {
+          const t = toEnDigits(e.target.value).replace(/[^\d/-]/g, "").slice(0, 10);
+          setText(t);
+          onChange(jalaliToIso(t));
+        }}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        disabled={disabled}
+        aria-label="باز کردن تقویم"
+        className="absolute inset-y-0 end-0 flex w-9 items-center justify-center text-ink-faint hover:text-brand-600"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <CalendarDays className="size-4" />
+      </button>
+      <Popover anchor={wrap} open={open && !disabled} onClose={close}>
+        <JalaliCalendar
+          value={jalaliToIso(text) ?? value}
+          onPick={(iso) => {
+            setText(isoToJalali(iso));
+            onChange(iso);
+            setOpen(false);
+          }}
+          onClear={() => {
+            setText("");
+            onChange(null);
+            setOpen(false);
+          }}
+        />
+      </Popover>
+    </div>
   );
 }
 

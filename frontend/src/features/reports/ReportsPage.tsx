@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BarChart3, BookmarkPlus, FileSpreadsheet, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, BarChart3, BookmarkPlus, CalendarRange, FileSpreadsheet, Printer, Trash2 } from "lucide-react";
 import * as React from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge, EmptyState, ErrorBox, Spinner } from "@/components/ui/feedback";
 import { Checkbox, Field, Input, Select } from "@/components/ui/form-controls";
+import { periodPresets } from "@/components/ui/jalali-calendar";
 import { Pagination, Table, Td, Th, Tr } from "@/components/ui/table";
 import { useCurrency } from "@/features/accounting/api";
 import { JalaliDateInput } from "@/features/accounting/inputs";
@@ -188,12 +189,15 @@ export function ReportPage() {
     onError,
   });
 
-  const set = (k: string, v: string | null) => {
+  const update = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
-    if (v === null || v === "") next.delete(k);
-    else next.set(k, v);
+    for (const [k, v] of Object.entries(changes)) {
+      if (v === null || v === "") next.delete(k);
+      else next.set(k, v);
+    }
     setSearch(next, { replace: true });
   };
+  const set = (k: string, v: string | null) => update({ [k]: v });
   if (catalog.isLoading) return <Spinner />;
   if (!info) return <Card><EmptyState icon={BarChart3} title="گزارش یافت نشد یا مجوز آن را ندارید" /></Card>;
   const excelHref = `/api/v1/reports/${key}?${new URLSearchParams([...params.entries(), ["format", "xlsx"]])}`;
@@ -212,10 +216,12 @@ export function ReportPage() {
         }
       />
       <Card className="no-print mb-4">
+        {info.filters.includes("date_from") ? <PeriodBar params={params} update={update} /> : null}
         <div className="flex flex-wrap items-end gap-3 p-4">
           {info.filters.map((f) => {
             const label = FILTER_LABEL[f] ?? f;
-            if (f === "date_from" || f === "date_to" || f === "as_of")
+            if (f === "date_from" || f === "date_to") return null;
+            if (f === "as_of")
               return (
                 <Field key={f} label={label}>
                   <JalaliDateInput className="w-36" value={params.get(f)} onChange={(v) => v !== null && set(f, v)} />
@@ -328,5 +334,57 @@ export function ReportPage() {
         ) : null}
       </Card>
     </>
+  );
+}
+
+/** Report period: quick choices, one day, a from–to range, or «همه» (whole history, ADR-0028). */
+function PeriodBar({ params, update }: { params: URLSearchParams; update: (c: Record<string, string | null>) => void }) {
+  const all = params.get("all_time") === "true";
+  const from = params.get("date_from");
+  const to = params.get("date_to");
+  const presets = periodPresets();
+  const range = (f: string | null, t: string | null) => update({ date_from: f, date_to: t, all_time: null, page: null });
+  const chip = (active: boolean) =>
+    cn(
+      "rounded-full px-3 py-1.5 text-sm transition",
+      active ? "bg-brand-600 font-semibold text-white" : "bg-black/[0.04] text-ink hover:bg-brand-500/10 dark:bg-white/5",
+    );
+  return (
+    <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="بازه‌ی گزارش">
+        <CalendarRange className="size-4 text-ink-faint" />
+        {presets.map(([label, f, t]) => (
+          <button key={label} type="button" aria-pressed={!all && from === f && to === t} className={chip(!all && from === f && to === t)} onClick={() => range(f, t)}>
+            {label}
+          </button>
+        ))}
+        <button
+          type="button"
+          aria-pressed={all}
+          className={chip(all)}
+          onClick={() => update({ all_time: "true", date_from: null, date_to: null, page: null })}
+        >
+          همه
+        </button>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="یک روز">
+          <JalaliDateInput className="w-40" value={!all && from && from === to ? from : null} onChange={(v) => v && range(v, v)} />
+        </Field>
+        <Field label="از تاریخ">
+          <JalaliDateInput className="w-40" value={all ? null : from} onChange={(v) => range(v, all ? null : to)} />
+        </Field>
+        <Field label="تا تاریخ">
+          <JalaliDateInput className="w-40" value={all ? null : to} onChange={(v) => range(all ? null : from, v)} />
+        </Field>
+        <p className="pb-2 text-xs text-ink-faint">
+          {all
+            ? "همه‌ی تاریخ‌ها"
+            : from || to
+              ? `${from ? isoToJalaliFa(from) : "…"} تا ${to ? isoToJalaliFa(to) : "امروز"}`
+              : "بدون انتخاب: ۳۰ روز اخیر"}
+        </p>
+      </div>
+    </div>
   );
 }

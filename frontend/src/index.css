@@ -47,6 +47,8 @@
   --glass-border: rgb(255 255 255 / 0.7);
   --surface: rgb(255 255 255 / 0.88);
   --surface-muted: rgb(245 246 252 / 0.9);
+  /* Floating panels (calendar) over fields: fully opaque so nothing shows through. */
+  --popover: rgb(255 255 255);
   --line: rgb(30 30 80 / 0.08);
   --blur: 22px;
   color-scheme: light;
@@ -61,6 +63,7 @@
   --glass-border: rgb(255 255 255 / 0.1);
   --surface: rgb(24 26 50 / 0.92);
   --surface-muted: rgb(32 34 64 / 0.92);
+  --popover: rgb(24 26 50);
   --line: rgb(255 255 255 / 0.08);
   --color-ink: oklch(0.95 0.01 275);
   --color-ink-soft: oklch(0.8 0.02 275);
