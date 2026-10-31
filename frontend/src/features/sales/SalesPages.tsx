@@ -258,6 +258,7 @@ export function InvoiceDetailPage() {
             footer={org.data?.receipt_footer}
             phone={org.data?.phone}
             address={org.data?.address}
+            seller={org.data}
             paper={paper}
             reprint
           />

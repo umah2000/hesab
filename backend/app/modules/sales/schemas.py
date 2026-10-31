@@ -190,6 +190,19 @@ class PaymentOut(BaseModel):
     terminal_transaction_id: uuid.UUID | None
 
 
+class BuyerOut(BaseModel):
+    """The buyer's particulars for the official invoice (صورتحساب فروش کالا و خدمات)."""
+
+    party_type: str | None
+    national_id: str | None
+    economic_code: str | None
+    registration_no: str | None
+    postal_code: str | None
+    phone: str | None
+    city: str | None
+    address: str | None
+
+
 class InvoiceOut(BaseModel):
     id: uuid.UUID
     kind: Literal["sale", "return"]
@@ -203,6 +216,7 @@ class InvoiceOut(BaseModel):
     cashier_name: str
     customer_id: uuid.UUID | None
     customer_name: str | None
+    buyer: BuyerOut | None = None
     original_invoice_id: uuid.UUID | None
     original_number: int | None
     subtotal: Money
@@ -486,7 +500,12 @@ class RegisterStateOut(BaseModel):
     phone: str | None = None
     address: str | None = None
     # Default paper for printing an invoice (the settings page).
-    invoice_paper: Literal["thermal", "a5", "a4"] = "thermal"
+    invoice_paper: Literal["thermal", "a5", "a4", "official"] = "thermal"
+    # Seller particulars for the official invoice.
+    economic_code: str | None = None
+    national_id: str | None = None
+    registration_no: str | None = None
+    postal_code: str | None = None
     terminal: TerminalInfoOut | None
     # Card readers defined for this register's branch, the register's default first.
     terminals: list[TerminalChoiceOut] = []

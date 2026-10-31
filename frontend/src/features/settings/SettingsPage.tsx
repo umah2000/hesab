@@ -84,8 +84,9 @@ function OrganizationCard() {
             onChange={(e) => setDraft({ ...draft, invoice_paper: e.target.value as Organization["invoice_paper"] })}
           >
             <option value="thermal">فیش حرارتی ۸۰ میلی‌متری</option>
-            <option value="a5">کاغذ A5</option>
-            <option value="a4">کاغذ A4</option>
+            <option value="a5">فاکتور فروش A5</option>
+            <option value="a4">فاکتور فروش A4</option>
+            <option value="official">صورتحساب رسمی (A4 افقی)</option>
           </Select>
         </Field>
         <Field label="متن بالای فیش" className="md:col-span-1">
@@ -94,6 +95,25 @@ function OrganizationCard() {
         <Field label="متن پایین فیش" className="md:col-span-1">
           <Textarea value={v.receipt_footer ?? ""} disabled={!editable} onChange={(e) => setDraft({ ...draft, receipt_footer: e.target.value })} />
         </Field>
+        <Field label="هشدار انقضا از (روز مانده)" hint="دسته‌هایی که تا این تعداد روز منقضی می‌شوند در داشبورد مدیر">
+          <Input dir="ltr" value={String(v.expiry_warn_days ?? 30)} disabled={!editable} onChange={(e) => setDraft({ ...draft, expiry_warn_days: Number(toEnDigits(e.target.value)) || 1 })} />
+        </Field>
+        <Field label="هشدار فوری انقضا از (روز مانده)" hint="با پیام بالای داشبورد؛ کمتر از عدد قبلی">
+          <Input dir="ltr" value={String(v.expiry_urgent_days ?? 7)} disabled={!editable} onChange={(e) => setDraft({ ...draft, expiry_urgent_days: Number(toEnDigits(e.target.value)) || 1 })} />
+        </Field>
+        <p className="text-sm font-semibold text-ink md:col-span-3">مشخصات فروشنده در صورتحساب رسمی</p>
+        {(
+          [
+            ["economic_code", "شماره اقتصادی"],
+            ["national_id", "شناسه ملی / کد ملی"],
+            ["registration_no", "شماره ثبت"],
+            ["postal_code", "کد پستی ۱۰ رقمی"],
+          ] as const
+        ).map(([k, label]) => (
+          <Field key={k} label={label}>
+            <Input dir="ltr" inputMode="numeric" value={v[k] ?? ""} disabled={!editable} onChange={(e) => setDraft({ ...draft, [k]: toEnDigits(e.target.value).replace(/\D/g, "") })} />
+          </Field>
+        ))}
         <Field label="هشدار کپی پشتیبان پس از (روز)">
           <Input dir="ltr" value={String(v.backup_warning_days)} disabled={!editable} onChange={(e) => setDraft({ ...draft, backup_warning_days: Number(toEnDigits(e.target.value)) || 1 })} />
         </Field>

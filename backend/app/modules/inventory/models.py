@@ -312,6 +312,46 @@ class StockLedger(Base):
     avg_cost: Mapped[Decimal] = mapped_column(COST)
 
 
+class StockLot(Base):
+    """A batch of one item in one warehouse with one expiry date (ADR-0027).
+
+    Only for items with ``track_expiry``. Receipts with the same expiry date add to the
+    same lot; issues take the earliest expiry first. Changed only in ``post_movement``
+    while the item's ``stock_balance`` row is locked, so it needs no lock of its own.
+    A lot with no expiry date holds stock received without one (e.g. a surplus count).
+    """
+
+    __tablename__ = "stock_lot"
+    __table_args__ = (
+        UniqueConstraint("item_id", "warehouse_id", "expiry_date", name="uq_stock_lot"),
+        CheckConstraint("qty >= 0", name="qty"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    item_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("item.id"))
+    warehouse_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("warehouse.id"))
+    expiry_date: Mapped[date | None] = mapped_column(Date)
+    qty: Mapped[Decimal] = mapped_column(QTY, default=Decimal(0))
+    first_received: Mapped[date] = mapped_column(Date)
+
+
+class StockLotMove(Base):
+    """Which lots a stock line took from or added to; signed quantity (ADR-0027).
+
+    Lets a transfer carry the same expiry dates to the destination, a return go back to
+    the lot it was sold from, and the item page show the history of a lot.
+    """
+
+    __tablename__ = "stock_lot_move"
+    __table_args__ = (Index("ix_stock_lot_move_line", "document_line_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UNIQUEIDENTIFIER, primary_key=True, default=uuid.uuid4)
+    lot_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("stock_lot.id"), index=True)
+    document_line_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("stock_document_line.id"))
+    warehouse_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("warehouse.id"))
+    qty: Mapped[Decimal] = mapped_column(QTY)
+
+
 class StockBalance(VersionedMixin, Base):
     """Current quantity/value per item and warehouse; updated only with the ledger."""
 

@@ -27,10 +27,17 @@ from app.modules.audit import service as audit
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
 from app.modules.inventory.models import Item, StockDocument, StockDocumentLine, Unit
-from app.modules.inventory.services.stock import COST_PLACES, post_movement, tehran_today
+from app.modules.inventory.services.stock import (
+    COST_PLACES,
+    lots_sold,
+    post_movement,
+    tehran_today,
+)
 from app.modules.organization.models import CashRegister
+from app.modules.parties.models import Party
 from app.modules.sales.models import SalesInvoice, SalesInvoiceLine, SalesPayment
 from app.modules.sales.schemas import (
+    BuyerOut,
     CheckoutIn,
     CustomerOut,
     DailyRegisterRow,
@@ -115,6 +122,7 @@ def invoice_out(s: Session, inv: SalesInvoice, warnings: list[str] | None = None
         cashier_name=(user.full_name or user.username) if user else "",
         customer_id=inv.customer_id,
         customer_name=customer.name if customer else None,
+        buyer=_buyer(s, inv.customer_id),
         original_invoice_id=inv.original_invoice_id,
         original_number=original.number if original else None,
         subtotal=inv.subtotal,
@@ -797,6 +805,10 @@ def create_return(s: Session, actor: Actor, invoice_id: uuid.UUID, data: ReturnI
                 base_qty=row.base_qty,
                 unit_cost=(value / row.base_qty).quantize(COST_PLACES),
                 total_cost=value,
+                # Back into the batch it was sold from (ADR-0027).
+                expiry_date=_sold_expiry(s, orig, row.item_id)
+                if items[row.item_id].track_expiry
+                else None,
             )
             s.add(sdl)
             s.flush()
@@ -1052,4 +1064,35 @@ def daily_report(
             for m in ("cash", "card", "credit")
         ],
         by_register=sorted(per.values(), key=lambda r: r.register_name),
+    )
+
+
+def _sold_expiry(s: Session, orig: SalesInvoice, item_id: uuid.UUID) -> date | None:
+    """The batch the original sale took this item from (the latest, if several)."""
+    if orig.stock_document_id is None:
+        return None
+    ids = list(
+        s.scalars(
+            select(StockDocumentLine.id).where(
+                StockDocumentLine.document_id == orig.stock_document_id,
+                StockDocumentLine.item_id == item_id,
+            )
+        )
+    )
+    return lots_sold(s, ids)
+
+
+def _buyer(s: Session, customer_id: uuid.UUID | None) -> BuyerOut | None:
+    party = s.get(Party, customer_id) if customer_id else None
+    if party is None:
+        return None
+    return BuyerOut(
+        party_type=party.party_type,
+        national_id=party.national_id,
+        economic_code=party.economic_code,
+        registration_no=party.registration_no,
+        postal_code=party.postal_code,
+        phone=party.phone or party.mobile,
+        city=party.city,
+        address=party.address,
     )

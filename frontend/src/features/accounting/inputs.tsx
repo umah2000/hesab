@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/form-controls";
 import { toEnDigits, toFaDigits } from "@/lib/format";
 import { isoToJalali, jalaliToIso } from "@/lib/jalali";
 import { groupDigits } from "@/lib/money";
+import { amountHint } from "@/lib/words";
 import { cn } from "@/lib/utils";
-import type { Account, DetailAccount } from "./api";
+import { type Account, type DetailAccount, useCurrency } from "./api";
 
 /** Jalali date typed as 1405/07/19; emits ISO (Gregorian) or null while invalid. */
 export function JalaliDateInput({
@@ -47,21 +48,57 @@ export function JalaliDateInput({
   );
 }
 
-/** Amount in display currency, grouped while typing, Latin digits for speed. */
+/** Amount in display currency, grouped while typing, Latin digits for speed. Underneath,
+ * the amount in words and in the other currency («یک میلیون تومان · ۱۰٬۰۰۰٬۰۰۰ ریال»);
+ * ``compact`` (table rows) shows it only while the field has focus, floating over the
+ * next row so the table does not move. */
 export const MoneyInput = React.forwardRef<
   HTMLInputElement,
-  { value: string; onChange: (v: string) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">
->(({ value, onChange, className, ...props }, ref) => (
-  <Input
-    ref={ref}
-    dir="ltr"
-    inputMode="decimal"
-    value={groupDigits(value)}
-    onChange={(e) => onChange(toEnDigits(e.target.value).replace(/[^\d.]/g, ""))}
-    className={cn("tabular text-end", className)}
-    {...props}
-  />
-));
+  { value: string; onChange: (v: string) => void; compact?: boolean } & Omit<
+    React.InputHTMLAttributes<HTMLInputElement>,
+    "value" | "onChange"
+  >
+>(({ value, onChange, className, compact = false, onFocus, onBlur, ...props }, ref) => {
+  const currency = useCurrency();
+  const [focused, setFocused] = React.useState(false);
+  const hint = amountHint(value, currency);
+  const show = hint && (!compact || focused);
+  return (
+    <div className="relative w-full">
+      <Input
+        ref={ref}
+        dir="ltr"
+        inputMode="decimal"
+        value={groupDigits(value)}
+        onChange={(e) => onChange(toEnDigits(e.target.value).replace(/[^\d.]/g, ""))}
+        onFocus={(e) => {
+          setFocused(true);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          onBlur?.(e);
+        }}
+        className={cn("tabular text-end", className)}
+        {...props}
+      />
+      {show ? (
+        <div
+          dir="rtl"
+          aria-live="polite"
+          className={cn(
+            "text-xs text-ink-soft",
+            compact
+              ? "surface absolute inset-x-0 top-full z-20 mt-1 min-w-56 rounded-lg px-2 py-1 shadow-lg"
+              : "mt-1 leading-5",
+          )}
+        >
+          {hint}
+        </div>
+      ) : null}
+    </div>
+  );
+});
 MoneyInput.displayName = "MoneyInput";
 
 type Option = { id: string; code: string; name: string; hint?: string };

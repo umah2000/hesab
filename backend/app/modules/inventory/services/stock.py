@@ -33,12 +33,15 @@ from app.modules.inventory.models import (
     StockDocument,
     StockDocumentLine,
     StockLedger,
+    StockLot,
+    StockLotMove,
     Unit,
     Warehouse,
 )
 from app.modules.inventory.schemas import (
     BalanceRow,
     KardexRow,
+    LotRow,
     StockDocIn,
     StockDocOut,
     StockDocSummary,
@@ -161,12 +164,137 @@ def post_movement(
         entry = StockLedger(qty_out=out, value_out=value)
         posted = Posted(qty, -value)
     bal.last_movement_date = document.document_date
+    item = s.get(Item, item_id)
+    if item is not None and item.track_expiry:
+        if qty > 0:
+            _lots_in(s, item_id, warehouse_id, qty, line, document.document_date)
+        else:
+            _lots_out(s, item_id, warehouse_id, -qty, line)
     entry.item_id, entry.warehouse_id = item_id, warehouse_id
     entry.document_id, entry.document_line_id = document.id, line.id
     entry.document_date = document.document_date
     entry.balance_qty, entry.balance_value, entry.avg_cost = bal.qty, bal.value, bal.avg_cost
     s.add(entry)
     return posted
+
+
+# --- lots (ADR-0027) ----------------------------------------------------------------
+# Called from post_movement only, with the item's balance row locked: lots of one item in
+# one warehouse change one transaction at a time, and are found by key seek.
+
+
+def _lot(
+    s: Session, item_id: uuid.UUID, warehouse_id: uuid.UUID, expiry: date | None, on: date
+) -> StockLot:
+    same = StockLot.expiry_date.is_(None) if expiry is None else StockLot.expiry_date == expiry
+    lot = s.scalar(
+        select(StockLot).where(
+            StockLot.item_id == item_id, StockLot.warehouse_id == warehouse_id, same
+        )
+    )
+    if lot is None:
+        lot = StockLot(
+            item_id=item_id,
+            warehouse_id=warehouse_id,
+            expiry_date=expiry,
+            qty=Decimal(0),
+            first_received=on,
+        )
+        s.add(lot)
+        s.flush()
+    return lot
+
+
+def _lots_in(
+    s: Session,
+    item_id: uuid.UUID,
+    warehouse_id: uuid.UUID,
+    qty: Decimal,
+    line: StockDocumentLine,
+    on: date,
+) -> None:
+    """A receipt: the expiry dates the same line took out of another warehouse (a
+    transfer keeps them), else the line's own expiry date, else a lot with none."""
+    taken = list(
+        s.execute(
+            select(StockLot.expiry_date, StockLotMove.qty)
+            .join(StockLot, StockLot.id == StockLotMove.lot_id)
+            .where(
+                StockLotMove.document_line_id == line.id,
+                StockLotMove.qty < 0,
+                StockLotMove.warehouse_id != warehouse_id,
+            )
+        )
+    )
+    parts: list[tuple[date | None, Decimal]] = []
+    left = qty
+    for expiry, q in taken:
+        part = min(-Decimal(q), left)
+        if part > 0:
+            parts.append((expiry, part))
+            left -= part
+    if left > 0:
+        parts.append((line.expiry_date, left))
+    for expiry, part in parts:
+        lot = _lot(s, item_id, warehouse_id, expiry, on)
+        lot.qty += part
+        s.add(
+            StockLotMove(
+                lot_id=lot.id, document_line_id=line.id, warehouse_id=warehouse_id, qty=part
+            )
+        )
+
+
+def _lots_out(
+    s: Session,
+    item_id: uuid.UUID,
+    warehouse_id: uuid.UUID,
+    out: Decimal,
+    line: StockDocumentLine,
+) -> None:
+    """An issue takes the earliest expiry first (FEFO); a line naming an expiry date (waste
+    of one batch, a purchase return) takes that lot first. Stock beyond the lots (sold
+    while negative stock is allowed) is simply not in any lot."""
+    lots = list(
+        s.scalars(
+            select(StockLot).where(
+                StockLot.item_id == item_id,
+                StockLot.warehouse_id == warehouse_id,
+                StockLot.qty > 0,
+            )
+        )
+    )
+    wanted = line.expiry_date
+    lots.sort(
+        key=lambda lot: (
+            lot.expiry_date != wanted if wanted is not None else True,
+            lot.expiry_date is None,
+            lot.expiry_date or date.max,
+        )
+    )
+    left = out
+    for lot in lots:
+        if left <= 0:
+            break
+        take = min(lot.qty, left)
+        lot.qty -= take
+        left -= take
+        s.add(
+            StockLotMove(
+                lot_id=lot.id, document_line_id=line.id, warehouse_id=warehouse_id, qty=-take
+            )
+        )
+
+
+def lots_sold(s: Session, document_line_ids: list[uuid.UUID]) -> date | None:
+    """The latest expiry date these issue lines took: where a returned item goes back."""
+    if not document_line_ids:
+        return None
+    return s.scalar(
+        select(func.max(StockLot.expiry_date))
+        .join(StockLotMove, StockLotMove.lot_id == StockLot.id)
+        .where(StockLotMove.document_line_id.in_(document_line_ids), StockLotMove.qty < 0)
+    )
 
 
 # --- documents --------------------------------------------------------------
@@ -770,3 +898,28 @@ def create_warehouse(
         data={"code": w.code},
     )
     return w
+
+
+def item_lots(s: Session, actor: Actor, item_id: uuid.UUID) -> list[LotRow]:
+    """The item's batches with stock, earliest expiry first, in the actor's branches."""
+    today = tehran_today()
+    rows = []
+    for lot, wh in s.execute(
+        select(StockLot, Warehouse)
+        .join(Warehouse, Warehouse.id == StockLot.warehouse_id)
+        .where(StockLot.item_id == item_id, StockLot.qty > 0)
+    ).all():
+        if not actor.can_access_branch(wh.branch_id):
+            continue
+        rows.append(
+            LotRow(
+                warehouse_id=wh.id,
+                warehouse_name=wh.name,
+                expiry_date=lot.expiry_date,
+                days_left=(lot.expiry_date - today).days if lot.expiry_date else None,
+                qty=lot.qty,
+                first_received=lot.first_received,
+            )
+        )
+    rows.sort(key=lambda r: (r.expiry_date is None, r.expiry_date or date.max, r.warehouse_name))
+    return rows

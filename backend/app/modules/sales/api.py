@@ -98,6 +98,10 @@ def register_state(register_id: str) -> ResponseReturnValue:
                 phone=org.phone,
                 address=org.address,
                 invoice_paper=org.invoice_paper,  # type: ignore[arg-type]
+                economic_code=org.economic_code,
+                national_id=org.national_id,
+                registration_no=org.registration_no,
+                postal_code=org.postal_code,
                 terminal=terminal.info(),
                 terminals=terminal.choices(s, reg),
                 permissions=sorted(

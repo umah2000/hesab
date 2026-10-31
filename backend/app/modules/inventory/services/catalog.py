@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core import refcache
 from app.core.db import utcnow, version_to_str
-from app.core.errors import ConflictError, DomainError, NotFoundError
+from app.core.errors import ConflictError, DomainError, NotFoundError, PermissionDeniedError
 from app.core.http import Page
 from app.core.money import MONEY_PLACES
 from app.modules.accounting.services.chart import check_version
@@ -45,10 +45,13 @@ from app.modules.inventory.schemas import (
     ItemSummary,
     ItemUnitIO,
     LookupOut,
+    OpeningStockIn,
     PriceIO,
     PriceListOut,
     ScaleRuleIn,
     ScaleRuleOut,
+    StockDocIn,
+    StockLineIn,
     UnitOut,
 )
 from app.modules.inventory.services import images
@@ -324,6 +327,8 @@ def create_item(s: Session, actor: Actor, data: ItemIn) -> ItemOut:
     if s.scalar(select(Item.id).where(Item.code == data.code)):
         raise ConflictError("کد کالا تکراری است", code="item_code_taken")
     _validate(s, data, None)
+    if data.opening is not None and not actor.has("inventory.stock.create"):
+        raise PermissionDeniedError("ثبت موجودی اولیه مجوز ثبت سند انبار لازم دارد")
     it = Item(created_by=actor.user_id, updated_by=actor.user_id)
     s.add(it)
     _apply(s, it, data, actor)
@@ -336,12 +341,47 @@ def create_item(s: Session, actor: Actor, data: ItemIn) -> ItemOut:
         entity_id=it.id,
         data={"code": it.code, "name": it.name},
     )
+    if data.opening is not None:
+        _opening(s, actor, it, data.opening)
     return _item_out(s, it)
+
+
+def _opening(s: Session, actor: Actor, it: Item, o: OpeningStockIn) -> None:
+    """An ordinary opening stock document, finalized in the same transaction: a failure
+    (closed fiscal year, missing expiry date) leaves neither the item nor the stock."""
+    from app.modules.inventory.services import stock
+
+    if it.item_type != "goods":
+        raise DomainError("خدمت موجودی ندارد", code="service_has_no_stock")
+    doc = stock.create_doc(
+        s,
+        actor,
+        StockDocIn(
+            doc_type="opening",
+            warehouse_id=o.warehouse_id,
+            document_date=stock.tehran_today(),
+            description=f"موجودی اولیه‌ی کالای {it.name}",
+            lines=[
+                StockLineIn(
+                    item_id=it.id,
+                    unit_id=it.base_unit_id,
+                    qty=o.qty,
+                    unit_cost=o.unit_cost,
+                    expiry_date=o.expiry_date,
+                )
+            ],
+        ),
+    )
+    stock.finalize_doc(s, actor, doc.id, doc.row_version)
 
 
 def update_item(
     s: Session, actor: Actor, item_id: uuid.UUID, data: ItemIn, version: str
 ) -> ItemOut:
+    if data.opening is not None:
+        raise DomainError(
+            "موجودی کالای موجود را با سند انبار ثبت کنید", code="opening_on_create_only"
+        )
     it = get_item(s, item_id)
     check_version(it.row_version, version, "این کالا")
     if data.code != it.code and s.scalar(select(Item.id).where(Item.code == data.code)):

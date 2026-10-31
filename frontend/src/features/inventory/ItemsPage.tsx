@@ -17,6 +17,7 @@ import { inputToRials, rialsToInput } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { type Item, type ItemSummary, imageUrl, trimQty, useGroups, useUnits } from "./api";
 import { ItemImages } from "./ItemImages";
+import { ItemLots, NewGroupButton, OpeningStock, PendingImages, noOpening, type OpeningState, uploadPending } from "./ItemExtras";
 
 type FormState = {
   code: string;
@@ -67,12 +68,16 @@ function ItemDialog({ itemId, open, onClose }: { itemId: string | null; open: bo
   });
   const [f, setF] = React.useState<FormState>(blank(""));
   const [scan, setScan] = React.useState("");
+  const [photos, setPhotos] = React.useState<File[]>([]);
+  const [opening, setOpening] = React.useState<OpeningState>(noOpening);
   const keyRef = React.useRef(newIdempotencyKey());
   const canPrice = can("inventory.price.manage");
 
   React.useEffect(() => {
     if (!open) return;
     keyRef.current = newIdempotencyKey();
+    setPhotos([]);
+    setOpening(noOpening);
     const it = item.data;
     if (itemId && !it) return;
     if (!it) {
@@ -126,14 +131,30 @@ function ItemDialog({ itemId, open, onClose }: { itemId: string | null; open: bo
         units: f.units.filter((u) => u.unit_id && u.factor).map((u) => ({ unit_id: u.unit_id, factor: toEnDigits(u.factor) })),
         barcodes: f.barcodes.map((b) => ({ barcode: b.barcode, unit_id: b.unit_id || null })),
         prices: canPrice ? prices : [],
+        opening: undefined as undefined | { warehouse_id: string; qty: string; unit_cost: string; expiry_date: string | null },
       };
+      if (!itemId && opening.on) {
+        const cost = inputToRials(opening.cost, currency);
+        if (cost === null) throw new ApiError(0, "invalid", "بهای خرید موجودی اولیه نامعتبر است");
+        if (f.track_expiry && !opening.expiry) throw new ApiError(0, "invalid", "تاریخ انقضای موجودی اولیه را وارد کنید");
+        body.opening = {
+          warehouse_id: opening.warehouse_id,
+          qty: toEnDigits(opening.qty),
+          unit_cost: cost,
+          expiry_date: f.track_expiry ? opening.expiry : null,
+        };
+      }
       return itemId
         ? api.put<Item>(`/inventory/items/${itemId}`, body, item.data?.row_version ?? "")
         : api.post<Item>("/inventory/items", body, { idempotencyKey: keyRef.current });
     },
-    onSuccess: (it) => {
-      qc.invalidateQueries({ queryKey: ["inventory"] });
+    onSuccess: async (it) => {
       toast.success(`کالای «${it.name}» ذخیره شد`);
+      if (!itemId && photos.length) {
+        const n = await uploadPending(it.id, photos);
+        if (n) toast.success(`${toFaDigits(n)} عکس بارگذاری شد`);
+      }
+      qc.invalidateQueries({ queryKey: ["inventory"] });
       onClose();
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "خطا"),
@@ -167,12 +188,15 @@ function ItemDialog({ itemId, open, onClose }: { itemId: string | null; open: bo
                 <Input value={f.name} onChange={(e) => set("name", e.target.value)} />
               </Field>
               <Field label="گروه">
-                <Select value={f.group_id} onChange={(e) => set("group_id", e.target.value)}>
-                  <option value="">بدون گروه</option>
-                  {groups.data?.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={f.group_id} onChange={(e) => set("group_id", e.target.value)}>
+                    <option value="">بدون گروه</option>
+                    {groups.data?.map((g) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </Select>
+                  {can("inventory.item.manage") ? <NewGroupButton onCreated={(id) => set("group_id", id)} /> : null}
+                </div>
               </Field>
             </div>
             <div className="grid gap-3 sm:grid-cols-4">
@@ -295,10 +319,14 @@ function ItemDialog({ itemId, open, onClose }: { itemId: string | null; open: bo
                 ))}
               </div>
             </fieldset>
+            {!itemId && f.item_type === "goods" && can("inventory.stock.create") ? (
+              <OpeningStock value={opening} onChange={setOpening} unitName={unitName(f.base_unit_id)} trackExpiry={f.track_expiry} />
+            ) : null}
+            {itemId && f.track_expiry ? <ItemLots itemId={itemId} unitName={unitName(f.base_unit_id)} /> : null}
             {itemId ? (
               <ItemImages itemId={itemId} canManage={can("inventory.item.manage")} />
             ) : (
-              <p className="text-xs text-ink-faint">عکس کالا را پس از ذخیره‌ی کالا، در ویرایش آن اضافه کنید.</p>
+              <PendingImages files={photos} onChange={setPhotos} />
             )}
           </div>
         )}

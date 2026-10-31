@@ -124,6 +124,16 @@ class TopItem(BaseModel):
     net_sales: str
 
 
+class ExpiryAlert(BaseModel):
+    """Lots (ADR-0027) by how soon they expire; days come from the settings."""
+
+    expired: int
+    urgent: int
+    soon: int
+    urgent_days: int
+    warn_days: int
+
+
 class Dashboard(BaseModel):
     date_from: date
     date_to: date
@@ -134,6 +144,7 @@ class Dashboard(BaseModel):
     payments: dict[str, str]
     inventory_value: str | None
     below_min_items: int | None
+    expiry: ExpiryAlert | None = None
     receivables: str | None
     payables: str | None
     cash_shortage: str

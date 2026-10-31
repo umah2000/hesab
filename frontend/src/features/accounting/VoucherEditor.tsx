@@ -283,7 +283,7 @@ function VoucherForm({ voucher }: { voucher?: Voucher }) {
                       <Input value={r.description} maxLength={300} onChange={(e) => update(r.key, { description: e.target.value })} />
                     </td>
                     <td className="px-2 py-2">
-                      <MoneyInput
+                      <MoneyInput compact
                         aria-label={`بدهکار ردیف ${i + 1}`}
                         value={r.debit}
                         aria-invalid={badD || undefined}
@@ -291,7 +291,7 @@ function VoucherForm({ voucher }: { voucher?: Voucher }) {
                       />
                     </td>
                     <td className="px-2 py-2">
-                      <MoneyInput
+                      <MoneyInput compact
                         aria-label={`بستانکار ردیف ${i + 1}`}
                         value={r.credit}
                         aria-invalid={badC || undefined}

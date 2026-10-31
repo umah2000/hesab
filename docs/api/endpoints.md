@@ -40,7 +40,8 @@
 | ✅ | GET | `/integrations/va/status` · `/integrations/va/documents` | `accounting.integration.manage` یا `accounting.report.view` | |
 | ✅ | POST | `/integrations/va/documents/{id}/retry` | `accounting.integration.manage` | |
 | ۳ | GET | `/inventory/units` · `/groups` · `/price-lists` · `/warehouses` | هر مجوز انبار | `POST /groups` با `inventory.item.manage`؛ `POST /warehouses` با `branches.manage` |
-| ۳ | GET/POST/PUT | `/inventory/items` · `/items/{id}` | `inventory.item.manage` (قیمت: `inventory.price.manage`) | جست‌وجو در کد، نام و بارکد؛ فیلتر گروه و زیر حداقل |
+| ۳ | GET/POST/PUT | `/inventory/items` · `/items/{id}` | `inventory.item.manage` (قیمت: `inventory.price.manage`) | جست‌وجو در کد، نام و بارکد؛ فیلتر گروه و زیر حداقل. ساخت با `opening` (انبار، مقدار، بها، تاریخ انقضا) سند موجودی اول دوره هم می‌سازد و `inventory.stock.create` لازم دارد (ADR-0027) |
+| ۳ | GET | `/inventory/items/{id}/lots` | مجوزهای خواندن انبار | دسته‌ها با تاریخ انقضا، مانده و روز مانده؛ فقط انبارهای شعبه‌های کاربر |
 | ۳ | GET | `/inventory/items/lookup?barcode=` | `sales.pos.use` · `inventory.item.manage` · `inventory.stock.create` | **مسیر داغ صندوق**: بارکد ← بارکد بسته ← برچسب ترازو ← کد کالا |
 | ۳ | GET/POST/PUT | `/inventory/scale-rules` | `inventory.item.manage` | |
 | ۳ | GET/POST/PUT/DELETE | `/inventory/stock-documents` · `/{id}/finalize` | `inventory.stock.create` (تعدیل/شمارش: `inventory.stock.adjust`) | اول دوره، تعدیل، انتقال، شمارش |

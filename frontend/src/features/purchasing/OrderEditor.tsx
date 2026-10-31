@@ -294,7 +294,7 @@ function OrderForm({ order }: { order?: Order }) {
                           <Input className="h-9 text-end" dir="ltr" inputMode="decimal" aria-label={`مقدار ردیف ${i + 1}`} value={r.qty} onChange={(e) => patch(r.key, { qty: e.target.value })} />
                         </td>
                         <td className="px-2 py-2">
-                          <MoneyInput className="h-9" aria-label={`بهای ردیف ${i + 1}`} value={r.cost} onChange={(v) => patch(r.key, { cost: v })} />
+                          <MoneyInput compact className="h-9" aria-label={`بهای ردیف ${i + 1}`} value={r.cost} onChange={(v) => patch(r.key, { cost: v })} />
                         </td>
                         {order ? (
                           <td className="tabular px-2 py-2 text-ink-faint">

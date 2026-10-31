@@ -80,6 +80,8 @@ _TABLES = [
     "cash_shift",
     "backup_log",
     "license",
+    "stock_lot_move",
+    "stock_lot",
     "stock_ledger",
     "stock_balance",
     "stock_document_line",

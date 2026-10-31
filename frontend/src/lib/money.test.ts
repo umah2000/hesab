@@ -1,5 +1,5 @@
 import { isoToJalali, jalaliToIso } from "./jalali";
-import { compareRials, groupDigits, inputToRials, rialsToInput, subRials, sumRials } from "./money";
+import { compareRials, divRialsByQty, groupDigits, inputToRials, rialsToInput, subRials, sumRials } from "./money";
 
 describe("money entry", () => {
   it("converts toman input to rials", () => {
@@ -46,5 +46,15 @@ describe("jalali", () => {
     expect(jalaliToIso("1405/12/31")).toBeNull(); // 1405 is not a leap year
     expect(jalaliToIso("1405/13/01")).toBeNull();
     expect(jalaliToIso("14050719")).toBeNull();
+  });
+});
+
+describe("divRialsByQty", () => {
+  it("divides without floats and rounds half up", () => {
+    expect(divRialsByQty("330000", "3")).toBe("110000");
+    expect(divRialsByQty("100000", "3")).toBe("33333");
+    expect(divRialsByQty("5", "2")).toBe("3");
+    expect(divRialsByQty("3900000", "1.442")).toBe("2704577");
+    expect(divRialsByQty("100", "0")).toBe("0");
   });
 });

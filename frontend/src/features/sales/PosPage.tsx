@@ -730,6 +730,7 @@ function Workspace({ state }: { state: RegisterState }) {
             footer={state.receipt_footer}
             phone={state.phone}
             address={state.address}
+            seller={state}
             paper={paper}
           />
         </div>
