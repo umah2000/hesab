@@ -11,13 +11,21 @@ export type Organization = {
   backup_warning_days: number;
   receipt_header: string | null;
   receipt_footer: string | null;
-  invoice_paper: "thermal" | "a5" | "a4";
+  invoice_paper: "thermal" | "a5" | "a4" | "official";
   about: string | null;
   phone: string | null;
   address: string | null;
   website: string | null;
   /** Changes with every new logo; null = no logo. */
   logo_version: string | null;
+  /** Seller particulars printed on the official invoice. */
+  economic_code?: string | null;
+  national_id?: string | null;
+  registration_no?: string | null;
+  postal_code?: string | null;
+  /** Expiry warnings for managers (ADR-0027). */
+  expiry_warn_days?: number;
+  expiry_urgent_days?: number;
   row_version: string;
 };
 

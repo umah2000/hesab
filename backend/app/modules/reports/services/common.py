@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from app.core.errors import DomainError, NotFoundError
 from app.modules.iam.guard import Actor
 from app.modules.inventory.services.stock import tehran_today
+from app.modules.reports.schemas import ALL_TIME_START
 
 ZERO = Decimal(0)
 MAX_DAYS = 366
@@ -32,7 +33,7 @@ def date_range(d_from: date | None, d_to: date | None, default_days: int = 30) -
     start = d_from or end - timedelta(days=default_days - 1)
     if start > end:
         raise DomainError("تاریخ شروع بعد از تاریخ پایان است", code="invalid_range")
-    if (end - start).days >= MAX_DAYS:
+    if start > ALL_TIME_START and (end - start).days >= MAX_DAYS:
         raise DomainError("بازه گزارش حداکثر یک سال است", code="range_too_long")
     return start, end
 

@@ -32,6 +32,7 @@ from app.modules.inventory.schemas import (
     ItemSummary,
     KardexRow,
     LookupOut,
+    LotRow,
     PriceListOut,
     ScaleRuleIn,
     ScaleRuleOut,
@@ -137,6 +138,32 @@ def get_item(item_id: str) -> ResponseReturnValue:
     s = new_session()
     try:
         return to_json(catalog.item_out(s, parse_uuid(item_id)))
+    finally:
+        s.close()
+
+
+class NextCodeOut(BaseModel):
+    code: str
+
+
+@bp.get("/items/next-code")
+@require("inventory.item.manage")
+@doc("کد پیشنهادی کالای جدید", response=NextCodeOut)
+def next_item_code() -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(NextCodeOut(code=catalog.next_code(s)))
+    finally:
+        s.close()
+
+
+@bp.get("/items/<item_id>/lots")
+@_read
+@doc("دسته‌های کالا با تاریخ انقضا", response=[LotRow])
+def item_lots(item_id: str) -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(list[BaseModel](stock.item_lots(s, current_actor(), parse_uuid(item_id))))
     finally:
         s.close()
 

@@ -114,6 +114,10 @@ class SalesSettings:
     phone: str | None
     address: str | None
     invoice_paper: str
+    economic_code: str | None = None
+    national_id: str | None = None
+    registration_no: str | None = None
+    postal_code: str | None = None
 
 
 @dataclass(frozen=True)
@@ -147,6 +151,10 @@ def organization(s: Session) -> SalesSettings:
             phone=org.phone,
             address=org.address,
             invoice_paper=org.invoice_paper,
+            economic_code=org.economic_code,
+            national_id=org.national_id,
+            registration_no=org.registration_no,
+            postal_code=org.postal_code,
         )
 
     return refcache.get("organization", load)

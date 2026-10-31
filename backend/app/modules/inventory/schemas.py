@@ -79,6 +79,15 @@ class PriceIO(_In):
     price: Money
 
 
+class OpeningStockIn(_In):
+    """Stock the item starts with, recorded as an opening stock document (ADR-0027)."""
+
+    warehouse_id: uuid.UUID
+    qty: Qty = Field(gt=0)
+    unit_cost: Money = Field(ge=0)
+    expiry_date: date | None = None
+
+
 class ItemIn(_In):
     code: str = Field(min_length=1, max_length=32, pattern=r"^[0-9A-Za-z\-._]+$")
     name: str = Field(min_length=2, max_length=200)
@@ -97,6 +106,8 @@ class ItemIn(_In):
     units: list[ItemUnitIO] = []
     barcodes: list[BarcodeIO] = []
     prices: list[PriceIO] = []
+    # Only when creating an item; needs the stock document permission.
+    opening: OpeningStockIn | None = None
 
 
 class ItemImageOut(BaseModel):
@@ -282,6 +293,17 @@ class StockDocSummary(BaseModel):
     dest_warehouse_id: uuid.UUID | None
     description: str | None
     line_count: int
+
+
+class LotRow(BaseModel):
+    """One batch of an item in a warehouse (ADR-0027); no expiry date = received without one."""
+
+    warehouse_id: uuid.UUID
+    warehouse_name: str
+    expiry_date: date | None
+    days_left: int | None
+    qty: Qty
+    first_received: date
 
 
 class BalanceRow(BaseModel):

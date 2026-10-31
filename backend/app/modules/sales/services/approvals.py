@@ -26,8 +26,13 @@ APPROVAL_TTL = timedelta(minutes=3)
 REQUIRED = {
     "line_delete": "sales.invoice.line_delete_after_scan",
     "discount_over_limit": "sales.invoice.discount_over_limit",
+    "return": "sales.return.create",
 }
-LABEL = {"line_delete": "حذف ردیف", "discount_over_limit": "تخفیف بالاتر از سقف"}
+LABEL = {
+    "line_delete": "حذف ردیف",
+    "discount_over_limit": "تخفیف بالاتر از سقف",
+    "return": "برگشت از فروش",
+}
 
 
 def grant(actor: Actor, data: ApprovalIn) -> ApprovalOut:

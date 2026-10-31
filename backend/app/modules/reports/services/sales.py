@@ -8,21 +8,23 @@ from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import ColumnClause, Date, case, func, literal, literal_column, select
+from sqlalchemy import ColumnClause, Date, case, func, literal, literal_column, select, text
 from sqlalchemy.orm import Session
 
 from app.core.db import load_columns_by_ids, utcnow
 from app.modules.accounting.models import Voucher, VoucherLine
 from app.modules.iam.guard import Actor
 from app.modules.iam.models import AppUser
-from app.modules.inventory.models import Item, ItemGroup, StockBalance, Warehouse
-from app.modules.organization.models import Branch, CashRegister
+from app.modules.inventory.models import Item, ItemGroup, StockBalance, StockLot, Warehouse
+from app.modules.inventory.services.stock import tehran_today
+from app.modules.organization.models import Branch, CashRegister, Organization
 from app.modules.parties.models import Party
 from app.modules.reports.schemas import (
     Column,
     Dashboard,
     DashboardQ,
     DayPoint,
+    ExpiryAlert,
     Kpi,
     ReportTable,
     SalesQ,
@@ -394,6 +396,8 @@ def dashboard(s: Session, actor: Actor, p: DashboardQ) -> Dashboard:
             or 0
         )
 
+    expiry = _expiry_alert(s, scope) if actor.has("inventory.report.view") else None
+
     receivables = payables = None
     if actor.has("parties.view") or actor.has("parties.manage"):
         bal = (
@@ -442,9 +446,37 @@ def dashboard(s: Session, actor: Actor, p: DashboardQ) -> Dashboard:
         payments=payments,
         inventory_value=inventory_value,
         below_min_items=below_min,
+        expiry=expiry,
         receivables=receivables,
         payables=payables,
         cash_shortage=m(s.scalar(short_stmt)),
         unknown_card_transactions=int(s.scalar(unknown_stmt) or 0),
         generated_at=utcnow(),
+    )
+
+
+def _expiry_alert(s: Session, scope: set[uuid.UUID] | None) -> ExpiryAlert:
+    """How many lots have expired, expire within the urgent days, or within the warning
+    days (each lot counted once, in the nearest band)."""
+    org = s.scalar(select(Organization))
+    warn = org.expiry_warn_days if org else 30
+    urgent = org.expiry_urgent_days if org else 7
+    today = tehran_today()
+    left = func.datediff(text("day"), today, StockLot.expiry_date)
+    stmt = select(
+        func.sum(case((left < 0, 1), else_=0)),
+        func.sum(case(((left >= 0) & (left <= urgent), 1), else_=0)),
+        func.sum(case(((left > urgent) & (left <= warn), 1), else_=0)),
+    ).where(StockLot.qty > 0, StockLot.expiry_date.is_not(None))
+    if scope is not None:
+        stmt = stmt.join(Warehouse, Warehouse.id == StockLot.warehouse_id).where(
+            Warehouse.branch_id.in_(scope)
+        )
+    expired, near, soon = s.execute(stmt).one()
+    return ExpiryAlert(
+        expired=int(expired or 0),
+        urgent=int(near or 0),
+        soon=int(soon or 0),
+        urgent_days=urgent,
+        warn_days=warn,
     )

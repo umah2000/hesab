@@ -40,12 +40,13 @@ export type TerminalInfo = { adapter_id: string; label: string; verified: boolea
 
 /** A card reader the register may send to (ADR-0023); `reason` says why it cannot yet. */
 /** Where an invoice is printed: the 80 mm roll, or A5 / A4 sheets. */
-export type InvoicePaper = "thermal" | "a5" | "a4";
+export type InvoicePaper = "thermal" | "a5" | "a4" | "official";
 
 export const PAPER_LABEL: Record<InvoicePaper, string> = {
   thermal: "فیش حرارتی ۸۰ میلی‌متری",
-  a5: "کاغذ A5",
-  a4: "کاغذ A4",
+  a5: "فاکتور فروش A5",
+  a4: "فاکتور فروش A4",
+  official: "صورتحساب رسمی (A4 افقی)",
 };
 
 export type TerminalChoice = {
@@ -76,6 +77,10 @@ export type RegisterState = {
   phone?: string | null;
   address?: string | null;
   invoice_paper?: InvoicePaper;
+  economic_code?: string | null;
+  national_id?: string | null;
+  registration_no?: string | null;
+  postal_code?: string | null;
   terminal: TerminalInfo | null;
   terminals: TerminalChoice[];
   permissions: string[];
@@ -144,6 +149,7 @@ export type Invoice = {
   kind: "sale" | "return";
   status: "draft" | "held" | "recalled" | "final";
   number: number | null;
+  manual_number?: string | null;
   document_date: string;
   branch_id: string;
   cash_register_id: string;
@@ -152,6 +158,17 @@ export type Invoice = {
   cashier_name: string;
   customer_id: string | null;
   customer_name: string | null;
+  /** The buyer's particulars for the official invoice; null for a walk-in customer. */
+  buyer?: {
+    party_type: string | null;
+    national_id: string | null;
+    economic_code: string | null;
+    registration_no: string | null;
+    postal_code: string | null;
+    phone: string | null;
+    city: string | null;
+    address: string | null;
+  } | null;
   original_invoice_id: string | null;
   original_number: number | null;
   subtotal: string;
@@ -183,6 +200,8 @@ export type InvoiceSummary = {
   kind: "sale" | "return";
   status: "held" | "final";
   number: number | null;
+  /** The company's own number, if given at checkout (ADR-0029). */
+  manual_number?: string | null;
   document_date: string;
   register_name: string;
   cashier_name: string;

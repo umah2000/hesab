@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDownLeft, ArrowUpLeft, BarChart3 } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpLeft, BarChart3, CalendarClock } from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -169,6 +169,7 @@ export function ManagementDashboard() {
   const money = (v: string) => formatMoney(v, currency);
   return (
     <section className="flex flex-col gap-4" aria-label="داشبورد مدیریتی">
+      {d?.expiry && (d.expiry.expired || d.expiry.urgent) ? <ExpiryBanner e={d.expiry} /> : null}
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-bold text-ink">وضعیت فروشگاه</h2>
         <Select
@@ -251,6 +252,24 @@ export function ManagementDashboard() {
             {d?.below_min_items ? (
               <Row label="کالای زیر حداقل موجودی" value={<Badge tone="warning">{toFaDigits(d.below_min_items)} قلم</Badge>} />
             ) : null}
+            {d?.expiry && (d.expiry.expired || d.expiry.urgent || d.expiry.soon) ? (
+              <Row
+                label={<Link className="hover:underline" to="/reports/near-expiry">دسته‌های نزدیک انقضا</Link>}
+                value={
+                  <span className="flex flex-wrap justify-end gap-1">
+                    {d.expiry.expired ? (
+                      <Badge tone="danger" icon={false}><AlertTriangle className="size-3.5" /> {toFaDigits(d.expiry.expired)} منقضی</Badge>
+                    ) : null}
+                    {d.expiry.urgent ? (
+                      <Badge tone="danger" icon={false}><CalendarClock className="size-3.5" /> {toFaDigits(d.expiry.urgent)} تا {toFaDigits(d.expiry.urgent_days)} روز</Badge>
+                    ) : null}
+                    {d.expiry.soon ? (
+                      <Badge tone="warning" icon={false}><CalendarClock className="size-3.5" /> {toFaDigits(d.expiry.soon)} تا {toFaDigits(d.expiry.warn_days)} روز</Badge>
+                    ) : null}
+                  </span>
+                }
+              />
+            ) : null}
             {d?.receivables !== null && d?.receivables !== undefined ? (
               <Row label={<Link className="hover:underline" to="/reports/debtors">طلب از مشتریان</Link>} value={money(d.receivables)} />
             ) : null}
@@ -280,6 +299,23 @@ function Row({ label, value }: { label: React.ReactNode; value: React.ReactNode 
     <div className="flex items-center justify-between gap-3">
       <span className="text-ink-soft">{label}</span>
       <span className="tabular font-semibold text-ink">{value}</span>
+    </div>
+  );
+}
+
+/** Shown above everything while some stock has expired or expires within the urgent days. */
+function ExpiryBanner({ e }: { e: NonNullable<Dashboard["expiry"]> }) {
+  const parts = [
+    e.expired ? `${toFaDigits(e.expired)} دسته منقضی شده` : null,
+    e.urgent ? `${toFaDigits(e.urgent)} دسته تا ${toFaDigits(e.urgent_days)} روز دیگر منقضی می‌شود` : null,
+  ].filter(Boolean);
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-2xl bg-danger/10 px-4 py-3 text-sm ring-1 ring-danger/30">
+      <AlertTriangle className="size-5 text-danger" />
+      <span className="flex-1 font-semibold text-ink">هشدار انقضا: {parts.join("، ")}.</span>
+      <Link className="font-semibold text-brand-600 hover:underline dark:text-brand-300" to="/reports/near-expiry">
+        فهرست دسته‌ها
+      </Link>
     </div>
   );
 }

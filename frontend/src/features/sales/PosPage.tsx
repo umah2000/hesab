@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, CheckCircle2, Inbox, Minus, MonitorSmartphone, MonitorUp, PauseCircle, Plus, Printer, ShoppingCart, Trash2, WifiOff } from "lucide-react";
+import { ArrowRight, CheckCircle2, Inbox, LayoutGrid, Minus, MonitorSmartphone, MonitorUp, PauseCircle, Plus, Printer, ShoppingCart, Trash2, Undo2, WifiOff } from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -24,7 +24,10 @@ import { cn } from "@/lib/utils";
 import { type ApprovalAction, ApprovalDialog } from "./ApprovalDialog";
 import { openCustomerDisplay, useDisplayPublisher } from "./CustomerDisplay";
 import { type CartLine, type Invoice, invoiceLabel, type Quote, type RegisterState, storedRegister, storeRegister } from "./api";
+import { FindInvoiceDialog } from "./FindInvoiceDialog";
 import { type PayMode, PaymentDialog, type PayResult } from "./PaymentDialog";
+import { PosCatalog } from "./PosCatalog";
+import { ReturnDialog } from "./ReturnDialog";
 import { CloseShiftDialog, DiscountDialog, HeldDialog, HoldDialog, QtyDialog } from "./PosDialogs";
 import { printReceipt, Receipt } from "./Receipt";
 
@@ -270,6 +273,8 @@ type DialogState =
   | { kind: "hold" }
   | { kind: "held" }
   | { kind: "close" }
+  | { kind: "find" }
+  | { kind: "return"; invoice: Invoice }
   | { kind: "approval"; action: ApprovalAction; detail: string; then: (approvalId: string) => void };
 
 const PAY_KEYS: Record<string, PayMode> = { F8: "cash", F9: "card", F10: "split", F11: "credit" };
@@ -338,6 +343,40 @@ function Workspace({ state }: { state: RegisterState }) {
     if (!dialog) focusScan();
   }, [dialog]);
 
+  // Touch catalogue beside the cart (ADR-0029); remembered per register computer.
+  const [showCatalog, setShowCatalog] = React.useState(() => {
+    try {
+      return localStorage.getItem("nc.pos.catalog") !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const toggleCatalog = () =>
+    setShowCatalog((v) => {
+      try {
+        localStorage.setItem("nc.pos.catalog", v ? "0" : "1");
+      } catch {
+        /* not remembered */
+      }
+      return !v;
+    });
+  const inCart = React.useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const l of cart.lines) m[l.item_id] = m[l.item_id] ? addQty(m[l.item_id], l.qty) : l.qty;
+    return m;
+  }, [cart.lines]);
+  const pickTile = (p: Picked & { weighted: boolean }, via: "touch" | "mouse") => {
+    if (p.weighted) {
+      // A weighed item without a scale label: add it, then ask for the weight.
+      const at = cart.lines.findIndex((l) => !l.fixed && l.item_id === p.item_id && !l.unit_id && !l.manual_discount);
+      add({ item_id: p.item_id, code: p.code, name: p.name, qty: at >= 0 ? "0" : "1" });
+      setDialog({ kind: "qty", index: at >= 0 ? at : cart.lines.length });
+    } else {
+      add(p);
+    }
+    // The scanner keeps working; a touch screen does not pop up its keyboard.
+    if (via === "mouse") focusScan();
+  };
   const add = (p: Picked) => {
     const fixed = p.source === "scale_weight" || p.source === "scale_price";
     setLastInvoice(null);
@@ -424,7 +463,7 @@ function Workspace({ state }: { state: RegisterState }) {
     mutationFn: (r: PayResult) =>
       api.post<Invoice>(
         "/sales/invoices",
-        { ...payload, id: cart.id, payments: r.payments, cash_tendered: r.cash_tendered ?? null, customer_id: r.customer_id ?? null, approval_id: discountApproval },
+        { ...payload, id: cart.id, payments: r.payments, cash_tendered: r.cash_tendered ?? null, customer_id: r.customer_id ?? null, approval_id: discountApproval, manual_number: r.manual_number ?? null },
         { idempotencyKey: payKey.current },
       ),
     onSuccess: (inv) => {
@@ -530,6 +569,10 @@ function Workspace({ state }: { state: RegisterState }) {
       } else if (e.key === "F6") {
         e.preventDefault();
         if (q) setDialog({ kind: "discount" });
+      } else if (e.key === "F7") {
+        e.preventDefault();
+        if (cart.lines.length) toast.info("ابتدا فاکتور جاری را ثبت یا معلق کنید");
+        else setDialog({ kind: "find" });
       } else if (e.key === "F12") {
         e.preventDefault();
         if (cart.lines.length) toast.info("فاکتور جاری خالی نیست");
@@ -569,13 +612,23 @@ function Workspace({ state }: { state: RegisterState }) {
         <section className="flex min-h-0 flex-col gap-3">
           <div className="glass flex items-center gap-3 rounded-2xl p-3">
             <ItemSearch ref={scanRef} onPick={add} autoFocus className="flex-1" inputClassName="h-14 text-lg" placeholder="اسکن بارکد یا جست‌وجوی کالا… (F3)" />
+            <Button
+              variant={showCatalog ? "primary" : "outline"}
+              className="h-14 px-4"
+              aria-pressed={showCatalog}
+              onClick={() => toggleCatalog()}
+              title="نمایش کالاها بر اساس دسته برای انتخاب لمسی"
+            >
+              <LayoutGrid /> کالاها
+            </Button>
           </div>
           {q?.warnings.length ? (
             <div className="rounded-xl bg-warning/15 px-4 py-2 text-sm text-ink" role="status">
               {q.warnings.join(" · ")}
             </div>
           ) : null}
-          <div className="surface min-h-0 flex-1 overflow-y-auto rounded-2xl">
+          <div className={cn("grid min-h-0 flex-1 gap-3", showCatalog && "grid-rows-[minmax(0,1fr)_minmax(0,1.15fr)] 2xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] 2xl:grid-rows-1")}>
+          <div className="surface min-h-0 overflow-y-auto rounded-2xl">
             {!cart.lines.length ? (
               lastInvoice ? (
                 <LastSale invoice={lastInvoice} currency={currency} onReprint={() => printInvoice(lastInvoice, true)} />
@@ -649,9 +702,11 @@ function Workspace({ state }: { state: RegisterState }) {
               </table>
             )}
           </div>
+          {showCatalog ? <PosCatalog currency={currency} inCart={inCart} onPick={pickTile} className="min-h-0" /> : null}
+          </div>
         </section>
 
-        <aside className="flex min-h-0 flex-col gap-3">
+        <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto pb-1 [scrollbar-width:thin]">
           <Card className="flex flex-col gap-2 p-4 text-sm">
             <SumRow label="تعداد اقلام" value={`${toFaDigits(itemCount)} قلم`} />
             <SumRow label="جمع کل" value={q ? money(q.subtotal) : "—"} />
@@ -679,6 +734,9 @@ function Workspace({ state }: { state: RegisterState }) {
             <Button variant="outline" onClick={() => setDialog({ kind: "held" })} disabled={!!cart.lines.length}>
               معلق‌ها (F5){state.held_count ? ` · ${toFaDigits(state.held_count)}` : ""}
             </Button>
+            <Button variant="outline" onClick={() => setDialog({ kind: "find" })} disabled={!!cart.lines.length}>
+              <Undo2 /> برگشت (F7)
+            </Button>
             <Button variant="outline" onClick={() => setDialog({ kind: "close" })} disabled={!!cart.lines.length}>بستن شیفت (F12)</Button>
             <label className="col-span-2 flex items-center gap-2 px-1 text-xs text-ink-soft">
               <input
@@ -704,7 +762,7 @@ function Workspace({ state }: { state: RegisterState }) {
       </div>
 
       <footer className="glass no-print flex flex-wrap items-center gap-x-5 gap-y-1 rounded-2xl px-4 py-2 text-xs text-ink-soft">
-        {[["F2", "تغییر مقدار"], ["F3", "جست‌وجو"], ["F4", "تعلیق"], ["F5", "معلق‌ها"], ["F6", "تخفیف"], ["Del", "حذف ردیف"], ["+/−", "مقدار ردیف"], ["F8–F11", "پرداخت"], ["F12", "بستن شیفت"]].map(([k, t]) => (
+        {[["F2", "تغییر مقدار"], ["F3", "جست‌وجو"], ["F4", "تعلیق"], ["F5", "معلق‌ها"], ["F6", "تخفیف"], ["F7", "برگشت"], ["Del", "حذف ردیف"], ["+/−", "مقدار ردیف"], ["F8–F11", "پرداخت"], ["F12", "بستن شیفت"]].map(([k, t]) => (
           <span key={k}>
             <kbd className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] font-bold text-ink shadow-sm dark:bg-white/15">{k}</kbd> {t}
           </span>
@@ -730,6 +788,7 @@ function Workspace({ state }: { state: RegisterState }) {
             footer={state.receipt_footer}
             phone={state.phone}
             address={state.address}
+            seller={state}
             paper={paper}
           />
         </div>
@@ -777,6 +836,22 @@ function Workspace({ state }: { state: RegisterState }) {
       ) : null}
       {dialog?.kind === "hold" ? <HoldDialog busy={hold.isPending} onSave={(n) => hold.mutate(n)} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === "held" ? <HeldDialog registerId={reg} currency={currency} onRecall={(id) => recall.mutate(id)} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === "find" ? (
+        <FindInvoiceDialog registerId={reg} onClose={() => setDialog(null)} onFound={(invoice) => setDialog({ kind: "return", invoice })} />
+      ) : null}
+      {dialog?.kind === "return" ? (
+        <ReturnDialog
+          invoice={dialog.invoice}
+          currency={currency}
+          registerId={reg}
+          canReturn={can("sales.return.create")}
+          onClose={() => setDialog(null)}
+          onDone={(r) => {
+            setLastInvoice(r);
+            if (autoPrint) printInvoice(r, false);
+          }}
+        />
+      ) : null}
       {dialog?.kind === "close" && state.shift ? (
         <CloseShiftDialog
           shift={state.shift}

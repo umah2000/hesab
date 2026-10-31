@@ -411,10 +411,10 @@ function InvoiceForm({
                       <Input className="h-9 text-end" dir="ltr" inputMode="decimal" aria-label={`مقدار ردیف ${i + 1}`} value={r.qty} onChange={(e) => patch(r.key, { qty: e.target.value })} />
                     </td>
                     <td className="px-2 py-2">
-                      <MoneyInput className="h-9" aria-label={`بهای واحد ردیف ${i + 1}`} value={r.cost} onChange={(v) => patch(r.key, { cost: v })} />
+                      <MoneyInput compact className="h-9" aria-label={`بهای واحد ردیف ${i + 1}`} value={r.cost} onChange={(v) => patch(r.key, { cost: v })} />
                     </td>
                     <td className="px-2 py-2">
-                      <MoneyInput className="h-9" aria-label={`تخفیف ردیف ${i + 1}`} value={r.discount} onChange={(v) => patch(r.key, { discount: v })} />
+                      <MoneyInput compact className="h-9" aria-label={`تخفیف ردیف ${i + 1}`} value={r.discount} onChange={(v) => patch(r.key, { discount: v })} />
                     </td>
                     <td className="px-2 py-2">
                       {m?.vat_exempt ? (
@@ -492,7 +492,7 @@ function InvoiceForm({
             {charges.map((c, i) => (
               <div key={c.key} className="grid items-center gap-2 md:grid-cols-[1fr_12rem_18rem_2.5rem]">
                 <Input aria-label={`شرح هزینه ${i + 1}`} placeholder="شرح (مثلاً کرایه حمل)" maxLength={200} value={c.description} onChange={(e) => patchCharge(c.key, { description: e.target.value })} />
-                <MoneyInput aria-label={`مبلغ هزینه ${i + 1}`} placeholder={curLabel(currency)} value={c.amount} onChange={(v) => patchCharge(c.key, { amount: v })} />
+                <MoneyInput compact aria-label={`مبلغ هزینه ${i + 1}`} placeholder={curLabel(currency)} value={c.amount} onChange={(v) => patchCharge(c.key, { amount: v })} />
                 <PartyPicker options={parties.data ?? []} value={c.payee_id} onChange={(v) => patchCharge(c.key, { payee_id: v })} ariaLabel={`طرف‌حساب هزینه ${i + 1}`} placeholder="همان تأمین‌کننده" />
                 <Button
                   variant="ghost"

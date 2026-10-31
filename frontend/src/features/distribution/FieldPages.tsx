@@ -461,7 +461,7 @@ function TargetRow({ t, year, month }: { t: Target; year: number; month: number 
       <Td className="font-medium">{t.visitor_name}</Td>
       <Td>
         <div className="flex items-center gap-1.5">
-          <MoneyInput value={value} onChange={setValue} aria-label={`هدف ${t.visitor_name}`} />
+          <MoneyInput compact value={value} onChange={setValue} aria-label={`هدف ${t.visitor_name}`} />
           <Button size="sm" variant={changed ? "primary" : "ghost"} disabled={!changed || !value} loading={save.isPending} onClick={() => save.mutate()}>
             ذخیره
           </Button>

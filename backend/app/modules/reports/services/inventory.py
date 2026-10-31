@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import case, func, or_, select, true
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.db import load_columns_by_ids
@@ -16,8 +16,8 @@ from app.modules.iam.guard import Actor
 from app.modules.inventory.models import (
     Item,
     StockBalance,
-    StockDocumentLine,
     StockLedger,
+    StockLot,
     Unit,
     Warehouse,
 )
@@ -240,64 +240,51 @@ def slow_moving(s: Session, actor: Actor, p: SlowQ) -> ReportTable:
 
 
 def near_expiry(s: Session, actor: Actor, p: ExpiryQ) -> ReportTable:
-    """نزدیک انقضا. Stock is valued at moving average without lots, so which receipts are
-    still on the shelf is estimated: the newest receipts are assumed to be what remains
-    (first in, first out). Expired lines are listed too (negative days left)."""
+    """نزدیک انقضا: the lots (ADR-0027) that expire within the period, expired ones too
+    (negative days left). Valued at the warehouse's moving average cost."""
     whs = _warehouses(s, actor, p.branch_id, p.warehouse_id)
     today = tehran_today()
     limit = today + timedelta(days=p.days)
-    balances = list(
+    lots = list(
         s.execute(
             select(
-                StockBalance.item_id,
-                StockBalance.warehouse_id,
-                StockBalance.qty,
+                StockLot.item_id,
+                StockLot.warehouse_id,
+                StockLot.expiry_date,
+                StockLot.qty,
                 StockBalance.avg_cost,
             )
-            .join(Item, Item.id == StockBalance.item_id)
+            .join(
+                StockBalance,
+                (StockBalance.item_id == StockLot.item_id)
+                & (StockBalance.warehouse_id == StockLot.warehouse_id),
+            )
             .where(
-                StockBalance.warehouse_id.in_(whs),
-                StockBalance.qty > 0,
-                Item.track_expiry == true(),
+                StockLot.warehouse_id.in_(whs),
+                StockLot.qty > 0,
+                StockLot.expiry_date.is_not(None),
+                StockLot.expiry_date <= limit,
             )
         )
     )
-    items = _items(s, {b[0] for b in balances})
+    items = _items(s, {r[0] for r in lots})
     wh_names = dict(s.execute(select(Warehouse.id, Warehouse.name)).all())
     rows: list[dict[str, Any]] = []
-    for item_id, wh_id, qty, avg in balances:
-        receipts = list(
-            s.execute(
-                select(StockLedger.qty_in, StockDocumentLine.expiry_date)
-                .join(StockDocumentLine, StockDocumentLine.id == StockLedger.document_line_id)
-                .where(
-                    StockLedger.item_id == item_id,
-                    StockLedger.warehouse_id == wh_id,
-                    StockLedger.qty_in > 0,
-                )
-                .order_by(StockLedger.document_date.desc(), StockLedger.seq.desc())
-            )
-        )
-        left = Decimal(qty)
+    for item_id, wh_id, expiry, qty, avg in lots:
+        assert expiry is not None
         it, unit = items[item_id]
-        for got, expiry in receipts:
-            if left <= 0:
-                break
-            take = min(Decimal(got), left)
-            left -= take
-            if expiry is not None and expiry <= limit:
-                rows.append(
-                    {
-                        "code": it.code,
-                        "name": it.name,
-                        "warehouse": wh_names.get(wh_id, ""),
-                        "expiry": expiry.isoformat(),
-                        "days_left": (expiry - today).days,
-                        "qty": q(take),
-                        "unit": unit,
-                        "value": m(take * Decimal(avg)),
-                    }
-                )
+        rows.append(
+            {
+                "code": it.code,
+                "name": it.name,
+                "warehouse": wh_names.get(wh_id, ""),
+                "expiry": expiry.isoformat(),
+                "days_left": (expiry - today).days,
+                "qty": q(qty),
+                "unit": unit,
+                "value": m(Decimal(qty) * Decimal(avg)),
+            }
+        )
     rows.sort(key=lambda r: r["expiry"])
     return ReportTable(
         key="near-expiry",
@@ -308,9 +295,9 @@ def near_expiry(s: Session, actor: Actor, p: ExpiryQ) -> ReportTable:
             Column(key="warehouse", label="انبار"),
             Column(key="expiry", label="تاریخ انقضا", kind="date"),
             Column(key="days_left", label="روز مانده", kind="int"),
-            Column(key="qty", label="مقدار (برآوردی)", kind="qty"),
+            Column(key="qty", label="مقدار", kind="qty"),
             Column(key="unit", label="واحد"),
-            Column(key="value", label="ارزش (برآوردی)", kind="money"),
+            Column(key="value", label="ارزش", kind="money"),
         ],
         rows=page(rows, p.page, p.page_size),
         totals={"code": "جمع", "value": m(sum((Decimal(r["value"]) for r in rows), ZERO))},
@@ -319,6 +306,6 @@ def near_expiry(s: Session, actor: Actor, p: ExpiryQ) -> ReportTable:
         page_size=p.page_size,
         notes=[
             f"کالاهای دارای تاریخ انقضا که تا {p.days} روز دیگر (یا پیش‌تر) منقضی می‌شوند.",
-            "موجودی بچ‌به‌بچ نگهداری نمی‌شود؛ فرض شده جدیدترین ورودی‌ها هنوز در انبارند (FIFO).",
+            "هر ردیف یک دسته (بچ) است؛ فروش و خروج از زودانقضاترین دسته کم می‌شود.",
         ],
     )

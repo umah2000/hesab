@@ -6,10 +6,11 @@ import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/form-controls";
 import { ApiError, api } from "@/lib/api";
 
-export type ApprovalAction = "line_delete" | "discount_over_limit";
+export type ApprovalAction = "line_delete" | "discount_over_limit" | "return";
 const TITLE: Record<ApprovalAction, string> = {
   line_delete: "حذف ردیف اسکن‌شده",
   discount_over_limit: "تخفیف بالاتر از سقف صندوق‌دار",
+  return: "برگشت از فروش",
 };
 
 /**

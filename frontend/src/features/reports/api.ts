@@ -37,6 +37,8 @@ export type Dashboard = {
   payments: Record<string, string>;
   inventory_value: string | null;
   below_min_items: number | null;
+  /** Lots by how soon they expire (ADR-0027); null without the inventory report permission. */
+  expiry?: { expired: number; urgent: number; soon: number; urgent_days: number; warn_days: number } | null;
   receivables: string | null;
   payables: string | null;
   cash_shortage: string;

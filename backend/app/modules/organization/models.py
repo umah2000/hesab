@@ -30,7 +30,7 @@ class Organization(EntityMixin, ActorMixin, VersionedMixin, Base):
         CheckConstraint(
             "negative_stock_policy IN ('deny','warn','allow')", name="negative_stock_policy"
         ),
-        CheckConstraint("invoice_paper IN ('thermal','a5','a4')", name="invoice_paper"),
+        CheckConstraint("invoice_paper IN ('thermal','a5','a4','official')", name="invoice_paper"),
     )
 
     name: Mapped[str] = mapped_column(Unicode(200))
@@ -58,6 +58,14 @@ class Organization(EntityMixin, ActorMixin, VersionedMixin, Base):
     # The logo as the server re-encoded it (PNG, ADR-0022); never read by a plain query.
     logo: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
     logo_sha256: Mapped[str | None] = mapped_column(String(64))
+    # Seller particulars printed on the official invoice (صورتحساب فروش کالا و خدمات).
+    economic_code: Mapped[str | None] = mapped_column(String(16))
+    national_id: Mapped[str | None] = mapped_column(String(11))
+    registration_no: Mapped[str | None] = mapped_column(String(20))
+    postal_code: Mapped[str | None] = mapped_column(String(10))
+    # Expiry warnings for managers (ADR-0027): soon, and urgent.
+    expiry_warn_days: Mapped[int] = mapped_column(Integer, default=30)
+    expiry_urgent_days: Mapped[int] = mapped_column(Integer, default=7)
 
 
 class Branch(EntityMixin, ActorMixin, VersionedMixin, Base):

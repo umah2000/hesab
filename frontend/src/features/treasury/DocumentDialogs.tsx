@@ -255,7 +255,7 @@ export function ReceiptPaymentDialog({ kind, onClose }: { kind: "receipt" | "pay
                       </Field>
                     ) : null}
                     <Field label={`مبلغ (${currency === "IRT" ? "تومان" : "ریال"})`} className="w-44">
-                      <MoneyInput aria-label={`مبلغ ردیف ${i + 1}`} value={l.amount} onChange={(v) => update(l.key, { amount: v })} />
+                      <MoneyInput compact aria-label={`مبلغ ردیف ${i + 1}`} value={l.amount} onChange={(v) => update(l.key, { amount: v })} />
                     </Field>
                     {l.method === "bank" ? (
                       <Field label="شماره پیگیری" className="w-36">

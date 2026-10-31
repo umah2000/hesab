@@ -46,6 +46,8 @@ from app.modules.inventory.models import (
     StockDocument,
     StockDocumentLine,
     StockLedger,
+    StockLot,
+    StockLotMove,
     Unit,
     Warehouse,
 )
@@ -117,6 +119,8 @@ __all__ = [
     "StockDocument",
     "StockDocumentLine",
     "StockLedger",
+    "StockLot",
+    "StockLotMove",
     "Unit",
     "Warehouse",
     "Account",

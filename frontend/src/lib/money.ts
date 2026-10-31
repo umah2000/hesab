@@ -70,3 +70,18 @@ function fromUnits(u: bigint): string {
   const s = `${abs / 10000n}.${String(abs % 10000n).padStart(4, "0")}`;
   return neg ? `-${s}` : s;
 }
+
+/** Rials ÷ quantity (3 decimals), rounded half up to whole rials; "0" for a zero quantity. */
+export function divRialsByQty(rials: string, qty: string): string {
+  const [qi, qf = ""] = qty.replace("-", "").split(".");
+  const q = BigInt(qi || "0") * 1000n + BigInt((qf + "000").slice(0, 3));
+  if (q === 0n) return "0";
+  // units are rials × 10⁴; × 1000 for the quantity's decimals.
+  const num = toUnits(rials) * 1000n;
+  const whole = (num / q + 5000n) / 10000n;
+  return whole.toString();
+}
+
+export function addRials(a: string, b: string): string {
+  return fromUnits(toUnits(a) + toUnits(b));
+}

@@ -96,6 +96,14 @@ class SalesInvoice(EntityMixin, ActorMixin, VersionedMixin, Base):
         Index("ix_sales_invoice_branch_date", "branch_id", "document_date", "status"),
         Index("ix_sales_invoice_shift", "shift_id"),
         Index("ix_sales_invoice_original", "original_invoice_id"),
+        # A number typed by the user (company standard), besides the automatic one (ADR-0029).
+        Index(
+            "uq_sales_invoice_manual_number",
+            "kind",
+            "manual_number",
+            unique=True,
+            mssql_where=text("manual_number IS NOT NULL"),
+        ),
         # Offline sales: the number printed on the receipt at the register (ADR-0005).
         Index(
             "uq_sales_invoice_device_number",
@@ -114,6 +122,8 @@ class SalesInvoice(EntityMixin, ActorMixin, VersionedMixin, Base):
     kind: Mapped[str] = mapped_column(String(8), default="sale")
     status: Mapped[str] = mapped_column(String(10))
     number: Mapped[int | None] = mapped_column(Integer)
+    # Optional number given by the user; the automatic, gap-free ``number`` stays (ADR-0029).
+    manual_number: Mapped[str | None] = mapped_column(String(30))
     document_date: Mapped[date] = mapped_column(Date)
     customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("detail_account.id"))
     original_invoice_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("sales_invoice.id"))
@@ -255,7 +265,7 @@ class SalesApproval(EntityMixin, Base):
     __tablename__ = "sales_approval"
     __table_args__ = (
         CheckConstraint(
-            "action IN ('line_delete','discount_over_limit')",
+            "action IN ('line_delete','discount_over_limit','return')",
             name="action",
         ),
     )

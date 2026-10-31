@@ -9,7 +9,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ColumnKind = Literal["text", "money", "qty", "int", "percent", "date"]
 
@@ -51,9 +51,21 @@ class _Q(BaseModel):
     branch_id: uuid.UUID | None = None
 
 
+# «همه» in the report filters (ADR-0028): from before the first document to today.
+ALL_TIME_START = date(2000, 1, 1)
+
+
 class RangeQ(_Q):
     date_from: date | None = None
     date_to: date | None = None
+    # Whole history; the one-year limit (ADR-0016) does not apply.
+    all_time: bool = False
+
+    @model_validator(mode="after")
+    def _all_time(self) -> RangeQ:
+        if self.all_time:
+            self.date_from, self.date_to = ALL_TIME_START, None
+        return self
 
 
 class SalesQ(RangeQ):
@@ -124,6 +136,16 @@ class TopItem(BaseModel):
     net_sales: str
 
 
+class ExpiryAlert(BaseModel):
+    """Lots (ADR-0027) by how soon they expire; days come from the settings."""
+
+    expired: int
+    urgent: int
+    soon: int
+    urgent_days: int
+    warn_days: int
+
+
 class Dashboard(BaseModel):
     date_from: date
     date_to: date
@@ -134,6 +156,7 @@ class Dashboard(BaseModel):
     payments: dict[str, str]
     inventory_value: str | None
     below_min_items: int | None
+    expiry: ExpiryAlert | None = None
     receivables: str | None
     payables: str | None
     cash_shortage: str

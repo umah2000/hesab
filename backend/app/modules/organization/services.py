@@ -61,6 +61,12 @@ def _org_out(o: Organization) -> OrganizationOut:
         phone=o.phone,
         address=o.address,
         website=o.website,
+        economic_code=o.economic_code,
+        national_id=o.national_id,
+        registration_no=o.registration_no,
+        postal_code=o.postal_code,
+        expiry_warn_days=o.expiry_warn_days,
+        expiry_urgent_days=o.expiry_urgent_days,
         logo_version=o.logo_sha256[:16] if o.logo_sha256 else None,
         row_version=version_to_str(o.row_version),
     )

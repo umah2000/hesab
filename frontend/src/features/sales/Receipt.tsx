@@ -2,8 +2,9 @@ import { logoUrl, useBranding } from "@/components/layout/branding";
 import { formatDate, formatMoney, formatTime, toFaDigits } from "@/lib/format";
 import type { DisplayCurrency } from "@/lib/format";
 import { trimQty } from "@/features/inventory/api";
-import { compareRials, sumRials } from "@/lib/money";
+import { compareRials } from "@/lib/money";
 import { type Invoice, type InvoicePaper, METHOD_LABEL } from "./api";
+import { OfficialInvoice, SalesSheet, type Seller } from "./InvoiceSheets";
 
 type ReceiptProps = {
   invoice: Invoice;
@@ -14,13 +15,21 @@ type ReceiptProps = {
   phone?: string | null;
   address?: string | null;
   reprint?: boolean;
-  /** Thermal roll (default) or an A5 / A4 sheet. */
+  /** Thermal roll (default), an A5 / A4 sheet, or the official A4 landscape invoice. */
   paper?: InvoicePaper;
+  /** Seller particulars for the official invoice. */
+  seller?: Omit<Seller, "name" | "phone" | "address">;
 };
 
 /** An invoice as printed from the browser: the 80 mm roll, or an A5 / A4 sheet. */
-export function Receipt({ paper = "thermal", ...props }: ReceiptProps) {
-  return paper === "thermal" ? <ThermalReceipt {...props} /> : <SheetInvoice {...props} paper={paper} />;
+export function Receipt({ paper = "thermal", seller, ...props }: ReceiptProps) {
+  if (paper === "thermal") return <ThermalReceipt {...props} />;
+  const who: Seller = { name: props.organization, phone: props.phone, address: props.address, ...seller };
+  return paper === "official" ? (
+    <OfficialInvoice invoice={props.invoice} seller={who} reprint={props.reprint} />
+  ) : (
+    <SalesSheet invoice={props.invoice} seller={who} paper={paper} reprint={props.reprint} />
+  );
 }
 
 function useParts({ invoice, currency }: Pick<ReceiptProps, "invoice" | "currency">) {
@@ -31,6 +40,11 @@ function useParts({ invoice, currency }: Pick<ReceiptProps, "invoice" | "currenc
   const number =
     invoice.number == null && invoice.device_number ? (
       <span className="latin-digits">{invoice.device_number}</span>
+    ) : invoice.manual_number ? (
+      // The company's own number first; the automatic one stays beside it (ADR-0029).
+      <>
+        <span dir="ltr">{invoice.manual_number}</span> ({toFaDigits(invoice.number ?? 0)})
+      </>
     ) : (
       toFaDigits(invoice.number ?? 0)
     );
@@ -132,104 +146,11 @@ function ThermalReceipt({ invoice, currency, organization, header, footer, phone
   );
 }
 
-/** An A5 / A4 sales invoice: letterhead, details, numbered lines with discount and tax. */
-function SheetInvoice({ invoice, currency, organization, header, footer, phone, address, reprint, paper }: ReceiptProps & { paper: "a5" | "a4" }) {
-  const { money, isReturn, when, number, totals, payments, heading, notes } = useParts({ invoice, currency });
-  const logo = useBranding().data?.logo_version;
-  const cell = "border border-black/70 px-1.5 py-1";
-  const small = paper === "a5";
-  const hasTax = compareRials(invoice.tax_total, "0") !== 0;
-  return (
-    <div className={`invoice-sheet bg-white text-black ${small ? "w-[128mm] text-[8.5pt]" : "w-[186mm] text-[10pt]"}`} dir="rtl">
-      <div className="flex items-center justify-between gap-3 border-b-2 border-black pb-2">
-        <div className="flex items-center gap-3">
-          {logo ? <img src={logoUrl(logo)} alt="" className={`${small ? "max-h-[14mm]" : "max-h-[20mm]"} max-w-[40mm] object-contain`} /> : null}
-          <div>
-            <div className={`${small ? "text-[13pt]" : "text-[17pt]"} font-black`}>{organization}</div>
-            {header ? <div className="whitespace-pre-line">{header}</div> : null}
-            {address ? <div>{address}</div> : null}
-            {phone ? <div>تلفن: <span className="tabular">{toFaDigits(phone)}</span></div> : null}
-          </div>
-        </div>
-        <div className="text-start">
-          <div className={`${small ? "text-[12pt]" : "text-[15pt]"} font-black`}>{heading}{reprint ? " (رونوشت)" : ""}</div>
-          <div>شماره: {number}</div>
-          <div>تاریخ: {formatDate(when)} — {formatTime(when)}</div>
-        </div>
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-x-4">
-        <span>فروشنده: {invoice.cashier_name}</span>
-        <span>صندوق: {invoice.register_name}</span>
-        <span>خریدار: {invoice.customer_name ?? "مشتری نقدی"}</span>
-        {isReturn && invoice.original_number ? <span>برگشت فاکتور شماره {toFaDigits(invoice.original_number)}</span> : null}
-      </div>
-      <table className="mt-2 w-full border-collapse">
-        <thead>
-          <tr className="bg-black/10 font-bold">
-            <th className={`${cell} w-[5%]`}>ردیف</th>
-            <th className={`${cell} text-start`}>شرح کالا</th>
-            <th className={cell}>مقدار</th>
-            <th className={cell}>واحد</th>
-            <th className={cell}>قیمت واحد</th>
-            <th className={cell}>تخفیف</th>
-            {hasTax ? <th className={cell}>مالیات</th> : null}
-            <th className={cell}>مبلغ کل</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.lines.map((l, i) => {
-            const disc = sumRials([l.promotion_discount, l.manual_discount]);
-            return (
-              <tr key={l.id} className="align-top">
-                <td className={`${cell} text-center`}>{toFaDigits(i + 1)}</td>
-                <td className={cell}>{l.item_name}{l.vat_exempt ? " *" : ""}</td>
-                <td className={`${cell} tabular text-center`}>{toFaDigits(trimQty(l.qty))}</td>
-                <td className={`${cell} text-center`}>{l.unit_name}</td>
-                <td className={`${cell} tabular text-center`}>{money(l.unit_price)}</td>
-                <td className={`${cell} tabular text-center`}>{compareRials(disc, "0") ? money(disc) : "—"}</td>
-                {hasTax ? <td className={`${cell} tabular text-center`}>{money(l.tax)}</td> : null}
-                <td className={`${cell} tabular text-center`}>{money(l.line_total)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <div className="mt-2 flex items-start justify-between gap-4">
-        <div className="flex-1">
-          {payments.map((p) => (
-            <div key={p.label} className="flex justify-between gap-4">
-              <span>{p.label}</span>
-              <span className="tabular">{p.value}</span>
-            </div>
-          ))}
-          {notes.map((n) => (
-            <div key={n} className="mt-1 text-[0.85em]">{n}</div>
-          ))}
-        </div>
-        <table className="w-[45%] border-collapse">
-          <tbody>
-            {totals.map((t) => (
-              <tr key={t.label} className={t.bold ? "bg-black/10 font-black" : ""}>
-                <td className={cell}>{t.label}</td>
-                <td className={`${cell} tabular text-center`}>{t.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="mt-8 grid grid-cols-2 text-center">
-        <span>مهر و امضای فروشنده</span>
-        <span>امضای خریدار</span>
-      </div>
-      {footer ? <div className="mt-6 border-t border-black/50 pt-1 text-center whitespace-pre-line">{footer}</div> : null}
-    </div>
-  );
-}
-
 const PAGE: Record<InvoicePaper, string> = {
   thermal: "@page { size: 80mm auto; margin: 0; }",
   a5: "@page { size: A5 portrait; margin: 10mm; }",
   a4: "@page { size: A4 portrait; margin: 12mm; }",
+  official: "@page { size: A4 landscape; margin: 10mm; }",
 };
 
 /** Prints the element with class .print-area on the given paper (default: 80 mm roll). */
