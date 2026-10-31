@@ -40,6 +40,11 @@ function useParts({ invoice, currency }: Pick<ReceiptProps, "invoice" | "currenc
   const number =
     invoice.number == null && invoice.device_number ? (
       <span className="latin-digits">{invoice.device_number}</span>
+    ) : invoice.manual_number ? (
+      // The company's own number first; the automatic one stays beside it (ADR-0029).
+      <>
+        <span dir="ltr">{invoice.manual_number}</span> ({toFaDigits(invoice.number ?? 0)})
+      </>
     ) : (
       toFaDigits(invoice.number ?? 0)
     );

@@ -19,7 +19,6 @@ import { ApiError, api, newIdempotencyKey, type Page } from "@/lib/api";
 import { formatDateTime, formatMoney, toEnDigits, toFaDigits } from "@/lib/format";
 import { isoToJalaliFa, todayIso } from "@/lib/jalali";
 import { compareRials, inputToRials, rialsToInput, sumRials } from "@/lib/money";
-import { qtyUnits, subQty } from "@/lib/qty";
 import { cn } from "@/lib/utils";
 import {
   type DailyReport,
@@ -28,16 +27,15 @@ import {
   type InvoiceSummary,
   METHOD_LABEL,
   PAPER_LABEL,
-  type Method,
   type Promotion,
   type Shift,
   type ShiftReport,
-  storedRegister,
   type TerminalTx,
   TX_LABEL,
 } from "./api";
 import type { Organization } from "@/features/settings/types";
 import { printReceipt, Receipt } from "./Receipt";
+import { ReturnDialog } from "./ReturnDialog";
 
 const onError = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "خطا");
 
@@ -85,76 +83,156 @@ export function InvoicesPage() {
   const [kind, setKind] = React.useState("");
   const [number, setNumber] = React.useState("");
   const [from, setFrom] = React.useState<string | null>(todayIso());
+  // Hover previews a row; a click pins it (the preview stays when the mouse leaves).
+  const [pinned, setPinned] = React.useState<string | null>(null);
+  const [hovered, setHovered] = React.useState<string | null>(null);
+  const hoverTimer = React.useRef<number | undefined>(undefined);
   const params = new URLSearchParams({ page: String(page), page_size: "50", status: "final" });
   if (kind) params.set("kind", kind);
-  if (number.trim()) params.set("number", toEnDigits(number.trim()));
+  if (number.trim()) params.set("search", toEnDigits(number.trim()));
   if (from && !number.trim()) params.set("date_from", from);
   const list = useQuery({
     queryKey: ["sales", "invoices", params.toString()],
     queryFn: () => api.get<Page<InvoiceSummary>>(`/sales/invoices?${params}`),
     placeholderData: keepPreviousData,
   });
+  const shown = hovered ?? pinned ?? list.data?.items[0]?.id ?? null;
+  const hover = (id: string | null) => {
+    window.clearTimeout(hoverTimer.current);
+    // A short pause, so sweeping the mouse over the list does not fetch every row.
+    hoverTimer.current = window.setTimeout(() => setHovered(id), id ? 120 : 0);
+  };
+  React.useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
   return (
-    <Card>
-      <div className="flex flex-wrap items-end gap-3 p-4">
-        <Field label="از تاریخ">
-          <JalaliDateInput value={from} onChange={(v) => { setFrom(v); setPage(1); }} />
-        </Field>
-        <Field label="نوع">
-          <Select value={kind} onChange={(e) => { setKind(e.target.value); setPage(1); }}>
-            <option value="">فروش و برگشت</option>
-            <option value="sale">فروش</option>
-            <option value="return">برگشت</option>
-          </Select>
-        </Field>
-        <Field label="شماره فاکتور">
-          <Input className="w-32" dir="ltr" value={number} onChange={(e) => { setNumber(e.target.value); setPage(1); }} />
-        </Field>
-      </div>
-      <div className="surface mx-4 mb-4 overflow-hidden rounded-2xl">
-        {list.isLoading ? (
-          <Spinner />
-        ) : list.isError ? (
-          <ErrorBox error={list.error} />
-        ) : !list.data?.items.length ? (
-          <EmptyState icon={ReceiptText} title="فاکتوری یافت نشد" />
-        ) : (
-          <>
-            <Table>
-              <thead>
-                <tr>
-                  <Th className="w-24">شماره</Th>
-                  <Th className="w-28">نوع</Th>
-                  <Th>زمان</Th>
-                  <Th>صندوق / صندوق‌دار</Th>
-                  <Th>مشتری</Th>
-                  <Th className="w-20">اقلام</Th>
-                  <Th className="w-40">مبلغ</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.data.items.map((i) => (
-                  <Tr key={i.id} className="cursor-pointer" onClick={() => nav(`/sales/invoices/${i.id}`)}>
-                    <Td className="tabular font-bold">{toFaDigits(i.number ?? 0)}</Td>
-                    <Td>{i.kind === "sale" ? <Badge tone="success" icon={false}>فروش</Badge> : <Badge tone="warning">برگشت</Badge>}</Td>
-                    <Td className="text-ink-soft">{formatDateTime(i.created_at)}</Td>
-                    <Td className="text-ink-soft">{i.register_name} · {i.cashier_name}</Td>
-                    <Td>{i.customer_name ?? "—"}</Td>
-                    <Td className="tabular">{toFaDigits(i.line_count)}</Td>
-                    <Td className="tabular font-semibold">{formatMoney(i.grand_total, currency)}</Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-            <Pagination page={page} pageSize={50} total={list.data.total} onPage={setPage} />
-          </>
-        )}
-      </div>
-    </Card>
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_25rem]">
+      <Card className="min-w-0">
+        <div className="flex flex-wrap items-end gap-3 p-4">
+          <Field label="از تاریخ">
+            <JalaliDateInput value={from} onChange={(v) => { setFrom(v); setPage(1); }} />
+          </Field>
+          <Field label="نوع">
+            <Select value={kind} onChange={(e) => { setKind(e.target.value); setPage(1); }}>
+              <option value="">فروش و برگشت</option>
+              <option value="sale">فروش</option>
+              <option value="return">برگشت</option>
+            </Select>
+          </Field>
+          <Field label="شماره فاکتور" hint="شماره‌ی خودکار یا دستی">
+            <Input className="w-40" dir="ltr" value={number} onChange={(e) => { setNumber(e.target.value); setPage(1); }} />
+          </Field>
+        </div>
+        <div className="surface mx-4 mb-4 overflow-hidden rounded-2xl" onMouseLeave={() => hover(null)}>
+          {list.isLoading ? (
+            <Spinner />
+          ) : list.isError ? (
+            <ErrorBox error={list.error} />
+          ) : !list.data?.items.length ? (
+            <EmptyState icon={ReceiptText} title="فاکتوری یافت نشد" />
+          ) : (
+            <>
+              <Table>
+                <thead>
+                  <tr>
+                    <Th className="w-28">شماره</Th>
+                    <Th className="w-28">نوع</Th>
+                    <Th>زمان</Th>
+                    <Th>صندوق / صندوق‌دار</Th>
+                    <Th>مشتری</Th>
+                    <Th className="w-20">اقلام</Th>
+                    <Th className="w-40">مبلغ</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.data.items.map((i) => (
+                    <Tr
+                      key={i.id}
+                      tabIndex={0}
+                      aria-selected={shown === i.id}
+                      className={cn("cursor-pointer", shown === i.id && "bg-brand-500/[0.07]")}
+                      onMouseEnter={() => hover(i.id)}
+                      onFocus={() => setPinned(i.id)}
+                      onClick={() => setPinned(i.id)}
+                      onDoubleClick={() => nav(`/sales/invoices/${i.id}`)}
+                      onKeyDown={(e) => e.key === "Enter" && nav(`/sales/invoices/${i.id}`)}
+                    >
+                      <Td className="tabular font-bold">
+                        {toFaDigits(i.number ?? 0)}
+                        {i.manual_number ? <div className="text-xs font-normal text-ink-soft" dir="ltr">{i.manual_number}</div> : null}
+                      </Td>
+                      <Td>{i.kind === "sale" ? <Badge tone="success" icon={false}>فروش</Badge> : <Badge tone="warning">برگشت</Badge>}</Td>
+                      <Td className="text-ink-soft">{formatDateTime(i.created_at)}</Td>
+                      <Td className="text-ink-soft">{i.register_name} · {i.cashier_name}</Td>
+                      <Td>{i.customer_name ?? "—"}</Td>
+                      <Td className="tabular">{toFaDigits(i.line_count)}</Td>
+                      <Td className="tabular font-semibold">{formatMoney(i.grand_total, currency)}</Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+              <Pagination page={page} pageSize={50} total={list.data.total} onPage={setPage} />
+            </>
+          )}
+        </div>
+        <p className="mx-4 mb-4 text-xs text-ink-faint">با رفتن روی هر فاکتور پیش‌نمایش آن کنار صفحه دیده می‌شود؛ کلیک آن را نگه می‌دارد و دوبار کلیک جزئیات را باز می‌کند.</p>
+      </Card>
+      <InvoicePreview id={shown} />
+    </div>
+  );
+}
+
+/** The issued invoice as printed, beside the list (large screens). */
+function InvoicePreview({ id }: { id: string | null }) {
+  const currency = useCurrency();
+  const org = useQuery({ queryKey: ["organization"], queryFn: () => api.get<Organization>("/organization/settings"), staleTime: 300_000 });
+  const inv = useQuery({
+    queryKey: ["sales", "invoice", id],
+    queryFn: () => api.get<Invoice>(`/sales/invoices/${id}`),
+    enabled: !!id,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+  return (
+    <aside className="hidden xl:block" aria-label="پیش‌نمایش فاکتور">
+      <Card className="sticky top-4 flex max-h-[calc(100vh-2rem)] flex-col">
+        <div className="flex items-center gap-2 border-b border-[var(--line)] px-4 py-3">
+          <ReceiptText className="size-4 text-brand-600" />
+          <span className="flex-1 text-sm font-semibold text-ink">پیش‌نمایش فاکتور</span>
+          {inv.data ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link to={`/sales/invoices/${inv.data.id}`}>جزئیات و برگشت</Link>
+            </Button>
+          ) : null}
+        </div>
+        <div className={cn("flex-1 overflow-y-auto p-4 transition-opacity", inv.isFetching && "opacity-60")}>
+          {!id ? (
+            <EmptyState icon={ReceiptText} title="فاکتوری انتخاب نشده" />
+          ) : inv.isError ? (
+            <ErrorBox error={inv.error} />
+          ) : !inv.data ? (
+            <Spinner />
+          ) : (
+            <div className="mx-auto w-fit rounded-xl shadow-sm ring-1 ring-[var(--line)]">
+              <Receipt
+                invoice={inv.data}
+                currency={currency}
+                organization={org.data?.name ?? ""}
+                header={org.data?.receipt_header}
+                footer={org.data?.receipt_footer}
+                phone={org.data?.phone}
+                address={org.data?.address}
+                seller={org.data}
+                paper="thermal"
+              />
+            </div>
+          )}
+        </div>
+      </Card>
+    </aside>
   );
 }
 
 export function InvoiceDetailPage() {
+  const nav = useNavigate();
   const { id } = useParams();
   const can = useCan();
   const currency = useCurrency();
@@ -264,97 +342,18 @@ export function InvoiceDetailPage() {
           />
         </div>
       </Card>
-      {returning ? <ReturnDialog invoice={d} onClose={() => setReturning(false)} /> : null}
+      {returning ? (
+        <ReturnDialog
+          invoice={d}
+          currency={currency}
+          canReturn={can("sales.return.create")}
+          onClose={() => setReturning(false)}
+          onDone={(r) => nav(`/sales/invoices/${r.id}`)}
+        />
+      ) : null}
     </div>
   );
 }
-
-function ReturnDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
-  const qc = useQueryClient();
-  const nav = useNavigate();
-  const currency = useCurrency();
-  const register = storedRegister();
-  const [qty, setQty] = React.useState<Record<string, string>>({});
-  const [reason, setReason] = React.useState("");
-  const [method, setMethod] = React.useState<Method>("cash");
-  const [cardRef, setCardRef] = React.useState("");
-  const keyRef = React.useRef(newIdempotencyKey());
-  const lines = invoice.lines
-    .map((l) => ({ l, max: subQty(l.qty, l.returned_qty) }))
-    .filter((x) => qtyUnits(x.max) > 0n);
-  // Preview only: the server computes the exact refund (proportional, last return takes the rest).
-  const preview = lines.reduce((acc, { l }) => {
-    const v = toEnDigits(qty[l.id] ?? "").trim();
-    if (!/^\d+(\.\d{1,3})?$/.test(v) || qtyUnits(v) <= 0n) return acc;
-    return acc + (BigInt(l.line_total.split(".")[0]) * qtyUnits(v)) / qtyUnits(l.qty);
-  }, 0n);
-  const create = useMutation({
-    mutationFn: async () => {
-      if (!register) throw new ApiError(0, "no_register", "این رایانه به صندوقی وصل نیست؛ برگشت را از صفحه صندوق ثبت کنید");
-      const body = {
-        cash_register_id: register,
-        reason: reason.trim(),
-        lines: lines.filter(({ l }) => /^\d+(\.\d{1,3})?$/.test(toEnDigits(qty[l.id] ?? "").trim()) && qtyUnits(toEnDigits(qty[l.id])) > 0n).map(({ l }) => ({ original_line_id: l.id, qty: toEnDigits(qty[l.id]) })),
-        // One refund method: the server refunds exactly the computed amount.
-        refunds: [{ method, card_reference: method === "card" ? toEnDigits(cardRef) : null }],
-      };
-      return api.post<Invoice>(`/sales/invoices/${invoice.id}/returns`, body, { idempotencyKey: keyRef.current });
-    },
-    onSuccess: (r) => {
-      toast.success(`برگشت شماره ${toFaDigits(r.number ?? 0)} ثبت شد`);
-      qc.invalidateQueries({ queryKey: ["sales"] });
-      onClose();
-      nav(`/sales/invoices/${r.id}`);
-    },
-    onError: (e) => {
-      keyRef.current = newIdempotencyKey();
-      onError(e);
-    },
-  });
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title={`برگشت از فاکتور ${toFaDigits(invoice.number ?? 0)}`} description="کالا با همان بهای تمام‌شده فروش به انبار برمی‌گردد. شیفت باز روی این صندوق لازم است." className="max-w-2xl">
-        <div className="flex flex-col gap-3">
-          {lines.map(({ l, max }) => (
-            <div key={l.id} className="surface flex items-center gap-3 rounded-xl px-3 py-2 text-sm">
-              <div className="flex-1">
-                <div className="font-medium">{l.item_name}</div>
-                <div className="text-xs text-ink-faint">قابل برگشت: {toFaDigits(trimQty(max))} {l.unit_name} · {formatMoney(l.line_total, currency)}</div>
-              </div>
-              <Input className="w-24 text-center" dir="ltr" inputMode="decimal" placeholder="0" aria-label={`مقدار برگشتی ${l.item_name}`} value={qty[l.id] ?? ""} onChange={(e) => setQty({ ...qty, [l.id]: e.target.value })} />
-            </div>
-          ))}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="روش استرداد">
-              <Select value={method} onChange={(e) => setMethod(e.target.value as Method)}>
-                <option value="cash">نقد</option>
-                <option value="card">کارت (شماره پیگیری)</option>
-                {invoice.customer_id ? <option value="credit">کاهش طلب مشتری</option> : null}
-              </Select>
-            </Field>
-            {method === "card" ? (
-              <Field label="شماره پیگیری استرداد">
-                <Input dir="ltr" value={cardRef} onChange={(e) => setCardRef(e.target.value)} />
-              </Field>
-            ) : null}
-          </div>
-          <Field label="علت برگشت">
-            <Input aria-label="علت برگشت" value={reason} onChange={(e) => setReason(e.target.value)} />
-          </Field>
-          <p className="text-sm">مبلغ استرداد (تقریبی): <b className="tabular">{formatMoney(String(preview), currency)}</b></p>
-        </div>
-        <DialogFooter>
-          <Button loading={create.isPending} disabled={preview <= 0n || reason.trim().length < 2} onClick={() => create.mutate()}>
-            <Undo2 /> ثبت برگشت
-          </Button>
-          <Button variant="ghost" onClick={onClose}>انصراف</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// --- shifts -------------------------------------------------------------------------
 
 export function ShiftsPage() {
   const currency = useCurrency();

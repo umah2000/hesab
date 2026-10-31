@@ -142,6 +142,21 @@ def get_item(item_id: str) -> ResponseReturnValue:
         s.close()
 
 
+class NextCodeOut(BaseModel):
+    code: str
+
+
+@bp.get("/items/next-code")
+@require("inventory.item.manage")
+@doc("کد پیشنهادی کالای جدید", response=NextCodeOut)
+def next_item_code() -> ResponseReturnValue:
+    s = new_session()
+    try:
+        return to_json(NextCodeOut(code=catalog.next_code(s)))
+    finally:
+        s.close()
+
+
 @bp.get("/items/<item_id>/lots")
 @_read
 @doc("دسته‌های کالا با تاریخ انقضا", response=[LotRow])

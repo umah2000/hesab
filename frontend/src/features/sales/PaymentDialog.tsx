@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { type Customer, type Payment, type RegisterState, type TerminalTx, TX_LABEL } from "./api";
 
 export type PayMode = "cash" | "card" | "split" | "credit";
-export type PayResult = { payments: Payment[]; cash_tendered?: string; customer_id?: string };
+export type PayResult = { payments: Payment[]; cash_tendered?: string; customer_id?: string; manual_number?: string };
 
 const MODES: { mode: PayMode; label: string; key: string; perm: string }[] = [
   { mode: "cash", label: "نقدی", key: "F8", perm: "sales.payment.cash" },
@@ -122,25 +122,32 @@ export function PaymentDialog({
       ? { method: "card", amount, terminal_transaction_id: tx.id }
       : { method: "card", amount, card_reference: toEnDigits(cardRef.trim()) };
 
+  // The company's own invoice number, if typed; the automatic number is kept too (ADR-0029).
+  const [manualNo, setManualNo] = React.useState("");
+  const send = (r: PayResult) => {
+    const m = toEnDigits(manualNo.trim());
+    if (m && !/^[0-9A-Za-z/-]{1,30}$/.test(m)) return setError("شماره فاکتور فقط رقم، حروف لاتین، / و - باشد");
+    return onSubmit(m ? { ...r, manual_number: m } : r);
+  };
   const submit = () => {
     setError(null);
     if (mode === "cash") {
       if (!tenderedRials || compareRials(tenderedRials, due) < 0) return setError("وجه دریافتی کمتر از مبلغ قابل پرداخت است");
-      return onSubmit({ payments: [{ method: "cash", amount: due }], cash_tendered: tenderedRials });
+      return send({ payments: [{ method: "cash", amount: due }], cash_tendered: tenderedRials });
     }
     const unresolved = tx && ["Pending", "Unknown", "ReconciliationRequired"].includes(tx.status);
     if (unresolved) return setError("وضعیت تراکنش کارت‌خوان نامشخص است؛ ابتدا استعلام کنید");
     const hasTx = tx?.status === "Approved";
     if ((mode === "card" || mode === "split") && !hasTx && !/^\d{4,32}$/.test(toEnDigits(cardRef.trim())))
       return setError("شماره پیگیری رسید کارت‌خوان را وارد کنید");
-    if (mode === "card") return onSubmit({ payments: [card(due)] });
+    if (mode === "card") return send({ payments: [card(due)] });
     if (mode === "split") {
       if (compareRials(splitCashRials, "0") <= 0 || compareRials(cardAmount, "0") <= 0)
         return setError("سهم نقد و کارت هر دو باید بیشتر از صفر باشند");
-      return onSubmit({ payments: [{ method: "cash", amount: splitCashRials }, card(cardAmount)] });
+      return send({ payments: [{ method: "cash", amount: splitCashRials }, card(cardAmount)] });
     }
     if (!customer) return setError("مشتری را انتخاب کنید");
-    return onSubmit({ payments: [{ method: "credit", amount: due }], customer_id: customer.id });
+    return send({ payments: [{ method: "credit", amount: due }], customer_id: customer.id });
   };
 
   return (
@@ -343,6 +350,9 @@ export function PaymentDialog({
             </div>
           ) : null}
 
+          <Field label="شماره فاکتور دستی (اختیاری)" hint="خالی بماند تا فقط شماره‌ی خودکار بخورد">
+            <Input dir="ltr" value={manualNo} onChange={(e) => setManualNo(e.target.value)} placeholder="مثلاً STD-1405-0012" />
+          </Field>
           {error ? (
             <p role="alert" className="text-sm text-danger">
               {error}

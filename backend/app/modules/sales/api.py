@@ -25,6 +25,7 @@ from app.modules.sales.schemas import (
     CheckoutIn,
     CustomerOut,
     DailyReportOut,
+    FindQuery,
     HoldIn,
     InvoiceOut,
     InvoiceQuery,
@@ -238,8 +239,22 @@ def get_invoice(invoice_id: str) -> ResponseReturnValue:
         s.close()
 
 
+@bp.get("/registers/<register_id>/invoices/find")
+@require("sales.pos.use")
+@doc("یافتن فاکتور فروش با شماره (خودکار یا دستی) برای برگشت در صندوق", response=InvoiceOut)
+def find_invoice(register_id: str) -> ResponseReturnValue:
+    q = parse_query(FindQuery)
+    s = new_session()
+    try:
+        return to_json(
+            invoices.find_for_register(s, current_actor(), parse_uuid(register_id), q.number)
+        )
+    finally:
+        s.close()
+
+
 @bp.post("/invoices/<invoice_id>/returns")
-@require("sales.return.create")
+@require_any("sales.return.create", "sales.pos.use")
 @doc("برگشت از فروش", body=ReturnIn, response=InvoiceOut, idempotent=True)
 def create_return(invoice_id: str) -> ResponseReturnValue:
     data = parse_body(ReturnIn)

@@ -29,7 +29,13 @@ const fa = (v: string | null | undefined) => (v ? toFaDigits(v) : "");
 function parts(invoice: Invoice) {
   const isReturn = invoice.kind === "return";
   const when = invoice.finalized_at ?? invoice.created_at;
-  const number = invoice.number == null && invoice.device_number ? invoice.device_number : toFaDigits(invoice.number ?? 0);
+  const auto = toFaDigits(invoice.number ?? 0);
+  const number =
+    invoice.number == null && invoice.device_number
+      ? invoice.device_number
+      : invoice.manual_number
+        ? `${invoice.manual_number} (${auto})`
+        : auto;
   // Paid now (cash, card) and left on account (credit).
   const credit = sumRials(invoice.payments.filter((p) => p.method === "credit").map((p) => p.amount));
   const paid = subRials(invoice.grand_total, credit);

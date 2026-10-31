@@ -82,6 +82,11 @@ function ItemDialog({ itemId, open, onClose }: { itemId: string | null; open: bo
     if (itemId && !it) return;
     if (!it) {
       setF(blank(units.data?.find((u) => u.code === "PCS")?.id ?? units.data?.[0]?.id ?? ""));
+      // A suggested code; the user may type the company's own instead (ADR-0029).
+      api
+        .get<{ code: string }>("/inventory/items/next-code")
+        .then((r) => setF((cur) => (cur.code ? cur : { ...cur, code: r.code })))
+        .catch(() => undefined);
       return;
     }
     setF({
@@ -181,7 +186,7 @@ function ItemDialog({ itemId, open, onClose }: { itemId: string | null; open: bo
         ) : (
           <div className="flex flex-col gap-5">
             <div className="grid gap-3 sm:grid-cols-[9rem_1fr_12rem]">
-              <Field label="کد کالا">
+              <Field label="کد کالا" hint={itemId ? undefined : "پیشنهادی؛ قابل تغییر"}>
                 <Input dir="ltr" value={f.code} onChange={(e) => set("code", e.target.value)} />
               </Field>
               <Field label="نام کالا">

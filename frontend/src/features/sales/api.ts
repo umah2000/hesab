@@ -149,6 +149,7 @@ export type Invoice = {
   kind: "sale" | "return";
   status: "draft" | "held" | "recalled" | "final";
   number: number | null;
+  manual_number?: string | null;
   document_date: string;
   branch_id: string;
   cash_register_id: string;
@@ -199,6 +200,8 @@ export type InvoiceSummary = {
   kind: "sale" | "return";
   status: "held" | "final";
   number: number | null;
+  /** The company's own number, if given at checkout (ADR-0029). */
+  manual_number?: string | null;
   document_date: string;
   register_name: string;
   cashier_name: string;

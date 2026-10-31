@@ -114,6 +114,7 @@ def invoice_out(s: Session, inv: SalesInvoice, warnings: list[str] | None = None
         kind=inv.kind,  # type: ignore[arg-type]
         status=inv.status,  # type: ignore[arg-type]
         number=inv.number,
+        manual_number=inv.manual_number,
         document_date=inv.document_date,
         branch_id=inv.branch_id,
         cash_register_id=inv.cash_register_id,
@@ -357,6 +358,15 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
         approver = approvals.consume(s, actor, data.approval_id, "discount_over_limit", reg.id)
 
     _check_payment_methods(actor, data.payments)
+    if data.manual_number and s.scalar(
+        select(SalesInvoice.id).where(
+            SalesInvoice.kind == "sale", SalesInvoice.manual_number == data.manual_number
+        )
+    ):
+        raise ConflictError(
+            f"شماره‌ی فاکتور «{data.manual_number}» قبلاً به کار رفته است",
+            code="manual_number_taken",
+        )
     paid = sum((p.amount for p in data.payments), ZERO)
     if paid != cart.grand_total:
         raise DomainError(
@@ -386,6 +396,7 @@ def checkout(s: Session, actor: Actor, data: CheckoutIn) -> InvoiceOut:
         warehouse_id=wh.id,
         kind="sale",
         status="draft",
+        manual_number=data.manual_number,
         document_date=today,
         customer_id=customer.id if customer else None,
         subtotal=cart.subtotal,
@@ -671,6 +682,9 @@ def create_return(s: Session, actor: Actor, invoice_id: uuid.UUID, data: ReturnI
     if orig.kind != "sale" or orig.status != "final":
         raise DomainError("فقط فاکتور فروش قطعی برگشت می‌خورد", code="not_returnable")
     reg, wh = register_and_warehouse(s, data.cash_register_id, actor.branch_ids)
+    # A cashier at the POS returns with a supervisor's approval on the register (ADR-0029).
+    if not actor.has("sales.return.create"):
+        approvals.consume(s, actor, data.approval_id, "return", reg.id)
     if reg.branch_id != orig.branch_id:
         raise DomainError("برگشت فقط در شعبه فروش ممکن است", code="other_branch")
     shift = require_open_shift(s, actor, reg.id)
@@ -913,6 +927,7 @@ def _summary(
         kind=inv.kind,  # type: ignore[arg-type]
         status=inv.status,  # type: ignore[arg-type]
         number=inv.number,
+        manual_number=inv.manual_number,
         document_date=inv.document_date,
         register_name=n.registers.get(inv.cash_register_id, ""),
         cashier_name=n.users.get(inv.created_by, "") if inv.created_by else "",
@@ -957,6 +972,12 @@ def list_invoices(s: Session, actor: Actor, q: InvoiceQuery) -> Page[InvoiceSumm
         stmt = stmt.where(SalesInvoice.document_date <= q.date_to)
     if q.number is not None:
         stmt = stmt.where(SalesInvoice.number == q.number)
+    if q.search:
+        term = enum_digits(q.search.strip())
+        by = SalesInvoice.manual_number == term
+        if term.isdigit() and len(term) <= 9:
+            by = or_(by, SalesInvoice.number == int(term))
+        stmt = stmt.where(by)
     if not (actor.has("sales.report.view") or actor.has("sales.return.create")):
         stmt = stmt.where(SalesInvoice.created_by == actor.user_id)
     total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0
@@ -1096,3 +1117,32 @@ def _buyer(s: Session, customer_id: uuid.UUID | None) -> BuyerOut | None:
         city=party.city,
         address=party.address,
     )
+
+
+def find_for_register(s: Session, actor: Actor, register_id: uuid.UUID, number: str) -> InvoiceOut:
+    """A final sale of the register's branch by its automatic or manual number, the most
+    recent if several fiscal years share the number: for a return at the POS."""
+    reg, _ = register_and_warehouse(s, register_id, actor.branch_ids)
+    term = enum_digits(number.strip())
+    by = SalesInvoice.manual_number == term
+    if term.isdigit() and len(term) <= 9:
+        by = or_(by, SalesInvoice.number == int(term))
+    inv = s.scalar(
+        select(SalesInvoice)
+        .where(
+            SalesInvoice.branch_id == reg.branch_id,
+            SalesInvoice.kind == "sale",
+            SalesInvoice.status == "final",
+            by,
+        )
+        .order_by(SalesInvoice.finalized_at.desc())
+        .limit(1)
+    )
+    if inv is None:
+        raise NotFoundError("فاکتوری با این شماره در این شعبه پیدا نشد")
+    return invoice_out(s, inv)
+
+
+def enum_digits(v: str) -> str:
+    """Persian and Arabic digits typed on the register → Latin."""
+    return v.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))

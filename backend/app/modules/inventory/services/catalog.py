@@ -13,7 +13,7 @@ from nextcam_core.scan import (
     normalize_scan,
     parse_scale,
 )
-from sqlalchemy import func, or_, select, true
+from sqlalchemy import func, or_, select, text, true
 from sqlalchemy.orm import Session
 
 from app.core import refcache
@@ -675,3 +675,21 @@ def lookup(s: Session, raw: str, price_list_id: uuid.UUID | None = None) -> Look
     if by_code is not None:
         return result(by_code, by_code.base_unit_id, Decimal(1), "code")
     raise NotFoundError(f"کالایی با بارکد {code} یافت نشد")
+
+
+def next_code(s: Session) -> str:
+    """The next free numeric item code (largest numeric code + 1, same width), as a
+    suggestion the user may replace with the company's own code (ADR-0029)."""
+    row = s.execute(
+        text(
+            "SELECT TOP 1 code FROM item WHERE code NOT LIKE '%[^0-9]%' AND LEN(code) <= 18 "
+            "ORDER BY LEN(code) DESC, code DESC"
+        )
+    ).first()
+    if row is None:
+        return "1001"
+    current = str(row[0])
+    candidate = str(int(current) + 1).zfill(len(current))
+    while s.scalar(select(Item.id).where(Item.code == candidate)):
+        candidate = str(int(candidate) + 1).zfill(len(current))
+    return candidate
