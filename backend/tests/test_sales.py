@@ -671,10 +671,9 @@ def test_returns_are_proportional_at_original_cost(app: Flask, pos: Pos) -> None
         "refunds": [{"method": "cash", "amount": "110000"}],
         "reason": "تاریخ گذشته",
     }
-    assert (
-        c.post(f"/api/v1/sales/invoices/{sale['id']}/returns", body, idem=new_key()).status_code
-        == 403
-    )
+    # A cashier returns only with a supervisor's approval on the register (ADR-0029).
+    refused = c.post(f"/api/v1/sales/invoices/{sale['id']}/returns", body, idem=new_key())
+    assert refused.get_json()["error"]["code"] == "approval_required"
     sup = login(app, "super")
     open_shift(sup, pos.r2)
     body["cash_register_id"] = pos.r2
