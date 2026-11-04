@@ -94,6 +94,20 @@ class SalesInvoice(EntityMixin, ActorMixin, VersionedMixin, Base):
             mssql_where=text("number IS NOT NULL"),
         ),
         Index("ix_sales_invoice_branch_date", "branch_id", "document_date", "status"),
+        # Final invoices of a period: dashboard and sales reports (ADR-0031).
+        Index(
+            "ix_sales_invoice_status_date",
+            "status",
+            "document_date",
+            mssql_include=[
+                "kind",
+                "branch_id",
+                "cash_register_id",
+                "created_by",
+                "customer_id",
+                "shift_id",
+            ],
+        ),
         Index("ix_sales_invoice_shift", "shift_id"),
         Index("ix_sales_invoice_original", "original_invoice_id"),
         # A number typed by the user (company standard), besides the automatic one (ADR-0029).
@@ -165,6 +179,21 @@ class SalesInvoiceLine(EntityMixin, Base):
         UniqueConstraint("invoice_id", "line_no"),
         CheckConstraint("qty > 0", name="qty"),
         Index("ix_sales_invoice_line_item", "item_id"),
+        # The lines of a period's invoices with what the reports add up (ADR-0031).
+        Index(
+            "ix_sales_invoice_line_measures",
+            "invoice_id",
+            mssql_include=[
+                "item_id",
+                "base_qty",
+                "promotion_discount",
+                "manual_discount",
+                "revenue",
+                "tax",
+                "line_total",
+                "cost_total",
+            ],
+        ),
         Index("ix_sales_invoice_line_original", "original_line_id"),
         {"implicit_returning": False},
     )
@@ -208,7 +237,7 @@ class SalesPayment(EntityMixin, Base):
             "method <> 'card' OR card_reference IS NOT NULL OR terminal_transaction_id IS NOT NULL",
             name="card_evidence",
         ),
-        Index("ix_sales_payment_invoice", "invoice_id"),
+        Index("ix_sales_payment_invoice", "invoice_id", mssql_include=["method", "amount"]),
         # A card transaction pays at most one invoice (NULLs allowed many times).
         Index(
             "uq_sales_payment_terminal_tx",

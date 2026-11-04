@@ -169,6 +169,8 @@ class ItemQuery(BaseModel):
     q: str | None = Field(default=None, max_length=60)
     group_id: uuid.UUID | None = None
     active: bool | None = None
+    # Suggestions need no total: skipping the count saves a pass over the table (ADR-0030).
+    with_total: bool = True
     below_min: bool = False
 
 

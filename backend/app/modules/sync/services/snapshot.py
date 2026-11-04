@@ -83,10 +83,13 @@ def snapshot(s: Session, d: Device) -> SnapshotOut:
                 permissions=sorted(p for p in user.permission_codes if p.startswith("sales.")),
             )
 
-    stock = {
-        b.item_id: b.qty
-        for b in s.scalars(select(StockBalance).where(StockBalance.warehouse_id == wh.id))
-    }
+    # Plain columns throughout (ADR-0031): whole ORM rows also loaded every item's barcodes
+    # and units through its relationships, which was most of the time of a snapshot.
+    stock = dict(
+        s.execute(
+            select(StockBalance.item_id, StockBalance.qty).where(StockBalance.warehouse_id == wh.id)
+        ).all()
+    )
     items = [
         SnapItem(
             id=i.id,
@@ -101,7 +104,22 @@ def snapshot(s: Session, d: Device) -> SnapshotOut:
             vat_rate=i.vat_rate,
             stock=stock.get(i.id) if i.item_type == "goods" else None,
         )
-        for i in s.scalars(select(Item).where(Item.is_active == true()).order_by(Item.code))
+        for i in s.execute(
+            select(
+                Item.id,
+                Item.code,
+                Item.name,
+                Item.group_id,
+                Item.base_unit_id,
+                Item.item_type,
+                Item.is_weighted,
+                Item.scale_code,
+                Item.vat_exempt,
+                Item.vat_rate,
+            )
+            .where(Item.is_active == true())
+            .order_by(Item.code)
+        ).all()
     ]
     active = {i.id for i in items}
     out = SnapshotOut(
@@ -138,17 +156,25 @@ def snapshot(s: Session, d: Device) -> SnapshotOut:
         items=items,
         factors=[
             SnapFactor(item_id=u.item_id, unit_id=u.unit_id, factor=u.factor)
-            for u in s.scalars(select(ItemUnit))
+            for u in s.execute(select(ItemUnit.item_id, ItemUnit.unit_id, ItemUnit.factor)).all()
             if u.item_id in active
         ],
         prices=[
             SnapPrice(item_id=p.item_id, unit_id=p.unit_id, price=p.price)
-            for p in s.scalars(select(ItemPrice).where(ItemPrice.price_list_id == pl_id))
+            for p in s.execute(
+                select(ItemPrice.item_id, ItemPrice.unit_id, ItemPrice.price).where(
+                    ItemPrice.price_list_id == pl_id
+                )
+            ).all()
             if p.item_id in active
         ],
         barcodes=[
             SnapBarcode(barcode=b.barcode, item_id=b.item_id, unit_id=b.unit_id)
-            for b in s.scalars(select(ItemBarcode).order_by(ItemBarcode.barcode))
+            for b in s.execute(
+                select(ItemBarcode.barcode, ItemBarcode.item_id, ItemBarcode.unit_id).order_by(
+                    ItemBarcode.barcode
+                )
+            ).all()
             if b.item_id in active
         ],
         scale_rules=[

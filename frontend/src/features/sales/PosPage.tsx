@@ -610,7 +610,7 @@ function Workspace({ state }: { state: RegisterState }) {
     <>
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_23rem] gap-3">
         <section className="flex min-h-0 flex-col gap-3">
-          <div className="glass flex items-center gap-3 rounded-2xl p-3">
+          <div className="glass relative z-30 flex items-center gap-3 rounded-2xl p-3">
             <ItemSearch ref={scanRef} onPick={add} autoFocus className="flex-1" inputClassName="h-14 text-lg" placeholder="اسکن بارکد یا جست‌وجوی کالا… (F3)" />
             <Button
               variant={showCatalog ? "primary" : "outline"}

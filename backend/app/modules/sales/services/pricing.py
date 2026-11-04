@@ -18,7 +18,7 @@ from nextcam_core.pricing import Settings as CoreSettings
 from nextcam_core.pricing import price_cart as core_price_cart
 from nextcam_core.scan import LabelHit, is_scale_label
 from sqlalchemy import or_, select, true
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, lazyload
 
 from app.core import refcache
 from app.core.errors import DomainError, NotFoundError
@@ -229,7 +229,18 @@ class DbCatalog:
 
     def items(self, ids: list[uuid.UUID]) -> dict[uuid.UUID, ItemRef]:
         s = self.s
-        found = {i.id: item_ref(i) for i in s.scalars(select(Item).where(Item.id.in_(ids)))}
+        # Without the barcodes and units relationships (loaded eagerly by default): pricing
+        # reads neither, and each was one more statement per quote (ADR-0031).
+        rows = list(
+            s.scalars(
+                select(Item)
+                .where(Item.id.in_(ids))
+                .options(lazyload(Item.barcodes), lazyload(Item.units))
+            )
+        )
+        found = {i.id: item_ref(i) for i in rows}
+        # post_movement asks whether an item keeps lots; same transaction, so remember it.
+        s.info.setdefault("track_expiry", {}).update({i.id: i.track_expiry for i in rows})
         self._factors = {
             (u.item_id, u.unit_id): u.factor
             for u in s.scalars(select(ItemUnit).where(ItemUnit.item_id.in_(ids)))

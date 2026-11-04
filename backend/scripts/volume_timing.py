@@ -25,6 +25,17 @@ from typing import Any
 
 os.environ.setdefault("NEXTCAM_COOKIE_SECURE", "false")
 os.environ.setdefault("NEXTCAM_SECRET_KEY", secrets.token_urlsafe(32))
+# Database time and statement count per request come from Server-Timing (ADR-0031).
+os.environ.setdefault("NEXTCAM_SERVER_TIMING", "true")
+
+
+def _server_timing(header: str | None) -> tuple[float, int]:
+    """(db ms, statements) from ``app;dur=…, db;dur=…;desc="N queries"``."""
+    import re
+
+    m = re.search(r'db;dur=([\d.]+);desc="(\d+) queries"', header or "")
+    return (float(m.group(1)), int(m.group(2))) if m else (0.0, 0)
+
 
 TABLES = [
     "item",
@@ -49,6 +60,16 @@ def main() -> None:
     ap.add_argument("--state", default="volume_state.json")
     ap.add_argument("--repeat", type=int, default=5)
     ap.add_argument("--out", default=None, help="also write the results as JSON here")
+    ap.add_argument("--only", default=None, help="only the cases whose label contains this")
+    ap.add_argument(
+        "--end",
+        default=None,
+        help="last day of the periods (default: the latest sale), to "
+        "compare runs after more sales were added",
+    )
+    ap.add_argument(
+        "--profile", action="store_true", help="print where Python spends a warm request's time"
+    )
     a = ap.parse_args()
     if os.environ.get("NEXTCAM_ENV") == "production":
         raise SystemExit("refusing to run with NEXTCAM_ENV=production")
@@ -113,7 +134,11 @@ def main() -> None:
     with app.app_context():
         s = new_session()
         try:
-            end = s.scalar(text("SELECT MAX(document_date) FROM sales_invoice")) or date.today()
+            end = (
+                date.fromisoformat(a.end)
+                if a.end
+                else s.scalar(text("SELECT MAX(document_date) FROM sales_invoice")) or date.today()
+            )
         finally:
             s.close()
     start = date.fromisoformat(w["start"])
@@ -193,9 +218,13 @@ def main() -> None:
         cases.append(("صورت‌حساب پرتراکنش‌ترین مشتری", f"/parties/{top_customer}/statement"))
     cases.append(("داده‌ی آفلاین صندوق (snapshot)", "snapshot"))
 
+    if a.only:
+        cases = [c for c in cases if any(o in c[0] for o in a.only.split("|"))]
     results = []
     for label, req in cases:
         times = []
+        dbs: list[float] = []
+        queries = 0
         size = 0
         for _ in range(a.repeat + 1):
             t = time.perf_counter()
@@ -219,17 +248,35 @@ def main() -> None:
                 assert r.status_code < 300, (label, r.status_code, r.get_data(as_text=True)[:300])
                 size = len(r.data)
             times.append((time.perf_counter() - t) * 1000)
+            if req != "snapshot":
+                db_ms, queries = _server_timing(r.headers.get("Server-Timing"))
+                dbs.append(db_ms)
+        if a.profile and req != "snapshot" and not isinstance(req, tuple):
+            import cProfile
+            import pstats
+
+            prof = cProfile.Profile()
+            prof.enable()
+            (pos if label.startswith("صندوق") else c).get("/api/v1" + req)
+            prof.disable()
+            print(f"--- {label}")
+            pstats.Stats(prof).sort_stats("tottime").print_stats(14)
         cold, warm = times[0], times[1:]
+        ordered = sorted(warm)
         row = {
             "label": label,
             "cold_ms": round(cold),
             "p50_ms": round(statistics.median(warm)),
+            "p95_ms": round(ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]),
             "max_ms": round(max(warm)),
+            "db_ms": round(statistics.median(dbs[1:])) if len(dbs) > 1 else None,
+            "queries": queries,
             "kb": round(size / 1024),
         }
         results.append(row)
         print(
-            f"{row['p50_ms']:>7} ms  (cold {row['cold_ms']:>6}, max {row['max_ms']:>6}, {row['kb']:>6} KB)  {label}",
+            f"{row['p50_ms']:>7} ms  p95 {row['p95_ms']:>6}  db {row['db_ms'] or 0:>6}  "
+            f"q {row['queries']:>4}  ({row['kb']:>6} KB)  {label}",
             flush=True,
         )
 

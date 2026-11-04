@@ -1155,7 +1155,9 @@ def test_sep_central_reader_pays_in_the_background(app: Flask, pos: Pos) -> None
         frac = c.post("/api/v1/payments/terminal-transactions", start | {"amount": "110000.5"})
         assert frac.json["error"]["code"] == "terminal_amount_fraction"
 
-        fake.pay_delay = 0.3
+        # Long enough that the inquiry below lands before the customer «pays», even on a
+        # busy machine.
+        fake.pay_delay = 1.5
         t = c.post("/api/v1/payments/terminal-transactions", start)
         assert t.status_code == 201 and t.json["status"] == "Pending"
         # Still at the device: an inquiry does not ask SEP anything yet.

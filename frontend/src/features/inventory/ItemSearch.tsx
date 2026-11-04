@@ -7,8 +7,13 @@ import { ApiError, api, type Page } from "@/lib/api";
 import { toFaDigits } from "@/lib/format";
 import { fromPersianLayout } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
+import { useCurrency } from "@/features/accounting/api";
+import { formatMoney } from "@/lib/format";
+import { searchIndex } from "@/lib/search";
 import type { ItemSummary, Lookup } from "./api";
-import { trimQty } from "./api";
+import { trimQty, useSearchIndex } from "./api";
+
+type Suggestion = { id: string; code: string; name: string; detail: string };
 
 export type Picked = {
   item_id: string;
@@ -30,8 +35,10 @@ export const ItemSearch = React.forwardRef<
   { onPick: (p: Picked) => void; placeholder?: string; autoFocus?: boolean; className?: string; inputClassName?: string }
 >(({ onPick, placeholder = "اسکن بارکد یا جست‌وجوی نام/کد کالا", autoFocus, className, inputClassName }, ref) => {
   const qc = useQueryClient();
+  const index = useSearchIndex();
+  const currency = useCurrency();
   const [text, setText] = React.useState("");
-  const [results, setResults] = React.useState<ItemSummary[]>([]);
+  const [results, setResults] = React.useState<Suggestion[]>([]);
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
@@ -43,22 +50,44 @@ export const ItemSearch = React.forwardRef<
       setResults([]);
       return;
     }
+    // The catalogue in the browser answers at once, keystroke by keystroke (ADR-0030).
+    if (index.data) {
+      setResults(
+        searchIndex(index.data, q).map((h) => ({
+          id: h.id,
+          code: h.code,
+          name: h.name,
+          detail: h.price ? `${formatMoney(h.price, currency)} / ${h.unit}` : h.unit,
+        })),
+      );
+      setActive(0);
+      setOpen(true);
+      return;
+    }
+    // Until it has loaded: the server, after a short pause, the previous request cancelled.
+    const ctrl = new AbortController();
     const t = setTimeout(async () => {
       try {
         const page = await qc.fetchQuery({
           queryKey: ["inventory", "item-search", q],
-          queryFn: () => api.get<Page<ItemSummary>>(`/inventory/items?q=${encodeURIComponent(q)}&page_size=12&active=true`),
+          queryFn: () =>
+            api.get<Page<ItemSummary>>(`/inventory/items?q=${encodeURIComponent(q)}&page_size=12&active=true&with_total=false`, ctrl.signal),
           staleTime: 30_000,
         });
-        setResults(page.items);
+        setResults(
+          page.items.map((r) => ({ id: r.id, code: r.code, name: r.name, detail: `موجودی ${toFaDigits(trimQty(r.stock_qty))} ${r.base_unit_name}` })),
+        );
         setActive(0);
         setOpen(true);
       } catch {
-        /* suggestions are best-effort */
+        /* suggestions are best-effort; a cancelled request lands here too */
       }
-    }, 250);
-    return () => clearTimeout(t);
-  }, [text, qc]);
+    }, 200);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [text, qc, index.data, currency]);
 
   const pick = (p: Picked) => {
     onPick(p);
@@ -139,7 +168,7 @@ export const ItemSearch = React.forwardRef<
         </p>
       ) : null}
       {open && results.length ? (
-        <ul role="listbox" className="glass-strong absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-xl p-1">
+        <ul role="listbox" className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-xl bg-[var(--popover)] p-1 shadow-xl ring-1 ring-[var(--line)]">
           {results.map((r, i) => (
             <li
               key={r.id}
@@ -156,9 +185,7 @@ export const ItemSearch = React.forwardRef<
                 {r.code}
               </span>
               <span className="flex-1 text-ink">{r.name}</span>
-              <span className="tabular text-xs text-ink-faint">
-                موجودی {toFaDigits(trimQty(r.stock_qty))} {r.base_unit_name}
-              </span>
+              <span className="tabular text-xs text-ink-faint">{r.detail}</span>
             </li>
           ))}
         </ul>

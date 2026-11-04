@@ -20,6 +20,7 @@ from app.core.db import IN_CHUNK, utcnow
 from app.core.errors import ConflictError, DomainError, NotFoundError, PermissionDeniedError
 from app.core.http import Page
 from app.core.numbering import next_number
+from app.core.text import fold, matches
 from app.modules.accounting.models import DetailAccount, PostingRule, Voucher, VoucherLine
 from app.modules.accounting.services.fiscal import open_year_for
 from app.modules.accounting.services.posting import Entry, post_event
@@ -98,7 +99,12 @@ def invoice_out(s: Session, inv: SalesInvoice, warnings: list[str] | None = None
     lines = list(inv.lines)
     item_ids = list({ln.item_id for ln in lines})
     items = (
-        {i.id: i for i in s.scalars(select(Item).where(Item.id.in_(item_ids)))} if item_ids else {}
+        {
+            r.id: r
+            for r in s.execute(select(Item.id, Item.code, Item.name).where(Item.id.in_(item_ids)))
+        }
+        if item_ids
+        else {}
     )
     unit_ids = list({ln.unit_id for ln in lines})
     units = (
@@ -265,7 +271,7 @@ def list_customers(s: Session, q: str | None) -> list[CustomerOut]:
         )
     )
     if q:
-        stmt = stmt.where(DetailAccount.name.contains(q) | DetailAccount.code.contains(q))
+        stmt = stmt.where(matches(DetailAccount.name, q) | DetailAccount.code.contains(fold(q)))
     rows = list(s.scalars(stmt.order_by(DetailAccount.name).limit(30)))
     balances = receivable_balances(s, [c.id for c in rows])
     out = []

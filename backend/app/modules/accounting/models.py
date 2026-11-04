@@ -185,8 +185,18 @@ class VoucherLine(EntityMixin, Base):
             name="one_side",
         ),
         UniqueConstraint("voucher_id", "line_no"),
-        Index("ix_voucher_line_account", "account_id", "voucher_id"),
-        Index("ix_voucher_line_detail", "detail_account_id"),
+        # Covering (ADR-0031): the ledger and trial balance read no line through a lookup.
+        Index(
+            "ix_voucher_line_account",
+            "account_id",
+            "voucher_id",
+            mssql_include=["detail_account_id", "debit", "credit"],
+        ),
+        Index(
+            "ix_voucher_line_detail",
+            "detail_account_id",
+            mssql_include=["voucher_id", "account_id", "debit", "credit"],
+        ),
         {"implicit_returning": False},
     )
 

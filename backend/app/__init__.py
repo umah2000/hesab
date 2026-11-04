@@ -25,6 +25,9 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.json.ensure_ascii = False  # type: ignore[attr-defined]
 
     init_db(app, settings)
+    from app.core.perf import instrument
+
+    instrument(app, app.extensions["db_engine"], settings.slow_request_ms, settings.server_timing)
     limiter.init_app(app)
     register_error_handlers(app)
 

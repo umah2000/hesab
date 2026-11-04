@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { SearchIndex } from "@/lib/search";
 import { api } from "@/lib/api";
 
 export type Unit = { id: string; code: string; name: string; allows_fraction: boolean };
@@ -167,3 +168,17 @@ export function trimQty(v: string | null | undefined): string {
   if (!v) return "0";
   return v.includes(".") ? v.replace(/\.?0+$/, "") || "0" : v;
 }
+
+/**
+ * The active catalogue in compact form for instant search in the browser (ADR-0030).
+ * Fetched once per session; the browser revalidates it with its ETag (304 while unchanged).
+ */
+export const useSearchIndex = (enabled = true) =>
+  useQuery({
+    queryKey: ["inventory", "search-index"],
+    queryFn: ({ signal }) => api.get<SearchIndex>("/inventory/items/search-index", signal),
+    enabled,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import gzip
+import json
 import uuid
 from collections.abc import Callable
 from datetime import date
@@ -144,6 +146,29 @@ def get_item(item_id: str) -> ResponseReturnValue:
 
 class NextCodeOut(BaseModel):
     code: str
+
+
+@bp.get("/items/search-index")
+@_read
+@doc("همه‌ی کالاهای فعال برای جست‌وجوی فوری در مرورگر صندوق (با If-None-Match پاسخ 304)")
+def item_search_index() -> ResponseReturnValue:
+    s = new_session()
+    try:
+        etag = f'"{catalog.search_index_version(s)}"'
+        headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
+        if request.headers.get("If-None-Match") == etag:
+            return Response(status=304, headers=headers)
+        version, body = catalog.search_index(s)
+        etag = headers["ETag"] = f'"{version}"'
+    finally:
+        s.close()
+    raw = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode()
+    # Thousands of items: compressed when the browser accepts it (about a tenth).
+    if "gzip" in request.headers.get("Accept-Encoding", ""):
+        raw = gzip.compress(raw, compresslevel=6)
+        headers["Content-Encoding"] = "gzip"
+    headers["Vary"] = "Accept-Encoding"
+    return Response(raw, mimetype="application/json", headers=headers)
 
 
 @bp.get("/items/next-code")
