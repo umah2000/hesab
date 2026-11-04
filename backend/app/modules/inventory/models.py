@@ -10,6 +10,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
@@ -29,6 +30,7 @@ from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import ActorMixin, Base, EntityMixin, VersionedMixin
+from app.core.text import fold_ddl
 
 MONEY = Numeric(19, 4)
 QTY = Numeric(19, 3)
@@ -66,10 +68,15 @@ class Item(EntityMixin, ActorMixin, VersionedMixin, Base):
         ),
         Index("ix_item_group", "group_id"),
         Index("ix_item_name", "name"),
+        Index("ix_item_search_name", "search_name"),
     )
 
     code: Mapped[str] = mapped_column(String(32), unique=True)
     name: Mapped[str] = mapped_column(Unicode(200))
+    # The name folded for search (ي/ی، ك/ک، digits …), kept by SQL Server itself (ADR-0030).
+    search_name: Mapped[str] = mapped_column(
+        Unicode(200), Computed(fold_ddl("[name]", 200), persisted=True)
+    )
     group_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("item_group.id"))
     base_unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("unit.id"))
     item_type: Mapped[str] = mapped_column(String(8), default="goods")

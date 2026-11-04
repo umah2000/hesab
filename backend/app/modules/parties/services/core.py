@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.db import utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError
 from app.core.http import Page
+from app.core.text import fold, matches
 from app.modules.accounting.models import Account, DetailAccount, Voucher, VoucherLine
 from app.modules.accounting.services.chart import check_version
 from app.modules.audit import service as audit
@@ -211,10 +212,10 @@ def list_parties(s: Session, actor: Actor, q: PartyQuery) -> Page[PartySummary]:
         term = q.q.strip()
         stmt = stmt.where(
             or_(
-                DetailAccount.name.contains(term),
-                DetailAccount.code.contains(term),
-                Party.mobile.contains(term),
-                Party.national_id == term,
+                matches(DetailAccount.name, term),
+                DetailAccount.code.contains(fold(term)),
+                Party.mobile.contains(fold(term)),
+                Party.national_id == fold(term),
             )
         )
     if q.role == "customer":

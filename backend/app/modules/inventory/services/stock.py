@@ -780,7 +780,9 @@ def balances(
     if actor.branch_ids is not None:
         stmt = stmt.where(Warehouse.branch_id.in_(actor.branch_ids or {uuid.UUID(int=0)}))
     if q:
-        stmt = stmt.where((Item.code.like(f"{q}%")) | (Item.name.like(f"%{q}%")))
+        from app.modules.inventory.services.catalog import search_rank
+
+        stmt = stmt.where(search_rank(q)[1])
     if below_min:
         stmt = stmt.where(Item.min_qty.is_not(None), StockBalance.qty < Item.min_qty)
     total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.db import utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError
+from app.core.text import fold, matches
 from app.modules.accounting.defaults import CHART, EVENTS
 from app.modules.accounting.models import Account, DetailAccount, PostingRule, VoucherLine
 from app.modules.accounting.schemas import (
@@ -225,7 +226,7 @@ def _check_credit(kind: str, limit: Decimal | None, unlimited: bool = False) -> 
 def list_details(s: Session, q: str | None = None) -> list[DetailAccountOut]:
     stmt = select(DetailAccount).order_by(DetailAccount.code)
     if q:
-        stmt = stmt.where(DetailAccount.name.ilike(f"%{q}%") | DetailAccount.code.ilike(f"%{q}%"))
+        stmt = stmt.where(matches(DetailAccount.name, q) | DetailAccount.code.contains(fold(q)))
     return [detail_out(d) for d in s.scalars(stmt.limit(500))]
 
 

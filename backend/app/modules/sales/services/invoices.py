@@ -20,6 +20,7 @@ from app.core.db import IN_CHUNK, utcnow
 from app.core.errors import ConflictError, DomainError, NotFoundError, PermissionDeniedError
 from app.core.http import Page
 from app.core.numbering import next_number
+from app.core.text import fold, matches
 from app.modules.accounting.models import DetailAccount, PostingRule, Voucher, VoucherLine
 from app.modules.accounting.services.fiscal import open_year_for
 from app.modules.accounting.services.posting import Entry, post_event
@@ -265,7 +266,7 @@ def list_customers(s: Session, q: str | None) -> list[CustomerOut]:
         )
     )
     if q:
-        stmt = stmt.where(DetailAccount.name.contains(q) | DetailAccount.code.contains(q))
+        stmt = stmt.where(matches(DetailAccount.name, q) | DetailAccount.code.contains(fold(q)))
     rows = list(s.scalars(stmt.order_by(DetailAccount.name).limit(30)))
     balances = receivable_balances(s, [c.id for c in rows])
     out = []

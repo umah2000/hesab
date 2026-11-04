@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 from nextcam_core import CoreError
 from nextcam_core.scan import (
@@ -13,7 +15,7 @@ from nextcam_core.scan import (
     normalize_scan,
     parse_scale,
 )
-from sqlalchemy import func, or_, select, text, true
+from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select, text, true
 from sqlalchemy.orm import Session
 
 from app.core import refcache
@@ -21,6 +23,7 @@ from app.core.db import utcnow, version_to_str
 from app.core.errors import ConflictError, DomainError, NotFoundError, PermissionDeniedError
 from app.core.http import Page
 from app.core.money import MONEY_PLACES
+from app.core.text import fold, like_escape
 from app.modules.accounting.services.chart import check_version
 from app.modules.audit import service as audit
 from app.modules.iam.guard import Actor
@@ -28,6 +31,7 @@ from app.modules.inventory.models import (
     Item,
     ItemBarcode,
     ItemGroup,
+    ItemImage,
     ItemPrice,
     ItemUnit,
     PriceList,
@@ -445,26 +449,23 @@ def list_items(s: Session, q: ItemQuery) -> Page[ItemSummary]:
         .outerjoin(ItemGroup, ItemGroup.id == Item.group_id)
         .outerjoin(stock, stock.c.item_id == Item.id)
     )
+    rank = None
     if q.q:
-        raw = q.q.strip()
-        term = normalize_scan(raw)  # a scan typed on a Persian keyboard layout
-        stmt = stmt.where(
-            or_(
-                Item.code == term,
-                Item.code.like(f"{raw}%"),
-                Item.name.like(f"%{raw}%"),
-                Item.id.in_(select(ItemBarcode.item_id).where(ItemBarcode.barcode == term)),
-            )
-        )
+        rank, match = search_rank(q.q)
+        stmt = stmt.where(match)
     if q.group_id:
         stmt = stmt.where(Item.group_id == q.group_id)
     if q.active is not None:
         stmt = stmt.where(Item.is_active == q.active)
     if q.below_min:
         stmt = stmt.where(Item.min_qty.is_not(None), func.coalesce(stock.c.qty, 0) < Item.min_qty)
-    total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    total = (
+        (s.scalar(select(func.count()).select_from(stmt.subquery())) or 0) if q.with_total else -1
+    )
+    # Searching: best matches first (ADR-0030); otherwise by code.
+    order = (rank, func.len(Item.name), Item.name) if rank is not None else (Item.code,)
     rows = s.execute(
-        stmt.order_by(Item.code).offset((q.page - 1) * q.page_size).limit(q.page_size)
+        stmt.order_by(*order).offset((q.page - 1) * q.page_size).limit(q.page_size)
     ).all()
     photos = images.image_ids(s, [r[0].id for r in rows])
     items = [
@@ -483,6 +484,8 @@ def list_items(s: Session, q: ItemQuery) -> Page[ItemSummary]:
         )
         for it, uname, gname, bc, pr, sq in rows
     ]
+    if total < 0:  # not counted: what was returned
+        total = len(items)
     return Page[ItemSummary](items=items, total=total, page=q.page, page_size=q.page_size)
 
 
@@ -693,3 +696,101 @@ def next_code(s: Session) -> str:
     while s.scalar(select(Item.id).where(Item.code == candidate)):
         candidate = str(int(candidate) + 1).zfill(len(current))
     return candidate
+
+
+def search_rank(text_: str) -> tuple[ColumnElement[int], ColumnElement[bool]]:
+    """Ranking and filter for an item search (ADR-0030), on the folded name:
+
+    0 exact barcode or code · 1 code starting with it · 2 name starting with it ·
+    3 a word of the name starting with it · 4 the name containing every word typed.
+    """
+    raw = text_.strip()
+    scan = normalize_scan(raw)  # a scan typed on a Persian keyboard layout
+    folded = fold(raw)
+    code = like_escape(fold(scan))
+    words = [like_escape(w) for w in folded.split()] or [""]
+    phrase = like_escape(folded)
+    exact = or_(
+        Item.code == scan,
+        Item.code == fold(raw),
+        exists().where(ItemBarcode.item_id == Item.id, ItemBarcode.barcode == scan),
+    )
+    rank = case(
+        (exact, 0),
+        (Item.code.like(f"{code}%", escape="\\"), 1),
+        (Item.search_name.like(f"{phrase}%", escape="\\"), 2),
+        (Item.search_name.like(f"% {phrase}%", escape="\\"), 3),
+        else_=4,
+    )
+    contains_all = and_(*(Item.search_name.like(f"%{w}%", escape="\\") for w in words))
+    match = or_(exact, Item.code.like(f"{code}%", escape="\\"), contains_all)
+    return rank, match
+
+
+def search_index_version(s: Session) -> str:
+    """Changes whenever the search index would: counts and last changes of items, prices,
+    barcodes, photos and units, and the default price list. Cheap, so an unchanged index
+    answers 304 without being built."""
+    parts: list[object] = [default_price_list(s).id]
+    for model in (Item, ItemPrice, ItemBarcode, ItemImage, Unit):
+        parts.extend(s.execute(select(func.count(), func.max(model.updated_at))).one())
+    return hashlib.sha256(repr(parts).encode()).hexdigest()[:32]
+
+
+def search_index(s: Session) -> tuple[str, dict[str, Any]]:
+    """Every active item in a compact form for searching in the browser at the register
+    (ADR-0030): ``[id, code, name, folded name, unit, list price, weighed, barcodes,
+    photo]``. No stock: it changes with every sale and would defeat the ETag. Returns
+    the version (hash of the content) and the body."""
+    pl = default_price_list(s).id
+    price = (
+        select(ItemPrice.price)
+        .where(
+            ItemPrice.item_id == Item.id,
+            ItemPrice.price_list_id == pl,
+            ItemPrice.unit_id == Item.base_unit_id,
+        )
+        .correlate(Item)
+        .scalar_subquery()
+    )
+    rows = list(
+        s.execute(
+            select(
+                Item.id,
+                Item.code,
+                Item.name,
+                Item.search_name,
+                Unit.name,
+                price,
+                Item.is_weighted,
+            )
+            .join(Unit, Unit.id == Item.base_unit_id)
+            .where(Item.is_active == true())
+            .order_by(Item.code)
+        )
+    )
+    codes: dict[uuid.UUID, list[str]] = {}
+    for item_id, barcode in s.execute(
+        select(ItemBarcode.item_id, ItemBarcode.barcode)
+        .join(Item, Item.id == ItemBarcode.item_id)
+        .where(Item.is_active == true())
+    ):
+        codes.setdefault(item_id, []).append(barcode)
+    # All photos at once: a list of thousands of ids would pass SQL Server's 2100 parameters.
+    photos = images.image_ids(s)
+    items = [
+        [
+            str(i),
+            code,
+            name,
+            folded,
+            unit,
+            format(p, "f") if p is not None else None,
+            weighted,
+            sorted(codes.get(i, [])),
+            str(photos[i][0]) if photos.get(i) else None,
+        ]
+        for i, code, name, folded, unit, p, weighted in rows
+    ]
+    version = search_index_version(s)
+    return version, {"version": version, "items": items}
