@@ -78,6 +78,22 @@ class Posted:
     value: Decimal
 
 
+def _tracks_expiry(s: Session, item_id: uuid.UUID) -> bool:
+    """Whether the item keeps lots (ADR-0027): one column, remembered for the session.
+
+    ``s.get(Item)`` reloaded the whole item with its barcodes and units for every line of
+    a sale, as the caller rarely still holds it (ADR-0031). The flag is read inside the
+    same transaction that posts the movement, so it cannot change underneath it.
+    """
+    loaded = s.identity_map.get(s.identity_key(Item, item_id))
+    if loaded is not None:  # the session's own copy, edits included
+        return bool(loaded.track_expiry)
+    known: dict[uuid.UUID, bool] = s.info.setdefault("track_expiry", {})
+    if item_id not in known:
+        known[item_id] = bool(s.scalar(select(Item.track_expiry).where(Item.id == item_id)))
+    return known[item_id]
+
+
 def _lock_balance(s: Session, item_id: uuid.UUID, warehouse_id: uuid.UUID) -> StockBalance:
     """Row-locked balance, created on first movement.
 
@@ -164,8 +180,7 @@ def post_movement(
         entry = StockLedger(qty_out=out, value_out=value)
         posted = Posted(qty, -value)
     bal.last_movement_date = document.document_date
-    item = s.get(Item, item_id)
-    if item is not None and item.track_expiry:
+    if _tracks_expiry(s, item_id):
         if qty > 0:
             _lots_in(s, item_id, warehouse_id, qty, line, document.document_date)
         else:

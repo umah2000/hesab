@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import ColumnElement, Select, case, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import DomainError, NotFoundError
@@ -159,9 +159,24 @@ def ledger(s: Session, actor: Actor, q: LedgerQuery) -> LedgerOut:
             .where(*filters, *extra)
         )
 
-    opening = _net(s, amounts(Voucher.document_date < start))
-    p_debit, p_credit = _sides(s, amounts(*in_period))
-    total = s.scalar(select(func.count()).select_from(amounts(*in_period).subquery())) or 0
+    # Opening balance, period totals and row count in one pass over the lines (ADR-0031);
+    # they were three separate scans of the same account's lines.
+    upto = (
+        select(VoucherLine.debit, VoucherLine.credit, Voucher.document_date)
+        .join(Voucher, Voucher.id == VoucherLine.voucher_id)
+        .where(*filters, Voucher.document_date <= end)
+        .subquery()
+    )
+    before = upto.c.document_date < start
+    o, d, c, n = s.execute(
+        select(
+            func.coalesce(func.sum(case((before, upto.c.debit - upto.c.credit), else_=0)), 0),
+            func.coalesce(func.sum(case((before, 0), else_=upto.c.debit)), 0),
+            func.coalesce(func.sum(case((before, 0), else_=upto.c.credit)), 0),
+            func.count(case((before, None), else_=1)),
+        )
+    ).one()
+    opening, p_debit, p_credit, total = Decimal(o), Decimal(d), Decimal(c), int(n or 0)
 
     order = (Voucher.document_date, Voucher.number, VoucherLine.line_no)
     offset = (q.page - 1) * q.page_size
@@ -221,14 +236,6 @@ def ledger(s: Session, actor: Actor, q: LedgerQuery) -> LedgerOut:
 def _net(s: Session, stmt: Select) -> Decimal:  # type: ignore[type-arg]
     sub = stmt.subquery()
     return Decimal(s.scalar(select(func.coalesce(func.sum(sub.c.debit - sub.c.credit), 0))) or 0)
-
-
-def _sides(s: Session, stmt: Select) -> tuple[Decimal, Decimal]:  # type: ignore[type-arg]
-    sub = stmt.subquery()
-    d, c = s.execute(
-        select(func.coalesce(func.sum(sub.c.debit), 0), func.coalesce(func.sum(sub.c.credit), 0))
-    ).one()
-    return Decimal(d), Decimal(c)
 
 
 def journal(

@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.db import load_columns_by_ids
+from app.core.db import IN_CHUNK, load_columns_by_ids
 from app.core.errors import NotFoundError
 from app.modules.iam.guard import Actor
 from app.modules.inventory.models import (
@@ -57,50 +57,67 @@ def stock_movement(s: Session, actor: Actor, p: StockMovementQ) -> ReportTable:
     whs = _warehouses(s, actor, p.branch_id, p.warehouse_id)
     before = StockLedger.document_date < start
     inside = StockLedger.document_date >= start
-    stmt = (
+    sums = (
         select(
-            StockLedger.item_id,
-            func.sum(case((before, StockLedger.qty_in - StockLedger.qty_out), else_=0)),
-            func.sum(case((before, StockLedger.value_in - StockLedger.value_out), else_=0)),
-            func.sum(case((inside, StockLedger.qty_in), else_=0)),
-            func.sum(case((inside, StockLedger.value_in), else_=0)),
-            func.sum(case((inside, StockLedger.qty_out), else_=0)),
-            func.sum(case((inside, StockLedger.value_out), else_=0)),
+            StockLedger.item_id.label("item_id"),
+            func.sum(case((before, StockLedger.qty_in - StockLedger.qty_out), else_=0)).label("oq"),
+            func.sum(case((before, StockLedger.value_in - StockLedger.value_out), else_=0)).label(
+                "ov"
+            ),
+            func.sum(case((inside, StockLedger.qty_in), else_=0)).label("iq"),
+            func.sum(case((inside, StockLedger.value_in), else_=0)).label("iv"),
+            func.sum(case((inside, StockLedger.qty_out), else_=0)).label("xq"),
+            func.sum(case((inside, StockLedger.value_out), else_=0)).label("xv"),
         )
         .where(StockLedger.warehouse_id.in_(whs), StockLedger.document_date <= end)
         .group_by(StockLedger.item_id)
+        .subquery()
+    )
+    # Code, name and unit in the same statement (ADR-0031): no second trip with every id.
+    stmt = (
+        select(
+            Item.code,
+            Item.name,
+            Unit.name,
+            sums.c.oq,
+            sums.c.ov,
+            sums.c.iq,
+            sums.c.iv,
+            sums.c.xq,
+            sums.c.xv,
+        )
+        .join(Item, Item.id == sums.c.item_id)
+        .join(Unit, Unit.id == Item.base_unit_id)
     )
     if p.q:
         like = f"%{p.q}%"
-        stmt = stmt.join(Item, Item.id == StockLedger.item_id).where(
-            or_(Item.code.like(like), Item.name.like(like))
-        )
-    raw = list(s.execute(stmt))
-    items = _items(s, {r[0] for r in raw})
-    rows = []
+        stmt = stmt.where(or_(Item.code.like(like), Item.name.like(like)))
+    found: list[tuple[str, str, str, list[Decimal]]] = []
     tot = [ZERO] * 6
-    for item_id, oq, ov, iq, iv, xq, xv in raw:
-        vals = [Decimal(x or 0) for x in (oq, ov, iq, iv, xq, xv)]
+    for code, name, unit, *raw in s.execute(stmt).all():
+        vals = [Decimal(x or 0) for x in raw]
         if p.only_moved and not (vals[2] or vals[4]):
             continue
-        it, unit = items[item_id]
-        rows.append(
-            {
-                "code": it.code,
-                "name": it.name,
-                "unit": unit,
-                "opening_qty": q(vals[0]),
-                "opening_value": m(vals[1]),
-                "in_qty": q(vals[2]),
-                "in_value": m(vals[3]),
-                "out_qty": q(vals[4]),
-                "out_value": m(vals[5]),
-                "closing_qty": q(vals[0] + vals[2] - vals[4]),
-                "closing_value": m(vals[1] + vals[3] - vals[5]),
-            }
-        )
+        found.append((code, name, unit, vals))
         tot = [a + b for a, b in zip(tot, vals, strict=True)]
-    rows.sort(key=lambda r: r["code"])
+    found.sort(key=lambda r: r[0])
+    # Only the rows of the page are formatted.
+    rows = [
+        {
+            "code": code,
+            "name": name,
+            "unit": unit,
+            "opening_qty": q(vals[0]),
+            "opening_value": m(vals[1]),
+            "in_qty": q(vals[2]),
+            "in_value": m(vals[3]),
+            "out_qty": q(vals[4]),
+            "out_value": m(vals[5]),
+            "closing_qty": q(vals[0] + vals[2] - vals[4]),
+            "closing_value": m(vals[1] + vals[3] - vals[5]),
+        }
+        for code, name, unit, vals in found[(p.page - 1) * p.page_size : p.page * p.page_size]
+    ]
     return ReportTable(
         key="stock-movement",
         title="گردش کالا",
@@ -117,7 +134,7 @@ def stock_movement(s: Session, actor: Actor, p: StockMovementQ) -> ReportTable:
             Column(key="closing_qty", label="پایان دوره", kind="qty"),
             Column(key="closing_value", label="ارزش پایان دوره", kind="money"),
         ],
-        rows=page(rows, p.page, p.page_size),
+        rows=rows,
         totals={
             "code": "جمع",
             "opening_value": m(tot[1]),
@@ -125,7 +142,7 @@ def stock_movement(s: Session, actor: Actor, p: StockMovementQ) -> ReportTable:
             "out_value": m(tot[5]),
             "closing_value": m(tot[1] + tot[3] - tot[5]),
         },
-        total_rows=len(rows),
+        total_rows=len(found),
         page=p.page,
         page_size=p.page_size,
         notes=[
@@ -175,6 +192,19 @@ def slow_moving(s: Session, actor: Actor, p: SlowQ) -> ReportTable:
             .group_by(SalesInvoiceLine.item_id)
         )
     }
+    found: list[tuple[uuid.UUID, Decimal, Decimal, Decimal, Decimal | None]] = []
+    for item_id, (qty, value) in on_hand.items():
+        sold_qty = max(sold.get(item_id, ZERO), ZERO)
+        daily = sold_qty / p.days
+        cover = (qty / daily).quantize(Decimal(1)) if daily else None
+        if cover is not None and cover <= p.cover_days:
+            continue
+        found.append((item_id, qty, value, sold_qty, cover))
+    found.sort(key=lambda r: r[2], reverse=True)
+    # Names and formatting for the page only (ADR-0031).
+    shown = found[(p.page - 1) * p.page_size : p.page * p.page_size]
+    items = _items(s, {r[0] for r in shown})
+    # The last sale of the page's items only: over every line it was a scan of them all.
     last_sale = dict(
         s.execute(
             select(SalesInvoiceLine.item_id, func.max(SalesInvoice.document_date))
@@ -183,19 +213,18 @@ def slow_moving(s: Session, actor: Actor, p: SlowQ) -> ReportTable:
                 SalesInvoice.status == "final",
                 SalesInvoice.kind == "sale",
                 SalesInvoice.warehouse_id.in_(whs),
+                *(
+                    [SalesInvoiceLine.item_id.in_([r[0] for r in shown])]
+                    if len(shown) <= IN_CHUNK  # an Excel export takes them all
+                    else []
+                ),
             )
             .group_by(SalesInvoiceLine.item_id)
         ).all()
     )
-    items = _items(s, set(on_hand))
     rows: list[dict[str, Any]] = []
-    for item_id, (qty, value) in on_hand.items():
+    for item_id, qty, value, sold_qty, cover in shown:
         it, unit = items[item_id]
-        sold_qty = max(sold.get(item_id, ZERO), ZERO)
-        daily = sold_qty / p.days
-        cover = (qty / daily).quantize(Decimal(1)) if daily else None
-        if cover is not None and cover <= p.cover_days:
-            continue
         last: date | None = last_sale.get(item_id)
         rows.append(
             {
@@ -211,7 +240,6 @@ def slow_moving(s: Session, actor: Actor, p: SlowQ) -> ReportTable:
                 "idle_days": (today - last).days if last else None,
             }
         )
-    rows.sort(key=lambda r: Decimal(r["value"]), reverse=True)
     return ReportTable(
         key="slow-moving",
         title="کالاهای کم‌گردش و راکد",
@@ -227,9 +255,9 @@ def slow_moving(s: Session, actor: Actor, p: SlowQ) -> ReportTable:
             Column(key="last_sale", label="آخرین فروش", kind="date"),
             Column(key="idle_days", label="روز بدون فروش", kind="int"),
         ],
-        rows=page(rows, p.page, p.page_size),
-        totals={"code": "جمع", "value": m(sum((Decimal(r["value"]) for r in rows), ZERO))},
-        total_rows=len(rows),
+        rows=rows,
+        totals={"code": "جمع", "value": m(sum((r[2] for r in found), ZERO))},
+        total_rows=len(found),
         page=p.page,
         page_size=p.page_size,
         notes=[

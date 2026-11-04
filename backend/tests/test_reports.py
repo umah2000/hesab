@@ -185,6 +185,15 @@ def test_inventory_reports(app: Flask, pos: Pos, story: dict) -> None:  # noqa: 
     slow = boss.get("/api/v1/reports/slow-moving?days=30&cover_days=3650").get_json()
     status = {r["code"]: r["status"] for r in slow["rows"]}
     assert status == {"CH": "راکد", "W1": "راکد"}  # sold items cover less than 10 years
+    # Paged (only the page is formatted, ADR-0031): same totals, the page's rows only.
+    one = boss.get("/api/v1/reports/slow-moving?days=30&cover_days=3650&page_size=1").get_json()
+    assert (one["total_rows"], one["totals"], len(one["rows"])) == (2, slow["totals"], 1)
+    assert one["rows"][0] == slow["rows"][0]
+    mv1 = boss.get(
+        f"/api/v1/reports/stock-movement?date_from={D1.isoformat()}&page=2&page_size=1"
+    ).get_json()
+    assert (mv1["total_rows"], mv1["totals"]) == (mv["total_rows"], mv["totals"])
+    assert mv1["rows"] == mv["rows"][1:2]
     slow90 = boss.get("/api/v1/reports/slow-moving?days=30&cover_days=90").get_json()
     assert {r["code"]: r["status"] for r in slow90["rows"]}["M1"] == "کم‌گردش"
 

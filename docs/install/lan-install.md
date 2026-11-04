@@ -59,6 +59,11 @@ NEXTCAM_COOKIE_SECURE=false
 ```
 > `NEXTCAM_ENABLE_MOCK_PAYMENT_TERMINAL` در production مجاز نیست و برنامه با آن بالا نمی‌آید.
 
+**کارایی (ADR-0031):**
+- درخواست‌های کندتر از `NEXTCAM_SLOW_REQUEST_MS` (پیش‌فرض ۵۰۰) با مسیر و زمان دیتابیس در لاگ `slow_request` ثبت می‌شوند.
+- `NEXTCAM_SERVER_TIMING=true` فقط برای عیب‌یابی است.
+- یک بار پس از نصب، بخش ۱ از `docs/database/maintenance.sql` (Query Store) را اجرا کنید و بخش ۲ (آمار) را هفتگی، خارج از ساعت کاری، زمان‌بندی کنید.
+
 **کارت‌خوان سامان، پی‌سی‌پوز مرکزی (اختیاری، ADR-0024).** این مقادیر را پرداخت الکترونیک سامان می‌دهد و فقط در همین فایل قرار می‌گیرند:
 ```ini
 NEXTCAM_SEP_PCPOS_URL=https://<سرور سرویس>:<درگاه سرویس>

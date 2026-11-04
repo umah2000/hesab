@@ -99,7 +99,12 @@ def invoice_out(s: Session, inv: SalesInvoice, warnings: list[str] | None = None
     lines = list(inv.lines)
     item_ids = list({ln.item_id for ln in lines})
     items = (
-        {i.id: i for i in s.scalars(select(Item).where(Item.id.in_(item_ids)))} if item_ids else {}
+        {
+            r.id: r
+            for r in s.execute(select(Item.id, Item.code, Item.name).where(Item.id.in_(item_ids)))
+        }
+        if item_ids
+        else {}
     )
     unit_ids = list({ln.unit_id for ln in lines})
     units = (

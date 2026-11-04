@@ -124,6 +124,10 @@ def build_engine(settings: Settings) -> Engine:
         settings.database_url.get_secret_value(),
         pool_pre_ping=True,
         fast_executemany=True,
+        # One connection per server thread (ADR-0031), plus room for background work
+        # (terminal payments, schedules). The default 5 + 10 left the 16th request waiting.
+        pool_size=settings.threads,
+        max_overflow=max(4, settings.threads // 2),
     )
 
 

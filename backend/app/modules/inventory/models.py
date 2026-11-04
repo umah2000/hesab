@@ -297,6 +297,13 @@ class StockLedger(Base):
             mssql_clustered=True,
         ),
         Index("ix_stock_ledger_document", "document_id"),
+        # Stock movement per warehouse and period (ADR-0031).
+        Index(
+            "ix_stock_ledger_wh_date",
+            "warehouse_id",
+            "document_date",
+            mssql_include=["item_id", "qty_in", "qty_out", "value_in", "value_out"],
+        ),
         {"implicit_returning": False},
     )
 

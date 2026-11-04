@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"  # noqa: S104 - a LAN server by design; firewall per install guide
     port: int = 8080
     threads: int = 16
+    # Performance (ADR-0031): a request slower than this is logged as slow_request;
+    # Server-Timing headers only when asked for (they describe the server's internals).
+    slow_request_ms: int = 500
+    server_timing: bool = False
     static_dir: str | None = None
     # HTTPS (phase 10): TLS ends at a reverse proxy on the same machine (deploy/https).
     # Set to the proxy's address (usually 127.0.0.1) so client IPs and the https scheme

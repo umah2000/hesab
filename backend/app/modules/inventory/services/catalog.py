@@ -421,69 +421,102 @@ def update_item(
 
 
 def list_items(s: Session, q: ItemQuery) -> Page[ItemSummary]:
-    pl = default_price_list(s).id
+    # Two steps (ADR-0031): the page's ids first, on ``item`` alone, then the details of
+    # those rows only. In one statement SQL Server worked out the price, barcode and stock
+    # of every match before ordering and keeping a page of them.
     stock = (
         select(StockBalance.item_id, func.sum(StockBalance.qty).label("qty"))
         .group_by(StockBalance.item_id)
         .subquery()
     )
-    first_barcode = (
-        select(func.min(ItemBarcode.barcode))
-        .where(ItemBarcode.item_id == Item.id)
-        .correlate(Item)
-        .scalar_subquery()
-    )
-    price = (
-        select(ItemPrice.price)
-        .where(
-            ItemPrice.item_id == Item.id,
-            ItemPrice.price_list_id == pl,
-            ItemPrice.unit_id == Item.base_unit_id,
-        )
-        .correlate(Item)
-        .scalar_subquery()
-    )
-    stmt = (
-        select(Item, Unit.name, ItemGroup.name, first_barcode, price, func.coalesce(stock.c.qty, 0))
-        .join(Unit, Unit.id == Item.base_unit_id)
-        .outerjoin(ItemGroup, ItemGroup.id == Item.group_id)
-        .outerjoin(stock, stock.c.item_id == Item.id)
-    )
+    ids = select(Item.id)
     rank = None
     if q.q:
         rank, match = search_rank(q.q)
-        stmt = stmt.where(match)
+        ids = ids.where(match)
     if q.group_id:
-        stmt = stmt.where(Item.group_id == q.group_id)
+        ids = ids.where(Item.group_id == q.group_id)
     if q.active is not None:
-        stmt = stmt.where(Item.is_active == q.active)
+        ids = ids.where(Item.is_active == q.active)
     if q.below_min:
-        stmt = stmt.where(Item.min_qty.is_not(None), func.coalesce(stock.c.qty, 0) < Item.min_qty)
-    total = (
-        (s.scalar(select(func.count()).select_from(stmt.subquery())) or 0) if q.with_total else -1
-    )
-    # Searching: best matches first (ADR-0030); otherwise by code.
-    order = (rank, func.len(Item.name), Item.name) if rank is not None else (Item.code,)
-    rows = s.execute(
-        stmt.order_by(*order).offset((q.page - 1) * q.page_size).limit(q.page_size)
-    ).all()
-    photos = images.image_ids(s, [r[0].id for r in rows])
-    items = [
-        ItemSummary(
-            id=it.id,
-            code=it.code,
-            name=it.name,
-            group_name=gname,
-            base_unit_name=uname,
-            is_weighted=it.is_weighted,
-            is_active=it.is_active,
-            barcode=bc,
-            price=pr,
-            stock_qty=sq or Decimal(0),
-            image_id=next(iter(photos.get(it.id, [])), None),
+        ids = ids.outerjoin(stock, stock.c.item_id == Item.id).where(
+            Item.min_qty.is_not(None), func.coalesce(stock.c.qty, 0) < Item.min_qty
         )
-        for it, uname, gname, bc, pr, sq in rows
-    ]
+
+    def count() -> int:
+        return s.scalar(select(func.count()).select_from(ids.subquery())) or 0
+
+    total = -1
+    if rank is None:  # by code: the page comes off the index on code, counted apart
+        if q.with_total:
+            total = count()
+        page = list(
+            s.scalars(ids.order_by(Item.code).offset((q.page - 1) * q.page_size).limit(q.page_size))
+        )
+    else:
+        # Searching: best matches first (ADR-0030). Every match is ranked anyway, so the
+        # count rides along (COUNT(*) OVER ()) and the matching runs once.
+        found = s.execute(
+            ids.add_columns(func.count().over())
+            .order_by(rank, func.len(Item.name), Item.name)
+            .offset((q.page - 1) * q.page_size)
+            .limit(q.page_size)
+        ).all()
+        page = [r[0] for r in found]
+        if q.with_total:
+            total = found[0][1] if found else (count() if q.page > 1 else 0)
+    items: list[ItemSummary] = []
+    if page:
+        pl = default_price_list(s).id
+        first_barcode = (
+            select(func.min(ItemBarcode.barcode))
+            .where(ItemBarcode.item_id == Item.id)
+            .correlate(Item)
+            .scalar_subquery()
+        )
+        price = (
+            select(ItemPrice.price)
+            .where(
+                ItemPrice.item_id == Item.id,
+                ItemPrice.price_list_id == pl,
+                ItemPrice.unit_id == Item.base_unit_id,
+            )
+            .correlate(Item)
+            .scalar_subquery()
+        )
+        qty = (
+            select(func.sum(StockBalance.qty))
+            .where(StockBalance.item_id == Item.id)
+            .correlate(Item)
+            .scalar_subquery()
+        )
+        rows = {
+            r[0].id: r
+            for r in s.execute(
+                select(Item, Unit.name, ItemGroup.name, first_barcode, price, qty)
+                .join(Unit, Unit.id == Item.base_unit_id)
+                .outerjoin(ItemGroup, ItemGroup.id == Item.group_id)
+                .where(Item.id.in_(page))
+            ).all()
+        }
+        photos = images.image_ids(s, page)
+        for item_id in page:
+            it, uname, gname, bc, pr, sq = rows[item_id]
+            items.append(
+                ItemSummary(
+                    id=it.id,
+                    code=it.code,
+                    name=it.name,
+                    group_name=gname,
+                    base_unit_name=uname,
+                    is_weighted=it.is_weighted,
+                    is_active=it.is_active,
+                    barcode=bc,
+                    price=pr,
+                    stock_qty=sq or Decimal(0),
+                    image_id=next(iter(photos.get(it.id, [])), None),
+                )
+            )
     if total < 0:  # not counted: what was returned
         total = len(items)
     return Page[ItemSummary](items=items, total=total, page=q.page, page_size=q.page_size)
