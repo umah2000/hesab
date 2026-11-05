@@ -31,7 +31,10 @@ if (-not $SkipPackage) {
     Write-Host "==> release package (web app + wheels)" -ForegroundColor Cyan
     Push-Location $repo
     try {
-        & $Python -3.13 tools\release\build_release.py --out dist --build-frontend --wheels
+        # "py" picks Python 3.13; any other interpreter (CI: python) is used as given.
+        $pyArgs = @()
+        if ($Python -eq "py") { $pyArgs = @("-3.13") }
+        & $Python @pyArgs tools\release\build_release.py --out dist --build-frontend --wheels
         if ($LASTEXITCODE -ne 0) { throw "build_release.py failed" }
     } finally { Pop-Location }
 }

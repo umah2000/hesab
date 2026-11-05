@@ -1,4 +1,10 @@
-﻿; NEXTCAM ERP — graphical setup.exe for the shop's Windows server (Inno Setup 6).
+﻿﻿; NEXTCAM ERP — graphical setup.exe for the shop's Windows server and register PCs (Inno Setup 6).
+;
+; The first page asks what this PC is:
+;   - server: the program, database, backups and services (install.ps1 / upgrade.ps1);
+;   - register (client): the Device Agent — receipt printer, cash drawer and offline
+;     selling — paired with the server, and a desktop shortcut to the register page
+;     (install-agent.ps1).
 ;
 ; Build on Windows:  powershell -ExecutionPolicy Bypass -File deploy\windows\setup\build-setup.ps1
 ; (docs/install/windows-installer.md, «ساخت setup.exe»).
@@ -34,7 +40,7 @@ OutputDir=..\..\..\dist
 OutputBaseFilename=nextcam-setup-{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
-UninstallDisplayName=NEXTCAM ERP (server)
+UninstallDisplayName=NEXTCAM ERP
 SetupLogging=yes
 #ifexist SourcePath + "Farsi.isl"
 ShowLanguageDialog=no
@@ -63,32 +69,67 @@ Source: "redist\msodbcsql.msi"; Flags: dontcopy
 Source: "redist\vc_redist.x64.exe"; Flags: dontcopy
 #endif
 
+[INI]
+; Register: the register page opens from the local agent, so it keeps selling offline.
+Filename: "{commondesktop}\NEXTCAM Register.url"; Section: "InternetShortcut"; Key: "URL"; \
+  String: "http://127.0.0.1:47616/pos"; Check: IsClient
+
+[UninstallDelete]
+Type: files; Name: "{commondesktop}\NEXTCAM Register.url"
+
 [UninstallRun]
-; Program, tasks and firewall rules go; the database, backups and settings stay.
+; Server: program, tasks and firewall rules go; the database, backups and settings stay.
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
   Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\setup\uninstall.ps1"" -Root ""{app}"""; \
-  Flags: runhidden waituntilterminated; RunOnceId: "NextcamUninstall"
+  Flags: runhidden waituntilterminated; RunOnceId: "NextcamUninstall"; Check: not IsClient
+; Register: the agent service goes; its settings and unsent offline sales stay.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\setup\uninstall-agent.ps1"" -Root ""{app}"""; \
+  Flags: runhidden waituntilterminated; RunOnceId: "NextcamAgentUninstall"; Check: IsClient
 
 [Code]
 function SetEnvironmentVariable(lpName: string; lpValue: string): BOOL;
   external 'SetEnvironmentVariableW@kernel32.dll stdcall';
 
 var
-  ShopPage, SqlPage, SqlAdminPage, AdminPage: TInputQueryWizardPage;
-  DbModePage: TInputOptionWizardPage;
+  ShopPage, SqlPage, SqlAdminPage, AdminPage, ClientPage: TInputQueryWizardPage;
+  DbModePage, ModePage: TInputOptionWizardPage;
   FolderPage: TInputDirWizardPage;
   ResultPage: TOutputMsgMemoWizardPage;
   Upgrade: Boolean;
   Failed: Boolean;
 
+function IsClient: Boolean;
+begin
+  Result := (ModePage <> nil) and (ModePage.SelectedValueIndex = 1);
+end;
+
 function IsUpgrade: Boolean;
 begin
-  Result := DirExists(AddBackslash(WizardDirValue) + 'current');
+  if IsClient then
+    Result := FileExists(AddBackslash(WizardDirValue) + 'agent-venv\Scripts\python.exe')
+  else
+    Result := DirExists(AddBackslash(WizardDirValue) + 'current');
 end;
 
 procedure InitializeWizard;
 begin
-  ShopPage := CreateInputQueryPage(wpSelectDir,
+  ModePage := CreateInputOptionPage(wpWelcome,
+    'نوع نصب', 'این رایانه کدام است؟',
+    'یک بار روی سرور فروشگاه «سرور» را نصب کنید؛ روی هر رایانه‌ی صندوق «صندوق».', True, False);
+  ModePage.Add('سرور: برنامه، دیتابیس، پشتیبان‌گیری و سرویس‌ها');
+  ModePage.Add('صندوق (کلاینت): چاپ فیش، کشوی پول و فروش آفلاین؛ وصل به سرور');
+  ModePage.SelectedValueIndex := 0;
+
+  ClientPage := CreateInputQueryPage(wpSelectDir,
+    'اتصال صندوق', 'نشانی سرور و کد جفت‌سازی',
+    'نشانی همان است که صندوق‌ها با آن وارد برنامه می‌شوند (مثلاً http://192.168.1.10:8080). ' +
+    'کد را در برنامه از «دستگاه‌های صندوق ← دستگاه جدید» بگیرید؛ ۱۵ دقیقه اعتبار دارد و یک بار مصرف است.');
+  ClientPage.Add('نشانی سرور NEXTCAM:', False);
+  ClientPage.Add('کد جفت‌سازی:', False);
+  ClientPage.Values[0] := 'http://';
+
+  ShopPage := CreateInputQueryPage(ClientPage.ID,
     'فروشگاه', 'نام فروشگاه و درگاه برنامه',
     'نام فروشگاه روی فیش و صفحه‌ی ورود دیده می‌شود. درگاه (port) همان است که صندوق‌ها با آن وصل می‌شوند.');
   ShopPage.Add('نام فروشگاه / سازمان:', False);
@@ -141,10 +182,36 @@ begin
     'نتیجه‌ی نصب', 'این اطلاعات را یادداشت کنید', '', '');
 end;
 
+var
+  ModeGuessed: Boolean;
+
+{ A PC that already has only the register agent is offered «register» again. }
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = ModePage.ID) and not ModeGuessed then
+  begin
+    ModeGuessed := True;
+    if FileExists(AddBackslash(WizardDirValue) + 'agent-venv\Scripts\python.exe') and
+       not DirExists(AddBackslash(WizardDirValue) + 'current') then
+      ModePage.SelectedValueIndex := 1;
+  end;
+end;
+
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Upgrade := IsUpgrade;
   Result := False;
+  if IsClient and ((PageID = ShopPage.ID) or (PageID = SqlPage.ID) or (PageID = DbModePage.ID) or
+     (PageID = SqlAdminPage.ID) or (PageID = AdminPage.ID) or (PageID = FolderPage.ID)) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  if (PageID = ClientPage.ID) and (not IsClient or Upgrade) then
+  begin
+    Result := True;
+    Exit;
+  end;
   if Upgrade and ((PageID = ShopPage.ID) or (PageID = SqlPage.ID) or (PageID = DbModePage.ID) or
      (PageID = SqlAdminPage.ID) or (PageID = AdminPage.ID) or (PageID = FolderPage.ID)) then
     Result := True;
@@ -215,7 +282,17 @@ var
   Port: Integer;
 begin
   Result := True;
-  if CurPageID = ShopPage.ID then
+  if CurPageID = ClientPage.ID then
+  begin
+    if (Pos('http://', Lowercase(Trim(ClientPage.Values[0]))) <> 1) and
+       (Pos('https://', Lowercase(Trim(ClientPage.Values[0]))) <> 1) then
+      Result := ShowError('نشانی سرور با http:// یا https:// شروع شود، مثلاً http://192.168.1.10:8080')
+    else if Length(Trim(ClientPage.Values[0])) < 12 then
+      Result := ShowError('نشانی سرور را کامل وارد کنید.')
+    else if Trim(ClientPage.Values[1]) = '' then
+      Result := ShowError('کد جفت‌سازی را از «دستگاه‌های صندوق ← دستگاه جدید» در برنامه بگیرید.');
+  end
+  else if CurPageID = ShopPage.ID then
   begin
     if Trim(ShopPage.Values[0]) = '' then Result := ShowError('نام فروشگاه را وارد کنید.')
     else
@@ -274,7 +351,7 @@ begin
     except
     end;
   end;
-  if not RegKeyExists(HKLM, 'SOFTWARE\ODBC\ODBCINST.INI\ODBC Driver 18 for SQL Server') then
+  if not IsClient and not RegKeyExists(HKLM, 'SOFTWARE\ODBC\ODBCINST.INI\ODBC Driver 18 for SQL Server') then
   begin
     try
       ExtractTemporaryFile('msodbcsql.msi');
@@ -314,6 +391,16 @@ begin
       if Pos('BACKUP_KEY=', Lines[I]) = 1 then Key := Copy(Lines[I], 12, Length(Lines[I]));
     end;
   DeleteFile(ExpandConstant('{tmp}\result.txt'));
+  if IsClient and not Failed then
+  begin
+    if Upgrade then Text := 'برنامه‌ی صندوق به‌روز شد و دوباره اجرا شد.'
+    else Text := 'صندوق نصب و به سرور وصل شد.' + #13#10#13#10 +
+         'صندوق را از میانبر «NEXTCAM Register» روی دسکتاپ باز کنید (http://127.0.0.1:47616/pos). ' +
+         'با این نشانی، هنگام قطع شبکه هم فروش نقد و کارت ادامه می‌یابد.' + #13#10#13#10 +
+         'در برنامه، «دستگاه‌های صندوق» باید این دستگاه را «متصل» نشان دهد؛ «چاپ آزمایشی» را بزنید.';
+    ResultPage.RichEditViewer.Lines.Text := Text;
+    Exit;
+  end;
   if Failed then
     Text := 'نصب کامل نشد. پیام خطا در پنجره‌ی PowerShell نمایش داده شد.' + #13#10 +
             'پس از رفع مشکل، همین setup را دوباره اجرا کنید (دیتابیس و تنظیمات ساخته‌شده حفظ می‌شوند).'
@@ -343,7 +430,18 @@ begin
   InstallPrerequisites;
   SetEnv('NEXTCAM_INSTALL_PAUSE_ON_ERROR', '1');
   SetEnv('NEXTCAM_INSTALL_RESULT', ExpandConstant('{tmp}\result.txt'));
-  if Upgrade then
+  if IsClient then
+  begin
+    WizardForm.StatusLabel.Caption := 'نصب برنامه‌ی صندوق (Device Agent) و جفت‌سازی با سرور…';
+    Script := ExpandConstant('{tmp}\package\deploy\windows\install-agent.ps1');
+    Params := '';
+    if not Upgrade then
+    begin
+      SetEnv('NEXTCAM_INSTALL_SERVER', Trim(ClientPage.Values[0]));
+      SetEnv('NEXTCAM_INSTALL_PAIR_CODE', Trim(ClientPage.Values[1]));
+    end;
+  end
+  else if Upgrade then
   begin
     WizardForm.StatusLabel.Caption := 'به‌روزرسانی NEXTCAM (پشتیبان، دیتابیس، بررسی سلامت)…';
     Script := ExpandConstant('{tmp}\package\deploy\windows\upgrade.ps1');
@@ -375,5 +473,6 @@ begin
   SetEnv('NEXTCAM_INSTALL_SQL_PASSWORD', '');
   SetEnv('NEXTCAM_INSTALL_SQL_ADMIN_PASSWORD', '');
   SetEnv('NEXTCAM_SETUP_ADMIN_PASSWORD', '');
+  SetEnv('NEXTCAM_INSTALL_PAIR_CODE', '');
   ShowResult;
 end;
