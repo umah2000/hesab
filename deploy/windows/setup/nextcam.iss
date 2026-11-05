@@ -1,4 +1,4 @@
-﻿﻿; NEXTCAM ERP — graphical setup.exe for the shop's Windows server and register PCs (Inno Setup 6).
+﻿; NEXTCAM ERP — graphical setup.exe for the shop's Windows server and register PCs (Inno Setup 6).
 ;
 ; The first page asks what this PC is:
 ;   - server: the program, database, backups and services (install.ps1 / upgrade.ps1);
