@@ -1,0 +1,97 @@
+name: windows-setup
+
+# Builds dist\nextcam-setup-<version>.exe on a real Windows machine: one installer for the
+# shop's server and for the register PCs (docs/install/windows-installer.md).
+# The exe is kept as a workflow artifact for 30 days; download it from the run's page.
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "deploy/windows/**"
+      - "tools/release/**"
+      - ".github/workflows/windows-setup.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  setup-exe:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Inno Setup 6
+        shell: pwsh
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
+              Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { choco install innosetup -y --no-progress; if ($LASTEXITCODE -ne 0) { throw "Inno Setup install failed" } }
+
+      # Prerequisites bundled in the exe so the shop installs without internet. Each must be
+      # signed by its publisher; a missing one only means the target PC needs it already.
+      - name: Bundled prerequisites (Python 3.13, ODBC Driver 18, Persian wizard)
+        shell: pwsh
+        working-directory: deploy/windows/setup
+        run: |
+          $ProgressPreference = "SilentlyContinue"
+          New-Item -ItemType Directory -Force redist | Out-Null
+          function Get-Signed($url, $out, $publisher) {
+              try {
+                  Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+                  $sig = Get-AuthenticodeSignature $out
+                  if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch $publisher) {
+                      Remove-Item $out; throw "bad signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
+                  }
+                  Write-Host "$out <- $url (signed: $($sig.SignerCertificate.Subject))"
+              } catch { Write-Warning "${out}: $_ ; the setup is built without it" }
+          }
+          # Latest Python 3.13.x Windows installer from python.org.
+          try {
+              $index = (Invoke-WebRequest -Uri "https://www.python.org/ftp/python/" -UseBasicParsing).Content
+              $py = ([regex]::Matches($index, 'href="(3\.13\.\d+)/"') | ForEach-Object { [version]$_.Groups[1].Value } |
+                  Sort-Object -Descending)
+              foreach ($v in $py) {
+                  $url = "https://www.python.org/ftp/python/$v/python-$v-amd64.exe"
+                  try { Invoke-WebRequest -Uri $url -Method Head -UseBasicParsing | Out-Null } catch { continue }
+                  Get-Signed $url "redist\python-amd64.exe" "Python Software Foundation"; break
+              }
+          } catch { Write-Warning "python.org: $_" }
+          # ODBC Driver 18 (x64): the link on Microsoft's download page.
+          try {
+              $page = (Invoke-WebRequest -Uri "https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server" -UseBasicParsing).Content
+              $m = [regex]::Match($page, 'href="(https://go\.microsoft\.com/fwlink/\?linkid=\d+)"[^>]*>\s*Download Microsoft ODBC Driver 18 for SQL Server \(x64\)')
+              if (-not $m.Success) { throw "link not found on the download page" }
+              Get-Signed $m.Groups[1].Value "redist\msodbcsql.msi" "Microsoft Corporation"
+          } catch { Write-Warning "ODBC Driver 18: $_" }
+          Get-Signed "https://aka.ms/vs/17/release/vc_redist.x64.exe" "redist\vc_redist.x64.exe" "Microsoft Corporation"
+          # Persian buttons for the wizard (Inno Setup's unofficial translation).
+          try {
+              Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Farsi.isl" -OutFile Farsi.isl -UseBasicParsing
+          } catch { Write-Warning "Farsi.isl: $_ ; buttons stay in English" }
+          Get-ChildItem redist, Farsi.isl -ErrorAction SilentlyContinue | Format-Table Name, Length
+
+      - name: Build setup.exe
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File deploy\windows\setup\build-setup.ps1 -Python python
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nextcam-setup
+          path: dist/nextcam-setup-*.exe
+          retention-days: 30
+          if-no-files-found: error

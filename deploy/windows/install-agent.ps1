@@ -20,6 +20,16 @@ param(
     [string]$Python = "py"
 )
 $ErrorActionPreference = "Stop"
+# Run from setup.exe: the pairing code arrives in the environment, not on the command line,
+# and an error waits for Enter so the window does not just vanish.
+if (-not $PairCode -and $env:NEXTCAM_INSTALL_PAIR_CODE) { $PairCode = $env:NEXTCAM_INSTALL_PAIR_CODE }
+if (-not $Server -and $env:NEXTCAM_INSTALL_SERVER) { $Server = $env:NEXTCAM_INSTALL_SERVER }
+trap {
+    Write-Host ""
+    Write-Host "ERROR: $_" -ForegroundColor Red
+    if ($env:NEXTCAM_INSTALL_PAUSE_ON_ERROR) { Read-Host "Press Enter to close" | Out-Null }
+    exit 1
+}
 $package = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if (-not (Test-Path (Join-Path $package "VERSION"))) { throw "run from the extracted release package" }
 
