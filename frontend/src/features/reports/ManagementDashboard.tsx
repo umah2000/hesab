@@ -96,7 +96,7 @@ function Kpi({
             <Icon className="size-5" aria-hidden />
           </span>
         </div>
-        <div className="tabular relative mt-1 text-[1.7rem] leading-tight font-black">{value}</div>
+        <div className="relative mt-1 text-[1.6rem] leading-tight font-black [overflow-wrap:anywhere]">{value}</div>
         {children ? <div className="relative mt-2">{children}</div> : null}
       </div>
     );
@@ -109,7 +109,7 @@ function Kpi({
         </span>
         <div className="min-w-0">
           <p className="text-sm text-ink-soft">{label}</p>
-          <div className="tabular mt-1 text-2xl font-black text-ink">{value}</div>
+          <div className="mt-1 text-xl leading-snug font-black text-ink [overflow-wrap:anywhere]">{value}</div>
           {children ? <div className="mt-1">{children}</div> : null}
         </div>
       </div>

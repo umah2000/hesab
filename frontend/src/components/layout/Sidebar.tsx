@@ -111,8 +111,11 @@ export function SidebarContent() {
 
 export function Sidebar() {
   return (
-    <aside className="no-print sidebar-navy sticky top-0 hidden h-screen w-64 shrink-0 flex-col p-4 shadow-[0_0_40px_-12px] shadow-navy-900/60 lg:flex">
-      <SidebarContent />
+    // The navy band runs the page's full height; its content stays in view while scrolling.
+    <aside className="no-print sidebar-navy hidden w-64 shrink-0 shadow-[0_0_40px_-12px] shadow-navy-900/60 lg:block">
+      <div className="sticky top-0 flex h-screen flex-col p-4">
+        <SidebarContent />
+      </div>
     </aside>
   );
 }
