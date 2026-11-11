@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { CalendarClock, ClipboardList, FilePlus2, ReceiptText } from "lucide-react";
 import * as React from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router";
-import { PageTitle } from "@/components/layout/AppShell";
+import { Link, Outlet, useNavigate } from "react-router";
+import { ModuleTabs, PageTitle } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge, EmptyState, ErrorBox, Spinner } from "@/components/ui/feedback";
@@ -15,7 +15,6 @@ import { usePartyOptions } from "@/features/parties/api";
 import { api, type Page } from "@/lib/api";
 import { formatMoney, toEnDigits, toFaDigits } from "@/lib/format";
 import { isoToJalaliFa, todayIso } from "@/lib/jalali";
-import { cn } from "@/lib/utils";
 import { type InvoiceSummary, ORDER_STATUS, type OrderStatus, type OrderSummary, PERM, useDues } from "./api";
 import { DocLink, InvoiceStatusBadge, KindBadge, OrderStatusBadge, PartyPicker } from "./shared";
 
@@ -34,22 +33,7 @@ export function PurchasingLayout() {
     <>
       <PageTitle title="خرید" subtitle="سفارش خرید، فاکتور و برگشت از خرید، سررسید بدهی به تأمین‌کنندگان" />
       {can(PERM) ? (
-        <nav className="no-print glass mb-4 flex gap-1 overflow-x-auto rounded-2xl p-1.5" aria-label="بخش‌های خرید">
-          {TABS.map((t) => (
-            <NavLink
-              key={t.to}
-              to={t.to}
-              className={({ isActive }) =>
-                cn(
-                  "rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition",
-                  isActive ? "bg-white text-brand-600 shadow-sm dark:bg-white/15 dark:text-white" : "text-ink-soft hover:text-ink",
-                )
-              }
-            >
-              {t.label}
-            </NavLink>
-          ))}
-        </nav>
+        <ModuleTabs label="بخش‌های خرید" tabs={TABS} />
       ) : null}
       <Outlet />
     </>

@@ -153,7 +153,7 @@ export function PaymentDialog({
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose()}>
       <DialogContent title="دریافت وجه" className="max-w-2xl">
-        <div className="mb-4 rounded-2xl bg-gradient-to-l from-brand-600 to-brand-500 p-4 text-white">
+        <div className="mb-4 rounded-2xl bg-gradient-to-bl from-accent-500 to-accent-700 p-4 text-white shadow-[0_14px_32px_-14px] shadow-accent-600/70">
           <div className="text-sm opacity-80">مبلغ قابل پرداخت</div>
           <div className="tabular text-3xl font-black">{money(due)}</div>
         </div>

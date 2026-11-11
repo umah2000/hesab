@@ -88,7 +88,7 @@ export function CustomerDisplayPage() {
               ))}
             </ul>
           </div>
-          <div className="flex min-w-0 flex-col justify-end gap-3 rounded-3xl bg-gradient-to-l from-brand-600 to-brand-500 p-6 text-white">
+          <div className="flex min-w-0 flex-col justify-end gap-3 rounded-3xl bg-gradient-to-bl from-accent-500 to-accent-700 p-6 text-white">
             {Number(msg.discount) ? (
               <div className="text-xl opacity-90">
                 تخفیف: <span className="tabular">{formatMoney(msg.discount, msg.currency)}</span>
