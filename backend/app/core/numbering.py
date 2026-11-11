@@ -38,8 +38,13 @@ class NumberSequence(Base):
 
 # Equality on every key column (no "OR" on the nullable branch), so SQL Server seeks the
 # unique index and locks only that key — no key-range locks held for the transaction.
-_WHERE = "doc_type = :doc_type AND fiscal_year_id = :fy AND branch_id {}"
-_NEXT_WHERE = "n.doc_type = :doc_type AND n.fiscal_year_id = :fy AND n.branch_id {}"
+# doc_type is VARCHAR: the parameter is cast to it, or the NVARCHAR that drivers send turns
+# the seek into a range scan through CONVERT_IMPLICIT, holding RangeS-U locks on the
+# neighbouring counters for the whole transaction — a sale and a shift close then
+# deadlocked on two different counters (ADR-0031).
+_DOC = "CAST(:doc_type AS VARCHAR(32))"
+_WHERE = f"doc_type = {_DOC} AND fiscal_year_id = :fy AND branch_id {{}}"
+_NEXT_WHERE = f"n.doc_type = {_DOC} AND n.fiscal_year_id = :fy AND n.branch_id {{}}"
 _NEXT_SQL = (
     # INDEX hint (FROM clause): on a small table the optimizer prefers a scan, and a scan
     # under HOLDLOCK range-locks every row it passes — two finalisations then deadlocked.
