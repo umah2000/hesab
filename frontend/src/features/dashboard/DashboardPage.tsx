@@ -2,23 +2,23 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   BarChart3,
-  Printer,
   ArrowLeft,
   Boxes,
   Building2,
-  CircleCheck,
   Clock3,
   Database,
+  LayoutDashboard,
+  ReceiptText,
   ScrollText,
   Settings,
   ShieldCheck,
   ShoppingCart,
   TriangleAlert,
   Users,
-  Wallet,
 } from "lucide-react";
 import { Link } from "react-router";
 import { PageTitle } from "@/components/layout/AppShell";
+import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge, Skeleton } from "@/components/ui/feedback";
 import { useCan, useMe } from "@/features/auth/auth";
@@ -31,14 +31,6 @@ import { cn } from "@/lib/utils";
 import { ManagementDashboard } from "@/features/reports/ManagementDashboard";
 import { useLicense } from "@/features/settings/LicenseCard";
 
-const ROADMAP = [
-  { phase: 3, title: "کالا، انبار و بارکد", icon: Boxes, status: "done" as const },
-  { phase: 4, title: "صندوق فروش (منتظر پایلوت)", icon: ShoppingCart, status: "done" as const },
-  { phase: 5, title: "خرید، خزانه و طرف‌حساب", icon: Wallet, status: "done" as const },
-  { phase: 6, title: "سخت‌افزار (منتظر آزمون دستگاه)", icon: Printer, status: "done" as const },
-  { phase: 7, title: "گزارش‌ساز و داشبورد", icon: BarChart3, status: "active" as const },
-  { phase: 8, title: "چندشعبه و آفلاین", icon: Building2, status: "next" as const },
-];
 
 function StatTile({
   icon: Icon,
@@ -54,29 +46,56 @@ function StatTile({
   tone: "brand" | "success" | "info" | "warning";
 }) {
   const tones = {
-    brand: "from-brand-400 to-brand-600",
-    success: "from-[oklch(0.75_0.14_165)] to-[oklch(0.6_0.15_165)]",
-    info: "from-[oklch(0.75_0.12_230)] to-[oklch(0.58_0.15_250)]",
-    warning: "from-[oklch(0.82_0.14_75)] to-[oklch(0.7_0.16_55)]",
+    brand: "bg-brand-500/10 text-brand-600 dark:text-brand-300",
+    success: "bg-success/12 text-success",
+    info: "bg-accent-500/12 text-accent-600 dark:text-accent-400",
+    warning: "bg-warning/15 text-[oklch(0.6_0.14_65)] dark:text-warning",
   };
   return (
     <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-ink-faint">{label}</p>
-          <div className="mt-2 text-xl font-extrabold text-ink">{value}</div>
-          {hint ? <div className="mt-1.5 text-xs text-ink-faint">{hint}</div> : null}
+      <div className="flex items-start gap-3">
+        <div className={cn("grid size-11 shrink-0 place-items-center rounded-full", tones[tone])}>
+          <Icon className="size-5" aria-hidden />
         </div>
-        <div
-          className={cn(
-            "grid size-12 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-lg",
-            tones[tone],
-          )}
-        >
-          <Icon className="size-6" aria-hidden />
+        <div className="min-w-0">
+          <p className="text-sm text-ink-soft">{label}</p>
+          <div className="mt-1 text-xl font-black text-ink">{value}</div>
+          {hint ? <div className="mt-1.5 text-xs text-ink-faint">{hint}</div> : null}
         </div>
       </div>
     </Card>
+  );
+}
+
+/** The teal panel beside the events: the shop's most used screens, one click away. */
+function QuickStart() {
+  const can = useCan();
+  const links = [
+    { to: "/pos", label: "صندوق فروش", icon: ShoppingCart, perm: "sales.pos.use" },
+    { to: "/sales", label: "فاکتورها و برگشت", icon: ReceiptText, perm: ["sales.report.view", "sales.return.create"] },
+    { to: "/inventory", label: "کالا و انبار", icon: Boxes, perm: ["inventory.item.manage", "inventory.report.view"] },
+    { to: "/reports", label: "گزارش‌ها", icon: BarChart3, perm: ["reports.dashboard", "sales.report.view"] },
+  ].filter((l) => can(l.perm));
+  return (
+    <div className="relative flex flex-col overflow-hidden rounded-2xl bg-gradient-to-bl from-accent-500 via-accent-600 to-brand-700 p-5 text-white shadow-[0_18px_40px_-16px] shadow-accent-600/60">
+      <div className="pointer-events-none absolute -top-12 -left-10 size-44 rounded-full bg-white/10" aria-hidden />
+      <div className="pointer-events-none absolute -bottom-16 -right-6 size-40 rounded-full bg-white/10" aria-hidden />
+      <p className="relative text-xl font-black">فروش آسان، مدیریت هوشمند</p>
+      <p className="relative mt-1 text-sm text-white/80">پرکاربردترین بخش‌ها</p>
+      <div className="relative mt-4 grid grid-cols-2 gap-2.5">
+        {links.map((l) => (
+          <Link
+            key={l.to}
+            to={l.to}
+            className="flex items-center gap-2 rounded-xl bg-white/15 px-3 py-3 text-sm font-semibold ring-1 ring-white/25 transition hover:bg-white/25"
+          >
+            <l.icon className="size-[18px] shrink-0" aria-hidden />
+            {l.label}
+          </Link>
+        ))}
+      </div>
+      {!links.length ? <p className="relative mt-4 text-sm text-white/80">برای این بخش‌ها مجوزی ندارید.</p> : null}
+    </div>
   );
 }
 
@@ -119,8 +138,19 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageTitle
-        title={`${me?.full_name ?? ""}، خوش آمدید`}
-        subtitle={org.data ? org.data.name : undefined}
+        icon={LayoutDashboard}
+        crumbs={[{ label: org.data?.name ?? "NEXTCAM" }, { label: "داشبورد" }]}
+        title="داشبورد"
+        subtitle={me ? `${me.full_name}، خوش آمدید` : undefined}
+        actions={
+          can("sales.pos.use") ? (
+            <Button asChild size="lg">
+              <Link to="/pos">
+                <ShoppingCart /> صندوق فروش
+              </Link>
+            </Button>
+          ) : null
+        }
       />
 
       {backup.data?.warnings.length ? (
@@ -245,27 +275,7 @@ export function DashboardPage() {
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader icon={<CircleCheck className="size-5" />} title="مسیر راه‌اندازی" description="ماژول‌ها به ترتیب فعال می‌شوند" />
-          <CardBody className="flex flex-col gap-2.5">
-            {ROADMAP.map((r) => (
-              <div
-                key={r.phase}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl p-3",
-                  r.status === "active" ? "bg-brand-500/10 ring-1 ring-brand-500/20" : "bg-black/[0.03] dark:bg-white/5",
-                )}
-              >
-                <r.icon className={cn("size-5", r.status === "active" ? "text-brand-600 dark:text-brand-300" : "text-ink-faint")} />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-ink">{r.title}</p>
-                  <p className="text-xs text-ink-faint">فاز {toFaDigits(r.phase)}</p>
-                </div>
-                {r.status === "done" ? <Badge tone="success">انجام شد</Badge> : r.status === "active" ? <Badge tone="brand" icon={false}>فعال</Badge> : r.status === "next" ? <Badge tone="info" icon={false}>بعدی</Badge> : null}
-              </div>
-            ))}
-          </CardBody>
-        </Card>
+        <QuickStart />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -282,7 +292,7 @@ export function DashboardPage() {
               to={a.to}
               className="glass group flex items-center gap-3 rounded-2xl p-4 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-float)]"
             >
-              <span className="grid size-11 place-items-center rounded-xl bg-white/70 text-brand-600 shadow-sm dark:bg-white/10 dark:text-brand-300">
+              <span className="grid size-11 place-items-center rounded-full bg-brand-500/10 text-brand-600 dark:bg-brand-400/15 dark:text-brand-300">
                 <a.icon className="size-5" />
               </span>
               <span className="flex-1 text-sm font-semibold text-ink">{a.label}</span>

@@ -5,25 +5,38 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /*
- * NEXTCAM design tokens — "Glass 2026"
- * Glass is used for chrome (sidebar, header, cards). Dense data (tables, forms)
- * sits on near-opaque surfaces so text contrast stays WCAG AA.
+ * NEXTCAM design tokens — "Glass 2026", navy & teal edition (ADR-0032).
+ * Glass is used for chrome (header pills, cards, dialogs); the sidebar is solid navy.
+ * Dense data (tables, forms) sits on near-opaque surfaces so text contrast stays WCAG AA.
  */
 @theme {
   --font-sans: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
 
-  --color-brand-50: oklch(0.97 0.02 275);
-  --color-brand-100: oklch(0.93 0.04 275);
-  --color-brand-200: oklch(0.86 0.08 275);
-  --color-brand-300: oklch(0.77 0.13 275);
-  --color-brand-400: oklch(0.67 0.18 275);
-  --color-brand-500: oklch(0.58 0.21 275);
-  --color-brand-600: oklch(0.51 0.22 275);
-  --color-brand-700: oklch(0.44 0.2 275);
+  /* Blue: links, icons, selection, charts. */
+  --color-brand-50: oklch(0.97 0.015 255);
+  --color-brand-100: oklch(0.93 0.035 255);
+  --color-brand-200: oklch(0.87 0.07 257);
+  --color-brand-300: oklch(0.78 0.11 258);
+  --color-brand-400: oklch(0.67 0.16 259);
+  --color-brand-500: oklch(0.56 0.2 261);
+  --color-brand-600: oklch(0.49 0.2 263);
+  --color-brand-700: oklch(0.42 0.18 264);
 
-  --color-ink: oklch(0.25 0.03 275);
-  --color-ink-soft: oklch(0.45 0.03 275);
-  --color-ink-faint: oklch(0.6 0.02 275);
+  /* Teal: the one main action of a page and money totals. */
+  --color-accent-300: oklch(0.85 0.1 182);
+  --color-accent-400: oklch(0.77 0.12 182);
+  --color-accent-500: oklch(0.68 0.12 186);
+  --color-accent-600: oklch(0.58 0.105 190);
+  --color-accent-700: oklch(0.5 0.09 195);
+
+  /* Navy: the sidebar. */
+  --color-navy-700: oklch(0.36 0.11 262);
+  --color-navy-800: oklch(0.28 0.1 263);
+  --color-navy-900: oklch(0.22 0.08 265);
+
+  --color-ink: oklch(0.27 0.07 263);
+  --color-ink-soft: oklch(0.45 0.05 262);
+  --color-ink-faint: oklch(0.58 0.035 260);
 
   --color-success: oklch(0.62 0.15 160);
   --color-warning: oklch(0.72 0.15 70);
@@ -34,40 +47,44 @@
   --radius-2xl: 1.25rem;
   --radius-3xl: 1.75rem;
 
-  --shadow-glass: 0 1px 0 0 rgb(255 255 255 / 0.6) inset, 0 8px 32px -8px rgb(60 50 140 / 0.18);
-  --shadow-float: 0 20px 50px -12px rgb(60 50 140 / 0.3);
+  --shadow-glass: 0 1px 0 0 rgb(255 255 255 / 0.7) inset, 0 10px 30px -12px rgb(30 64 150 / 0.18);
+  --shadow-float: 0 22px 50px -14px rgb(30 64 150 / 0.3);
 }
 
 :root {
-  --bg-a: oklch(0.9 0.06 285);
-  --bg-b: oklch(0.92 0.05 230);
-  --bg-c: oklch(0.93 0.05 330);
-  --glass-bg: rgb(255 255 255 / 0.55);
-  --glass-bg-strong: rgb(255 255 255 / 0.72);
-  --glass-border: rgb(255 255 255 / 0.7);
-  --surface: rgb(255 255 255 / 0.88);
-  --surface-muted: rgb(245 246 252 / 0.9);
+  --bg-a: oklch(0.955 0.018 250);
+  --bg-b: oklch(0.91 0.045 245);
+  --bg-c: oklch(0.94 0.035 225);
+  --glass-bg: rgb(255 255 255 / 0.62);
+  --glass-bg-strong: rgb(255 255 255 / 0.8);
+  --glass-border: rgb(255 255 255 / 0.85);
+  --surface: rgb(255 255 255 / 0.94);
+  --surface-muted: rgb(242 246 252 / 0.95);
   /* Floating panels (calendar) over fields: fully opaque so nothing shows through. */
   --popover: rgb(255 255 255);
-  --line: rgb(30 30 80 / 0.08);
+  --line: rgb(20 50 120 / 0.09);
+  --sidebar-a: var(--color-navy-800);
+  --sidebar-b: var(--color-navy-900);
   --blur: 22px;
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  --bg-a: oklch(0.25 0.08 285);
-  --bg-b: oklch(0.22 0.06 240);
-  --bg-c: oklch(0.24 0.07 320);
-  --glass-bg: rgb(22 24 48 / 0.55);
-  --glass-bg-strong: rgb(26 28 56 / 0.75);
+  --bg-a: oklch(0.2 0.045 260);
+  --bg-b: oklch(0.24 0.07 255);
+  --bg-c: oklch(0.22 0.05 225);
+  --glass-bg: rgb(20 30 60 / 0.55);
+  --glass-bg-strong: rgb(22 32 64 / 0.8);
   --glass-border: rgb(255 255 255 / 0.1);
-  --surface: rgb(24 26 50 / 0.92);
-  --surface-muted: rgb(32 34 64 / 0.92);
-  --popover: rgb(24 26 50);
+  --surface: rgb(20 30 58 / 0.94);
+  --surface-muted: rgb(28 40 74 / 0.94);
+  --popover: rgb(20 30 58);
   --line: rgb(255 255 255 / 0.08);
-  --color-ink: oklch(0.95 0.01 275);
-  --color-ink-soft: oklch(0.8 0.02 275);
-  --color-ink-faint: oklch(0.65 0.02 275);
+  --sidebar-a: oklch(0.2 0.06 263);
+  --sidebar-b: oklch(0.16 0.05 265);
+  --color-ink: oklch(0.95 0.01 255);
+  --color-ink-soft: oklch(0.8 0.025 255);
+  --color-ink-faint: oklch(0.66 0.025 255);
   color-scheme: dark;
 }
 
@@ -118,6 +135,12 @@ body {
   -webkit-backdrop-filter: blur(var(--blur)) saturate(170%);
   border: 1px solid var(--glass-border);
   box-shadow: var(--shadow-float);
+}
+
+/* The navy sidebar: solid, so its white text keeps full contrast on any background. */
+@utility sidebar-navy {
+  background: linear-gradient(180deg, var(--sidebar-a), var(--sidebar-b));
+  color: white;
 }
 
 @utility surface {

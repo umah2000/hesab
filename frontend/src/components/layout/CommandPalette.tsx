@@ -33,7 +33,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[oklch(0.2_0.05_275/0.3)]" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[oklch(0.2_0.06_262/0.3)]" />
         <DialogPrimitive.Content
           dir="rtl"
           className="glass-strong fixed top-[15vh] left-1/2 z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-3xl"

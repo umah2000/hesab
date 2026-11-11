@@ -9,17 +9,21 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // The page's one main action (save, finalize, pay): teal.
         primary:
-          "bg-gradient-to-l from-brand-500 to-brand-600 text-white shadow-[0_6px_20px_-6px] shadow-brand-500/60 hover:brightness-110 active:brightness-95",
-        secondary: "glass text-ink hover:bg-white/70 dark:hover:bg-white/10",
-        ghost: "text-ink-soft hover:bg-black/5 hover:text-ink dark:hover:bg-white/10",
+          "bg-gradient-to-l from-accent-500 to-accent-600 font-semibold text-white shadow-[0_8px_22px_-8px] shadow-accent-600/70 hover:brightness-110 active:brightness-95",
+        // A second strong action beside it (add, new): blue.
+        blue: "bg-gradient-to-l from-brand-500 to-brand-600 font-semibold text-white shadow-[0_8px_22px_-8px] shadow-brand-600/70 hover:brightness-110 active:brightness-95",
+        secondary:
+          "border border-[var(--line)] bg-[var(--surface)] text-ink shadow-[0_4px_14px_-8px] shadow-navy-900/25 hover:border-brand-300 hover:text-brand-700 dark:hover:text-brand-200 [&_svg]:text-brand-600 dark:[&_svg]:text-brand-300",
+        ghost: "text-ink-soft hover:bg-brand-500/10 hover:text-ink",
         danger: "bg-danger text-white hover:brightness-110",
         outline: "border border-[var(--line)] bg-[var(--surface)] text-ink hover:bg-[var(--surface-muted)]",
       },
       size: {
         sm: "h-8 px-3 text-xs",
         md: "h-10 px-4",
-        lg: "h-12 px-6 text-base",
+        lg: "h-12 rounded-2xl px-6 text-base",
         icon: "size-10",
       },
     },
