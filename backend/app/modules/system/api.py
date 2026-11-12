@@ -72,14 +72,25 @@ def _org_brand(s: Any) -> tuple[str, str | None]:
 
 
 @bp.get("/branding")
-@doc("نام و نسخه‌ی لوگوی سازمان برای صفحه‌ی ورود (بدون ورود)")
+@doc("نام و نسخه‌ی لوگوی سازمان و تماس پشتیبانی، برای صفحه‌ی ورود (بدون ورود)")
 def branding() -> ResponseReturnValue:
+    from app.vendor import DEVELOPER
+
     s = new_session()
     try:
         name, logo_version = _org_brand(s)
     finally:
         s.close()
-    return jsonify({"organization_name": name, "logo_version": logo_version})
+    # Only the vendor's public support contact; the program's version is not disclosed
+    # before login (it would help an attacker pick known weaknesses).
+    return jsonify(
+        {
+            "organization_name": name,
+            "logo_version": logo_version,
+            "support_phone": DEVELOPER.get("phone") or None,
+            "support_website": DEVELOPER.get("website") or None,
+        }
+    )
 
 
 @bp.get("/logo")

@@ -85,7 +85,8 @@ Button (primary فیروزه‌ای / blue / secondary / ghost / danger / outlin
 | `screenshots/63-pos-navy-dark.png` | صندوق، تیره | نمونه |
 | `screenshots/64-items-navy.png` | کالاها با زبانه‌ها و مسیر صفحه | نمونه |
 | `screenshots/65-vouchers-navy-dark.png` | اسناد حسابداری، تیره | نمونه |
-| `screenshots/66-login-navy.png` | ورود | — |
+| `screenshots/66-login-navy.png` | ورود: کارت شیشه‌ای، معرفی و تصویر (بر اساس [نمونه‌ی مالک](reference-login-sample.png)) | — |
+| `screenshots/67-login-navy-dark.png` | ورود، تیره، با راهنمای «فراموشی رمز» | — |
 
 ## طرح صندوق (فاز ۴) — تصمیم‌های کلیدی
 - فیلد اسکن همیشه فوکوس دارد و بزرگ است؛ نتیجه آخرین اسکن کنار آن نمایش داده می‌شود.
