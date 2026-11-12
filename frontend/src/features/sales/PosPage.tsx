@@ -637,14 +637,14 @@ function Workspace({ state }: { state: RegisterState }) {
               )
             ) : (
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-[var(--surface)] text-xs text-ink-faint">
+                <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-xs font-bold text-ink-soft">
                   <tr>
-                    <th className="w-10 px-3 py-3 text-start">#</th>
-                    <th className="px-3 py-3 text-start">کالا</th>
-                    <th className="w-36 px-3 py-3 text-start">مقدار</th>
-                    <th className="w-32 px-3 py-3 text-start">فی</th>
-                    <th className="w-28 px-3 py-3 text-start">تخفیف</th>
-                    <th className="w-36 px-3 py-3 text-start">جمع</th>
+                    <th className="w-9 px-2 py-3 text-start">#</th>
+                    <th className="min-w-[9rem] px-3 py-3 text-start">کالا</th>
+                    <th className="w-32 px-3 py-3 text-start">مقدار</th>
+                    <th className="w-28 px-3 py-3 text-start">فی</th>
+                    <th className="w-20 px-3 py-3 text-start">تخفیف</th>
+                    <th className="w-32 px-3 py-3 text-start">جمع</th>
                     <th className="w-12" />
                   </tr>
                 </thead>
@@ -712,7 +712,7 @@ function Workspace({ state }: { state: RegisterState }) {
             <SumRow label="جمع کل" value={q ? money(q.subtotal) : "—"} />
             <SumRow label="تخفیف" value={q && Number(q.discount_total) ? `−${money(q.discount_total)}` : "—"} danger />
             <SumRow label="مالیات بر ارزش افزوده" value={q ? money(q.tax_total) : "—"} />
-            <div className="mt-2 rounded-2xl bg-gradient-to-l from-brand-600 to-brand-500 p-4 text-white shadow-lg">
+            <div className="mt-2 rounded-2xl bg-gradient-to-bl from-accent-500 to-accent-700 p-4 text-white shadow-[0_14px_32px_-14px] shadow-accent-600/70 shadow-lg">
               <div className="text-xs opacity-80">مبلغ قابل پرداخت</div>
               <div className="tabular text-4xl leading-tight font-black" aria-live="polite">
                 {q ? money(q.grand_total) : money("0")}

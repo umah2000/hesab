@@ -13,9 +13,9 @@ import {
   Users,
 } from "lucide-react";
 import * as React from "react";
-import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router";
+import { Link, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { PageTitle } from "@/components/layout/AppShell";
+import { ModuleTabs, PageTitle } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
@@ -47,22 +47,7 @@ export function PartiesLayout() {
   return (
     <>
       <PageTitle title="طرف‌حساب‌ها" subtitle="مشتریان و تأمین‌کنندگان، گردش حساب و پیگیری‌ها" />
-      <nav className="no-print glass mb-4 flex gap-1 overflow-x-auto rounded-2xl p-1.5" aria-label="بخش‌های طرف‌حساب‌ها">
-        {TABS.filter((t) => can(t.perm)).map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            className={({ isActive }) =>
-              cn(
-                "rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition",
-                isActive ? "bg-white text-brand-600 shadow-sm dark:bg-white/15 dark:text-white" : "text-ink-soft hover:text-ink",
-              )
-            }
-          >
-            {t.label}
-          </NavLink>
-        ))}
-      </nav>
+      <ModuleTabs label="بخش‌های طرف‌حساب‌ها" tabs={TABS.filter((t) => can(t.perm))} />
       <Outlet />
     </>
   );

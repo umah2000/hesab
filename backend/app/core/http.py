@@ -16,10 +16,15 @@ MAX_PAGE_SIZE = 200
 
 
 def parse_body(model: type[M]) -> M:
-    data = request.get_json(silent=True)
-    if data is None:
-        raise DomainError("بدنه درخواست باید JSON معتبر باشد", code="invalid_json")
-    return model.model_validate(data)
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            raise DomainError("بدنه درخواست باید JSON معتبر باشد", code="invalid_json")
+        return model.model_validate(data)
+    except RecursionError:
+        # Thousands of nested brackets exhaust the parser's recursion (security pass,
+        # 1405/08): bad input, not a server error — even on the public login routes.
+        raise DomainError("بدنه درخواست باید JSON معتبر باشد", code="invalid_json") from None
 
 
 def parse_query(model: type[M]) -> M:

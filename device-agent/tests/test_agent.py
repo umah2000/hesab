@@ -289,3 +289,15 @@ def test_status_api_is_read_only_and_refuses_web_pages() -> None:
         assert req("POST", {"Host": f"127.0.0.1:{port}"}) == 405
     finally:
         srv.shutdown()
+
+
+def test_server_address_must_be_http() -> None:
+    """urllib would also open file:// or ftp:// (security pass 1405/08)."""
+    import pytest
+
+    from nextcam_agent.client import ServerClient
+
+    for bad in ("file:///etc/passwd", "ftp://server/x", "javascript:alert(1)", "server:8080"):
+        with pytest.raises(ValueError):
+            ServerClient(bad)
+    assert ServerClient("https://shop.local:8080/").root == "https://shop.local:8080"

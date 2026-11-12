@@ -1,5 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowDownLeft, ArrowUpLeft, BarChart3, CalendarClock } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpLeft,
+  BarChart3,
+  CalendarClock,
+  CreditCard,
+  PackageSearch,
+  ReceiptText,
+  TrendingUp,
+  Undo2,
+  Wallet,
+} from "lucide-react";
 import * as React from "react";
 import { Link } from "react-router";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -40,26 +52,67 @@ function compact(rials: string, currency: DisplayCurrency): string {
   return toFaDigits(String(v));
 }
 
-function Delta({ current, previous, label }: { current: string; previous: string; label: string }) {
+function Delta({ current, previous, label, onDark }: { current: string; previous: string; label: string; onDark?: boolean }) {
   const pct = changePct(current, previous);
-  if (pct === null) return <span className="text-xs text-ink-faint">بدون داده در {label}</span>;
+  if (pct === null) return <span className={cn("text-xs", onDark ? "text-white/75" : "text-ink-faint")}>بدون داده در {label}</span>;
   const up = pct >= 0;
   const Icon = up ? ArrowUpLeft : ArrowDownLeft;
   return (
-    <span className={cn("inline-flex items-center gap-1 text-xs font-medium", up ? "text-success" : "text-danger")}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-xs font-semibold",
+        onDark ? "rounded-full bg-white/20 px-2 py-0.5 text-white" : up ? "text-success" : "text-danger",
+      )}
+    >
       <Icon className="size-3.5" aria-hidden />
       {toFaDigits(Math.abs(pct).toLocaleString("en-US", { maximumFractionDigits: 1 }))}٪ {up ? "افزایش" : "کاهش"}
-      <span className="font-normal text-ink-faint">نسبت به {label}</span>
+      <span className={cn("font-normal", onDark ? "text-white/80" : "text-ink-faint")}>نسبت به {label}</span>
     </span>
   );
 }
 
-function Kpi({ label, value, children }: { label: string; value: React.ReactNode; children?: React.ReactNode }) {
+/** A headline number: icon in a tinted circle, label, value; `hero` is the teal card of the page. */
+function Kpi({
+  label,
+  value,
+  icon: Icon,
+  hero,
+  children,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: typeof Wallet;
+  hero?: boolean;
+  children?: React.ReactNode;
+}) {
+  if (hero) {
+    return (
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-bl from-accent-500 to-accent-700 p-5 text-white shadow-[0_18px_40px_-16px] shadow-accent-600/70">
+        <div className="pointer-events-none absolute -top-10 -left-8 size-36 rounded-full bg-white/10" aria-hidden />
+        <div className="pointer-events-none absolute -bottom-14 left-16 size-28 rounded-full bg-white/10" aria-hidden />
+        <div className="relative flex items-start justify-between gap-3">
+          <p className="text-sm font-semibold text-white/90">{label}</p>
+          <span className="grid size-11 place-items-center rounded-2xl bg-white/20 ring-1 ring-white/30">
+            <Icon className="size-5" aria-hidden />
+          </span>
+        </div>
+        <div className="relative mt-1 text-[1.6rem] leading-tight font-black [overflow-wrap:anywhere]">{value}</div>
+        {children ? <div className="relative mt-2">{children}</div> : null}
+      </div>
+    );
+  }
   return (
     <Card className="p-5">
-      <p className="text-sm text-ink-faint">{label}</p>
-      <div className="tabular mt-2 text-2xl font-extrabold text-ink">{value}</div>
-      {children ? <div className="mt-1.5">{children}</div> : null}
+      <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-500/10 text-brand-600 dark:bg-brand-400/15 dark:text-brand-300">
+          <Icon className="size-5" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm text-ink-soft">{label}</p>
+          <div className="mt-1 text-xl leading-snug font-black text-ink [overflow-wrap:anywhere]">{value}</div>
+          {children ? <div className="mt-1">{children}</div> : null}
+        </div>
+      </div>
     </Card>
   );
 }
@@ -83,6 +136,12 @@ function DailyChart({ data, currency }: { data: Dashboard["series"]; currency: D
   return (
     <div className="relative">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="نمودار فروش خالص روزانه">
+        <defs>
+          <linearGradient id="nc-bar" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="var(--color-brand-400)" />
+            <stop offset="1" stopColor="var(--color-brand-600)" />
+          </linearGradient>
+        </defs>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={pad.left} x2={W - pad.right} y1={y(t)} y2={y(t)} stroke="var(--line)" strokeWidth={1} />
@@ -107,7 +166,7 @@ function DailyChart({ data, currency }: { data: Dashboard["series"]; currency: D
           return (
             <g key={d.date} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
               <rect x={cx - band / 2} y={pad.top} width={band} height={plotH} fill="transparent" />
-              {hgt > 0 ? <path d={path} className={cn("fill-brand-500 transition-opacity", hover !== null && hover !== i && "opacity-40")} /> : null}
+              {hgt > 0 ? <path d={path} fill="url(#nc-bar)" className={cn("transition-opacity", hover !== null && hover !== i && "opacity-40")} /> : null}
               {i % step === 0 ? (
                 <text x={cx} y={H - 8} fontSize={11} textAnchor="middle" className="fill-ink-faint">
                   {isoToJalaliFa(d.date).slice(5)}
@@ -145,7 +204,7 @@ function Bars({ rows, currency }: { rows: { label: string; value: string; hint?:
             </span>
           </div>
           <div className="h-2.5 rounded-full bg-brand-500/10">
-            <div className="h-2.5 rounded-full bg-brand-500" style={{ width: `${Math.max(2, (Math.abs(toNum(r.value)) / max) * 100)}%` }} />
+            <div className="h-2.5 rounded-full bg-gradient-to-l from-brand-400 to-brand-600" style={{ width: `${Math.max(2, (Math.abs(toNum(r.value)) / max) * 100)}%` }} />
           </div>
         </li>
       ))}
@@ -171,7 +230,9 @@ export function ManagementDashboard() {
     <section className="flex flex-col gap-4" aria-label="داشبورد مدیریتی">
       {d?.expiry && (d.expiry.expired || d.expiry.urgent) ? <ExpiryBanner e={d.expiry} /> : null}
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-bold text-ink">وضعیت فروشگاه</h2>
+        <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+          <BarChart3 className="size-5 text-brand-600 dark:text-brand-300" aria-hidden /> وضعیت فروشگاه
+        </h2>
         <Select
           className="w-40"
           aria-label="بازه داشبورد"
@@ -193,16 +254,16 @@ export function ManagementDashboard() {
       </div>
       {dash.isError ? <ErrorBox error={dash.error} /> : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="فروش خالص (بدون مالیات)" value={d ? money(d.current.net_sales) : <Skeleton className="h-8 w-32" />}>
-          {d ? <Delta current={d.current.net_sales} previous={d.previous.net_sales} label={prevLabel} /> : null}
+        <Kpi hero icon={Wallet} label="فروش خالص (بدون مالیات)" value={d ? money(d.current.net_sales) : <Skeleton className="h-8 w-32 bg-white/30" />}>
+          {d ? <Delta onDark current={d.current.net_sales} previous={d.previous.net_sales} label={prevLabel} /> : null}
         </Kpi>
-        <Kpi label="سود ناخالص" value={d ? money(d.current.gross_profit) : <Skeleton className="h-8 w-28" />}>
+        <Kpi icon={TrendingUp} label="سود ناخالص" value={d ? money(d.current.gross_profit) : <Skeleton className="h-8 w-28" />}>
           {d?.current.margin ? <span className="text-xs text-ink-faint">حاشیه سود {toFaDigits(d.current.margin)}٪</span> : null}
         </Kpi>
-        <Kpi label="تعداد فاکتور" value={d ? toFaDigits(d.current.invoices) : <Skeleton className="h-8 w-16" />}>
+        <Kpi icon={ReceiptText} label="تعداد فاکتور" value={d ? toFaDigits(d.current.invoices) : <Skeleton className="h-8 w-16" />}>
           {d?.current.average_basket ? <span className="text-xs text-ink-faint">میانگین سبد {money(d.current.average_basket)}</span> : null}
         </Kpi>
-        <Kpi label="برگشت از فروش" value={d ? toFaDigits(d.current.returns) : <Skeleton className="h-8 w-12" />}>
+        <Kpi icon={Undo2} label="برگشت از فروش" value={d ? toFaDigits(d.current.returns) : <Skeleton className="h-8 w-12" />}>
           {d ? <span className="text-xs text-ink-faint">کسری صندوق: {money(d.cash_shortage)}</span> : null}
         </Kpi>
       </div>
@@ -214,7 +275,7 @@ export function ManagementDashboard() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="روش‌های دریافت" description="خالص پس از استرداد" />
+          <CardHeader icon={<CreditCard className="size-5" />} title="روش‌های دریافت" description="خالص پس از استرداد" />
           <CardBody>
             {d ? (
               Object.keys(d.payments).length ? (
@@ -230,7 +291,7 @@ export function ManagementDashboard() {
       </div>
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader title="پرفروش‌ترین کالاها" description="بر اساس فروش خالص" actions={<Link className="text-sm text-brand-600 hover:underline dark:text-brand-300" to="/reports/sales?group_by=item">گزارش کامل</Link>} />
+          <CardHeader icon={<PackageSearch className="size-5" />} title="پرفروش‌ترین کالاها" description="بر اساس فروش خالص" actions={<Link className="text-sm text-brand-600 hover:underline dark:text-brand-300" to="/reports/sales?group_by=item">گزارش کامل</Link>} />
           <CardBody>
             {d ? (
               d.top_items.length ? (
@@ -244,7 +305,7 @@ export function ManagementDashboard() {
           </CardBody>
         </Card>
         <Card>
-          <CardHeader title="مانده‌ها و هشدارها" description="لحظه‌ای، مستقل از بازه" />
+          <CardHeader icon={<AlertTriangle className="size-5" />} title="مانده‌ها و هشدارها" description="لحظه‌ای، مستقل از بازه" />
           <CardBody className="flex flex-col gap-3 text-sm">
             {d?.inventory_value !== null && d?.inventory_value !== undefined ? (
               <Row label="ارزش موجودی کالا" value={money(d.inventory_value)} />

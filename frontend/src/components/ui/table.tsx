@@ -16,7 +16,7 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
   return (
     <th
       className={cn(
-        "border-b border-[var(--line)] px-4 py-3 text-start text-xs font-semibold whitespace-nowrap text-ink-faint",
+        "border-b border-[var(--line)] bg-[var(--surface-muted)] px-4 py-3 text-start text-xs font-bold whitespace-nowrap text-ink-soft",
         className,
       )}
       {...props}

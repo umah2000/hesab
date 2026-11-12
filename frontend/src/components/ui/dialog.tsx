@@ -20,7 +20,7 @@ export function DialogContent({
 }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[oklch(0.2_0.05_275/0.35)] backdrop-blur-[2px] data-[state=open]:animate-in" />
+      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[oklch(0.2_0.06_262/0.35)] backdrop-blur-[2px] data-[state=open]:animate-in" />
       <DialogPrimitive.Content
         dir="rtl"
         className={cn(

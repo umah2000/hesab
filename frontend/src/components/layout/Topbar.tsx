@@ -1,7 +1,7 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { ChevronDown, Gauge, Info, KeyRound, LogOut, Menu, Moon, Search, Sparkles, Sun } from "lucide-react";
+import { CalendarDays, ChevronDown, Gauge, Info, KeyRound, LogOut, Menu, Moon, Search, Sparkles, Sun } from "lucide-react";
 import * as React from "react";
 import { useLocation, useNavigate } from "react-router";
 import { signOut, useMe } from "@/features/auth/auth";
@@ -23,9 +23,10 @@ function Clock() {
     timeZone: "Asia/Tehran",
   }).format(now);
   return (
-    <div className="hidden text-end leading-tight md:block">
-      <p className="text-sm font-medium text-ink">{formatLongDate(now)}</p>
-      <p className="tabular text-xs text-ink-faint">{time}</p>
+    <div className="glass hidden h-11 items-center gap-2 rounded-full px-4 md:flex">
+      <CalendarDays className="size-4 text-brand-600 dark:text-brand-300" aria-hidden />
+      <span className="text-sm font-semibold text-ink">{formatLongDate(now)}</span>
+      <span className="tabular text-xs text-ink-faint">{time}</span>
     </div>
   );
 }
@@ -37,16 +38,16 @@ function MobileMenu() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger
-        className="grid size-10 place-items-center rounded-xl text-ink-soft hover:bg-black/5 lg:hidden dark:hover:bg-white/10"
+        className="glass grid size-11 place-items-center rounded-full text-ink-soft lg:hidden"
         aria-label="منو"
       >
         <Menu className="size-5" />
       </DialogPrimitive.Trigger>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[oklch(0.2_0.05_275/0.35)]" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-[oklch(0.2_0.06_262/0.35)]" />
         <DialogPrimitive.Content
           dir="rtl"
-          className="glass-strong fixed inset-y-3 right-3 z-50 flex w-72 flex-col rounded-3xl p-4"
+          className="sidebar-navy fixed inset-y-0 right-0 z-50 flex w-72 flex-col p-4 shadow-2xl"
         >
           <DialogPrimitive.Title className="sr-only">منوی اصلی</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">پیمایش بخش‌های سامانه</DialogPrimitive.Description>
@@ -88,26 +89,25 @@ export function Topbar() {
   const logout = () => signOut(qc);
 
   return (
-    <header className="no-print glass sticky top-4 z-30 flex items-center gap-2 rounded-2xl px-3 py-2.5 sm:gap-3 sm:px-4">
+    <header className="no-print relative z-30 flex items-center gap-2 sm:gap-3">
       <MobileMenu />
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
-        className="flex h-10 items-center gap-2 rounded-xl sm:flex-1 bg-white/50 px-3 text-sm text-ink-faint ring-1 ring-black/5 transition hover:bg-white/70 sm:max-w-md dark:bg-white/5 dark:ring-white/10"
+        className="glass flex h-11 items-center gap-2 rounded-full px-4 text-sm text-ink-faint transition hover:bg-white/80 sm:max-w-md sm:flex-1 dark:hover:bg-white/10"
       >
-        <Search className="size-4" aria-hidden />
-        <span className="hidden flex-1 text-start sm:inline">جست‌وجو و پرش سریع…</span>
+        <Search className="size-[18px] text-ink-soft" aria-hidden />
+        <span className="hidden flex-1 text-start sm:inline">جست‌وجو در بخش‌های مختلف…</span>
         <kbd className="hidden rounded-md sm:inline bg-black/5 px-1.5 py-0.5 text-[11px] dark:bg-white/10" dir="ltr">
           Ctrl K
         </kbd>
       </button>
       <div className="flex-1" />
       <Clock />
-      <div className="mx-1 hidden h-8 w-px bg-[var(--line)] md:block" />
       <button
         type="button"
         onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        className="grid size-10 place-items-center rounded-xl text-ink-soft transition hover:bg-black/5 dark:hover:bg-white/10"
+        className="glass grid size-11 place-items-center rounded-full text-brand-700 transition hover:bg-white/80 dark:text-brand-200 dark:hover:bg-white/10"
         aria-label={theme === "dark" ? "حالت روشن" : "حالت تیره"}
         title={theme === "dark" ? "حالت روشن" : "حالت تیره"}
       >
@@ -115,8 +115,8 @@ export function Topbar() {
       </button>
 
       <DropdownMenu.Root dir="rtl">
-        <DropdownMenu.Trigger className="flex items-center gap-2.5 rounded-xl p-1 ps-1 pe-2 transition hover:bg-black/5 dark:hover:bg-white/10">
-          <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white">
+        <DropdownMenu.Trigger className="glass flex h-12 items-center gap-2.5 rounded-full ps-1.5 pe-3 transition hover:bg-white/80 dark:hover:bg-white/10">
+          <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white ring-2 ring-white/80 dark:ring-white/20">
             {me ? initials(me.full_name) : ""}
           </span>
           <span className="hidden text-start leading-tight sm:block">

@@ -1,9 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListPlus, MapPinned, Plus, ShieldAlert, Smartphone, Trash2, Truck, UserPlus } from "lucide-react";
 import * as React from "react";
-import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router";
+import { Link, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { PageTitle } from "@/components/layout/AppShell";
+import { ModuleTabs, PageTitle } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
@@ -16,7 +16,6 @@ import type { PartySummary } from "@/features/parties/api";
 import type { Branch, CashRegister } from "@/features/settings/types";
 import { ApiError, api, type Page } from "@/lib/api";
 import { formatDateTime, formatMoney, toFaDigits } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import {
   type AssignedCustomer,
   type Candidate,
@@ -62,22 +61,7 @@ export function DistributionLayout() {
       />
       {can(MANAGE) || can(TREASURY) ? (
         <>
-          <nav className="no-print glass mb-4 flex gap-1 overflow-x-auto rounded-2xl p-1.5" aria-label="بخش‌های توزیع">
-            {TABS.filter((t) => t.perms.some((p) => can(p))).map((t) => (
-              <NavLink
-                key={t.to}
-                to={t.to}
-                className={({ isActive }) =>
-                  cn(
-                    "rounded-xl px-4 py-2 text-sm font-medium whitespace-nowrap transition",
-                    isActive ? "bg-white text-brand-600 shadow-sm dark:bg-white/15 dark:text-white" : "text-ink-soft hover:text-ink",
-                  )
-                }
-              >
-                {t.label}
-              </NavLink>
-            ))}
-          </nav>
+          <ModuleTabs label="بخش‌های توزیع" tabs={TABS.filter((t) => t.perms.some((p) => can(p)))} />
           <Outlet />
         </>
       ) : (

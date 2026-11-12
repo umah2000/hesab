@@ -1,6 +1,11 @@
 # سیستم طراحی NEXTCAM — «Glass 2026»
 
-مبنا: طرح نمونه مالک محصول (گلس‌مورفیسم، بنفش/آبی، RTL) + استانداردهای کاربردپذیری ۲۰۲۶ برای نرم‌افزار اداری/فروشگاهی که روزانه ساعت‌ها استفاده می‌شود. تصمیم: [ADR-0010](../architecture/decisions/0010-glass-design-system.md).
+مبنا: طرح نمونه مالک محصول (گلس‌مورفیسم، RTL) + استانداردهای کاربردپذیری ۲۰۲۶ برای نرم‌افزار اداری/فروشگاهی که روزانه ساعت‌ها استفاده می‌شود. تصمیم‌ها: [ADR-0010](../architecture/decisions/0010-glass-design-system.md) و از ۱۴۰۵/۰۸/۲۰ ظاهر سرمه‌ای و فیروزه‌ای [ADR-0032](../architecture/decisions/0032-navy-teal-ui.md) بر اساس [نمونه‌ی مالک](reference-navy-sample.png).
+
+**رنگ‌ها:**
+- **آبی (`brand`):** لینک، آیکون، انتخاب و نمودار.
+- **فیروزه‌ای (`accent`):** فقط کار اصلی صفحه و مبلغ‌های مهم.
+- **سرمه‌ای (`navy`):** منوی کناری.
 
 ## اصول
 
@@ -18,10 +23,10 @@
 | 10 | **حالت تیره** | توکن‌های رنگی جدا برای تیره؛ ترجیح سیستم‌عامل به‌عنوان پیش‌فرض |
 
 ## توکن‌ها
-در `frontend/src/index.css` (`@theme` در Tailwind v4): رنگ برند (بنفش ۲۷۵°)، `ink` سه سطح، success / warning / danger / info، شعاع‌ها، سایه‌ها، `--blur`.
+در `frontend/src/index.css` (`@theme` در Tailwind v4): `brand` آبی (۲۶۰°)، `accent` فیروزه‌ای (۱۸۵°)، `navy`، `ink` سه سطح، success / warning / danger / info، شعاع‌ها، سایه‌ها، `--blur`.
 
 ## مؤلفه‌ها (`frontend/src/components/ui`)
-Button (primary / secondary / ghost / danger / outline، حالت loading)، Input، Select، Checkbox، Field (برچسب + خطا + راهنما)، Card، Dialog، Table + Pagination، Badge، Spinner، EmptyState، ErrorBox (با کد پیگیری)، Skeleton.
+Button (primary فیروزه‌ای / blue / secondary / ghost / danger / outline، حالت loading)، PageTitle (آیکون و مسیر خودکار)، ModuleTabs، Input، Select، Checkbox، Field (برچسب + خطا + راهنما)، Card، Dialog، Table + Pagination، Badge، Spinner، EmptyState، ErrorBox (با کد پیگیری)، Skeleton.
 به سبک shadcn/ui و روی Radix نوشته شده‌اند. CLI خود shadcn نصب نشد، چون دسترسی به رجیستری آن در محیط توسعه مسدود است.
 
 ## تصاویر
@@ -74,6 +79,14 @@ Button (primary / secondary / ghost / danger / outline، حالت loading)، Inp
 | `screenshots/44-shifts.png` | شیفت‌ها و گزارش شیفت | نمونه |
 | `screenshots/45-promotions.png` | پروموشن‌ها | نمونه |
 | `screenshots/46-settings-sales-backup.png` | تنظیمات فروش و پشتیبان‌گیری | نمونه |
+| `screenshots/60-dashboard-navy-preview.png` | داشبورد، ظاهر سرمه‌ای (ADR-0032) | نمونه (داده‌ی آزمایشی یک‌ماهه) |
+| `screenshots/61-dashboard-navy-preview-dark.png` | همان، تیره | نمونه |
+| `screenshots/62-pos-navy.png` | صندوق با سبد و مبلغ قابل پرداخت فیروزه‌ای | نمونه |
+| `screenshots/63-pos-navy-dark.png` | صندوق، تیره | نمونه |
+| `screenshots/64-items-navy.png` | کالاها با زبانه‌ها و مسیر صفحه | نمونه |
+| `screenshots/65-vouchers-navy-dark.png` | اسناد حسابداری، تیره | نمونه |
+| `screenshots/66-login-navy.png` | ورود: کارت شیشه‌ای، معرفی و تصویر (بر اساس [نمونه‌ی مالک](reference-login-sample.png)) | — |
+| `screenshots/67-login-navy-dark.png` | ورود، تیره، با راهنمای «فراموشی رمز» | — |
 
 ## طرح صندوق (فاز ۴) — تصمیم‌های کلیدی
 - فیلد اسکن همیشه فوکوس دارد و بزرگ است؛ نتیجه آخرین اسکن کنار آن نمایش داده می‌شود.

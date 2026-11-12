@@ -2,7 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Logo } from "./Logo";
 
-export type Branding = { organization_name: string; logo_version: string | null };
+export type Branding = {
+  organization_name: string;
+  logo_version: string | null;
+  support_phone: string | null;
+  support_website: string | null;
+};
 
 export const brandingKey = ["system", "branding"] as const;
 
