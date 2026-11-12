@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -22,6 +23,9 @@ class Unauthorized(ServerError):
 
 class ServerClient:
     def __init__(self, server_url: str, token: str | None = None, timeout: float = 10.0) -> None:
+        # urllib also opens file:// and ftp://; the server is only ever http(s).
+        if urllib.parse.urlsplit(server_url).scheme.lower() not in ("http", "https"):
+            raise ValueError("server address must start with http:// or https://")
         self.root = server_url.rstrip("/")
         self.base = self.root + "/api/v1/devices/agent"
         self.token, self.timeout = token, timeout
